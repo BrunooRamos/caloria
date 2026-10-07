@@ -1,5 +1,7 @@
 # CalorIA
 
+[![CI](https://github.com/BrunooRamos/caloria/actions/workflows/ci.yml/badge.svg)](https://github.com/BrunooRamos/caloria/actions/workflows/ci.yml)
+
 App móvil con IA para registrar y analizar lo que comés (proyecto ING0265).
 
 ## Arquitectura
