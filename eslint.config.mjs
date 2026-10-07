@@ -33,6 +33,12 @@ export default defineConfig([
     files: ["front-service/**/*.ts", "back-service/**/*.ts", "**/*.mjs"],
     languageOptions: { globals: globals.node },
   },
+  // Archivos de config en CommonJS (metro.config.js, babel.config.js, app.config.js, ...).
+  {
+    files: ["**/*.{js,cjs}"],
+    languageOptions: { sourceType: "commonjs", globals: globals.node },
+    rules: { "@typescript-eslint/no-require-imports": "off" },
+  },
   {
     files: ["app/**/*.{ts,tsx}"],
     extends: [reactHooks.configs.flat.recommended],
