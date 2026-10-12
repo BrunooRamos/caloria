@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ESLint y Prettier se instalan en la raíz y usan la config compartida (eslint.config.mjs, .prettierrc.json).
+  repo:
+    name: repo (lint + format)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - run: npm ci
+      - run: npm run lint -- --max-warnings 0
+      - run: npm run format:check
+
+  package:
+    name: ${{ matrix.package }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [app, front-service, back-service]
+    defaults:
+      run:
+        working-directory: ${{ matrix.package }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            ${{ matrix.package }}/package-lock.json
+
+      - name: npm ci (raíz)
+        run: npm ci
+        working-directory: .
+      - run: npm ci
+      - run: npm run lint -- --max-warnings 0
+      - run: npm run typecheck
+      - run: npm run format:check
+      - run: npm test --if-present
