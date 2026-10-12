@@ -16,7 +16,10 @@ export async function connectMongo(uri = process.env.MONGO_URI): Promise<void> {
       console.log("mongo conectado");
       return;
     } catch (err) {
-      console.error(`no se pudo conectar a mongo, reintento en ${RETRY_MS / 1000}s:`, (err as Error).message);
+      console.error(
+        `no se pudo conectar a mongo, reintento en ${RETRY_MS / 1000}s:`,
+        (err as Error).message,
+      );
       await new Promise((r) => setTimeout(r, RETRY_MS));
     }
   }
