@@ -1,0 +1,11 @@
+node_modules/
+dist/
+package-lock.json
+app/.expo/
+app/web-build/
+app/ios/
+app/android/
+infra/certs/
+docs/
+prompts/
+.claude/

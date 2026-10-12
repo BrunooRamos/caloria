@@ -1,0 +1,21 @@
+{
+  "name": "caloria",
+  "private": true,
+  "description": "Configuración compartida de calidad de código (ESLint + Prettier) para app, front-service y back-service",
+  "scripts": {
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "npm run typecheck --prefix app && npm run typecheck --prefix front-service && npm run typecheck --prefix back-service"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.12.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.13.0",
+    "prettier": "^3.9.9",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.71.1"
+  }
+}

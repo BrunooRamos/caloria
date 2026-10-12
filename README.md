@@ -17,3 +17,16 @@ docker compose -f infra/docker-compose.yml up
 ```
 
 Queda disponible en http://localhost:8080 (por ejemplo `/health`).
+
+## Calidad de código
+
+ESLint, Prettier y TypeScript (`strict`) comparten configuración desde la raíz (`eslint.config.mjs`, `.prettierrc.json`). Las herramientas se instalan una sola vez en la raíz:
+
+```sh
+npm install            # en la raíz
+npm run lint           # ESLint sobre todo el repo
+npm run typecheck      # tsc --noEmit en app, front-service y back-service
+npm run format         # Prettier (format:check para verificar sin escribir)
+```
+
+Cada paquete también tiene sus propios `lint`, `typecheck`, `format` y `format:check` (requieren haber instalado la raíz y el paquete).
