@@ -1,0 +1,126 @@
+front-service/package.json
+  s_583c645bf6b9d6::t_30e6f13ac375d5 6-8,10-11,14,16-17,22
+shared/src/error-handler.ts
+  s_583c645bf6b9d6::t_ec147cb8b2d6d5 46-47,65-68
+  s_583c645bf6b9d6::t_f95736d890a511 1-16,22-45,50-64,69-84
+  s_583c645bf6b9d6::t_2165ebf60cb11a 17-21,48-49
+shared/test/helpers.ts
+  s_583c645bf6b9d6::t_0756f84d655048 1-32
+shared/src/errors.ts
+  s_583c645bf6b9d6::t_57b2484b68b7c0 1-11,13-52
+  h_5b36141b16afea 12
+shared/test/logger.test.ts
+  s_583c645bf6b9d6::t_ec147cb8b2d6d5 34
+  s_583c645bf6b9d6::t_d420cfd5c3793a 1-33,35-49
+back-service/tsconfig.json
+  s_583c645bf6b9d6::t_ec147cb8b2d6d5 10
+  s_583c645bf6b9d6::t_30e6f13ac375d5 7-8
+back-service/package.json
+  s_583c645bf6b9d6::t_30e6f13ac375d5 6-8,10-11,14,16-17,22
+shared/package.json
+  s_583c645bf6b9d6::t_8c9a8f6dea65ce 1-29
+back-service/test/app.test.ts
+  s_583c645bf6b9d6::t_8813489ed017dd 1-10,12-49
+  s_583c645bf6b9d6::t_ec147cb8b2d6d5 11
+front-service/src/index.ts
+  s_583c645bf6b9d6::t_75f134904889f4 1-3,5,7-8
+back-service/Dockerfile
+  s_583c645bf6b9d6::t_bb5250e45d6ad5 2-5,7-8
+shared/tsconfig.json
+  s_583c645bf6b9d6::t_0a86a7aced5bac 1-11
+front-service/src/clients/backend.ts
+  s_583c645bf6b9d6::t_d565d6fc85fb7e 1-47,49-79
+  s_583c645bf6b9d6::t_de230fb346bd86 48
+front-service/Dockerfile
+  s_583c645bf6b9d6::t_bb5250e45d6ad5 2-5,7-8
+back-service/src/index.ts
+  s_583c645bf6b9d6::t_e67c2e77187fd1 1-2,4,7-8
+shared/src/index.ts
+  s_583c645bf6b9d6::t_d932e89f49732e 1-16
+front-service/src/middleware/backend-errors.ts
+  s_583c645bf6b9d6::t_667a1b53fd5add 1-8
+eslint.config.mjs
+  s_583c645bf6b9d6::t_bb5250e45d6ad5 33
+shared/README.md
+  s_583c645bf6b9d6::t_865d9113c21253 1-14
+docs/api.md
+  s_583c645bf6b9d6::t_84fb4795f1d6cd 129-132,135-136,148-165
+shared/src/context.ts
+  s_583c645bf6b9d6::t_51a9ac4e4e8751 1-15
+.github/workflows/ci.yml
+  s_583c645bf6b9d6::t_bb5250e45d6ad5 36,49
+infra/docker-compose.yml
+  s_583c645bf6b9d6::t_bb5250e45d6ad5 16-18,29-31,43-45
+front-service/tsconfig.json
+  s_583c645bf6b9d6::t_30e6f13ac375d5 7-8
+  s_583c645bf6b9d6::t_ec147cb8b2d6d5 10
+front-service/src/config/index.ts
+  s_583c645bf6b9d6::t_1aaf74374b920d 1-5
+front-service/src/app.ts
+  s_583c645bf6b9d6::t_b03f40dc855a94 1-29
+front-service/test/app.test.ts
+  s_583c645bf6b9d6::t_54fcb0e6c76923 1-93,95-155,157-158,162-208
+  s_583c645bf6b9d6::t_803645f538416c 94
+  s_583c645bf6b9d6::t_5b1827fdd560fb 156
+  s_583c645bf6b9d6::t_b158dfe2fe9217 159-161
+package.json
+  s_583c645bf6b9d6::t_bb5250e45d6ad5 9
+docs/arquitectura.md
+  s_583c645bf6b9d6::t_baa995bda7c798 76
+shared/src/logger.ts
+  s_583c645bf6b9d6::t_361ecbd363dfdd 83,87-89
+  s_583c645bf6b9d6::t_e2d76d4740eacc 1-82,84-86,90-91
+shared/src/request-context.ts
+  s_583c645bf6b9d6::t_e4461698c33da7 1-8,11-61
+  s_583c645bf6b9d6::t_a3581a1f27d051 9-10
+back-service/src/app.ts
+  s_583c645bf6b9d6::t_cfd29703ad69f9 1-26
+shared/test/errors.test.ts
+  s_583c645bf6b9d6::t_2ec77e71a7161e 1-39,44-48
+  s_583c645bf6b9d6::t_ec147cb8b2d6d5 40-43
+.dockerignore
+  s_583c645bf6b9d6::t_bb5250e45d6ad5 1-9
+back-service/test/helpers.ts
+  s_583c645bf6b9d6::t_07c08362d650f4 1-24
+shared/tsconfig.build.json
+  s_583c645bf6b9d6::t_a1f6563cce6409 1-10
+shared/test/middleware.test.ts
+  s_583c645bf6b9d6::t_041ccc5448f745 1-203
+front-service/test/helpers.ts
+  s_583c645bf6b9d6::t_5ccd73becc655b 1-24
+back-service/tsconfig.build.json
+  s_583c645bf6b9d6::t_30e6f13ac375d5 1-7,9
+  s_583c645bf6b9d6::t_ec147cb8b2d6d5 8
+front-service/tsconfig.build.json
+  s_583c645bf6b9d6::t_30e6f13ac375d5 1-7,9
+  s_583c645bf6b9d6::t_ec147cb8b2d6d5 8
+shared/package-lock.json
+  s_583c645bf6b9d6::t_49788f10250ae5 1-1677
+front-service/package-lock.json
+  s_583c645bf6b9d6::t_1ea1b18f87965d 11,21-38
+back-service/package-lock.json
+  h_5b36141b16afea 11,21-38
+prompts/historial/pazdiaz15.md
+  h_5b36141b16afea 1-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3ba84b2fe6490694281a2aef80d12e16493e67ee",
+  "prompts": {},
+  "humans": {
+    "h_5b36141b16afea": {
+      "author": "pazdiaz15 <mpdiaz@correo.um.edu.uy>"
+    }
+  },
+  "sessions": {
+    "s_583c645bf6b9d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c9b4514-5662-4110-b3ff-2520b91b008f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "pazdiaz15 <mpdiaz@correo.um.edu.uy>"
+    }
+  }
+}
