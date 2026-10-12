@@ -1,7 +1,10 @@
 FROM node:20-alpine
-WORKDIR /app
-COPY package*.json ./
+WORKDIR /repo
+COPY shared/package*.json shared/
+COPY front-service/package*.json front-service/
+WORKDIR /repo/front-service
 RUN npm install
-COPY . .
+COPY shared/ /repo/shared/
+COPY front-service/ ./
 RUN npm run build
 CMD ["npm", "start"]

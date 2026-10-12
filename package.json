@@ -6,7 +6,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "npm run typecheck --prefix app && npm run typecheck --prefix front-service && npm run typecheck --prefix back-service"
+    "typecheck": "npm run typecheck --prefix shared && npm run typecheck --prefix app && npm run typecheck --prefix front-service && npm run typecheck --prefix back-service"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

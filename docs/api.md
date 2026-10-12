@@ -126,8 +126,13 @@ Toda la API responde los errores con la misma forma. La app mapea `code` → men
 ```
 
 - `requestId` se genera en el Front, se propaga al Backend (header `X-Request-Id`) y aparece en los logs de ambos.
-- Los errores nunca exponen stack traces ni detalles internos.
+  - El Front **siempre** genera un UUID nuevo e ignora el `X-Request-Id` que mande el cliente. Lo devuelve en el header `X-Request-Id` de toda respuesta.
+  - El Backend usa el `X-Request-Id` recibido; si falta o no es un UUID, genera uno y loguea un warning.
+- Los errores nunca exponen stack traces ni detalles internos: un error no previsto responde `500 INTERNAL_ERROR` con un mensaje genérico. El detalle (con stack) queda solo en el log.
+- Los errores del Backend con sobre válido llegan al cliente sin modificar. Si el Backend no está alcanzable, el Front responde `503 SERVICE_UNAVAILABLE`; si responde algo que no es un sobre válido, `500 INTERNAL_ERROR`.
 - Si la IA falla, el job reintenta con backoff y la comida queda en `processing`: nunca se pierde la media.
+
+El catálogo, `AppError` y el middleware de errores viven en `shared/` (paquete `@caloria/shared`) y los usan ambos servicios. El status se deriva del `code`: en el código se lanza `throw new AppError("MEAL_QUOTA_EXCEEDED")`, nunca se arma la respuesta a mano.
 
 ### Códigos de error
 
@@ -140,4 +145,21 @@ Toda la API responde los errores con la misma forma. La app mapea `code` → men
 | `EMAIL_TAKEN` | 409 |
 | `PAYLOAD_TOO_LARGE` | 413 |
 | `RATE_LIMITED` | 429 |
-| `INTERNAL_ERROR`, `AI_UNAVAILABLE` | 500 / 503 |
+| `INTERNAL_ERROR` | 500 |
+| `AI_UNAVAILABLE` | 503 |
+| `SERVICE_UNAVAILABLE` | 503 (el Front no alcanza al Backend) |
+
+El middleware traduce además estos errores de librerías:
+
+| Origen | `code` |
+|---|---|
+| `ZodError` | `VALIDATION_ERROR` (400) |
+| JSON malformado | `VALIDATION_ERROR` (400) |
+| Body por encima del límite, o límite de multer | `PAYLOAD_TOO_LARGE` (413) |
+| multer con un campo de archivo inesperado (`LIMIT_UNEXPECTED_FILE`) | `VALIDATION_ERROR` (400) |
+| Ruta inexistente | `NOT_FOUND` (404) |
+| Cualquier otro | `INTERNAL_ERROR` (500) |
+
+### Logs
+
+Una línea JSON por evento, con `requestId`, `service`, `level` y `msg`. Cada request deja una línea con método, ruta (sin query string), status y duración. Los 4xx se loguean sin stack y los 5xx con stack. Nunca se loguean bodies, el header `Authorization`, passwords, tokens ni emails; el logger además redacta esas claves y patrones si se cuelan.

@@ -1,12 +1,9 @@
-import express from "express";
+import { createLogger } from "@caloria/shared";
+import { createApp } from "./app";
+import { config } from "./config";
 
-const app = express();
-const port = Number(process.env.PORT) || 3000;
+const logger = createLogger({ service: "front" });
 
-app.get("/health", (_req, res) => {
-  res.json({ status: "ok", service: "front" });
-});
-
-app.listen(port, () => {
-  console.log(`front-service escuchando en :${port}`);
+createApp({ logger }).listen(config.port, () => {
+  logger.info(`front-service escuchando en :${config.port}`);
 });

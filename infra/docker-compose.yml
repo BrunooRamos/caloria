@@ -13,7 +13,9 @@ services:
       - front
 
   front:
-    build: ../front-service
+    build:
+      context: ..
+      dockerfile: front-service/Dockerfile
     environment:
       PORT: 3000
       BACKEND_URL: http://back:4000
@@ -24,7 +26,9 @@ services:
       - back
 
   back:
-    build: ../back-service
+    build:
+      context: ..
+      dockerfile: back-service/Dockerfile
     environment:
       PORT: 4000
       MONGO_URI: mongodb://mongo:27017/caloria
@@ -36,7 +40,9 @@ services:
       - redis
 
   worker:
-    build: ../back-service
+    build:
+      context: ..
+      dockerfile: back-service/Dockerfile
     command: ["node", "dist/worker.js"]
     environment:
       MONGO_URI: mongodb://mongo:27017/caloria

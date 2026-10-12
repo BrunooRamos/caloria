@@ -73,6 +73,7 @@ Firewall **default deny**: todo cerrado salvo estas reglas.
 | `app/` | App Expo: pantallas (expo-router), `components/`, `features/` (auth · meals · dashboard), `services/` (cliente HTTP + JWT), `store/` |
 | `front-service/` | Front Service: `routes/`, `controllers/`, `middleware/`, `schemas/` (zod), `clients/` (cliente HTTP al Backend), `config/` |
 | `back-service/` | Backend y Worker (misma imagen): `routes/`, `controllers/`, `services/` (ia · media · billing), `jobs/` (queues · workers · cron), `middleware/`, `models/`, `config/` |
+| `shared/` | Paquete `@caloria/shared` usado por Front y Backend: catálogo de errores, `AppError`, `requestId`, logger y middleware de errores |
 | `infra/` | `docker-compose.yml`, configuración de nginx, certificados |
 | `prompts/` | Un archivo por prompt con autor, versión y fecha. Cada `meal` guarda el `promptVersion` usado |
 | `docs/` | RFC, plan, arquitectura, API, modelo de datos, seguridad y requerimientos |
