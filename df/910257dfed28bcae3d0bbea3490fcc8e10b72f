@@ -1,0 +1,27 @@
+prompts/historial/pazdiaz15.md
+  s_583c645bf6b9d6::t_a6eb6de5451e65 3-26
+back-service/test/auth.test.ts
+  h_5b36141b16afea 18
+  s_583c645bf6b9d6::t_42c634a78b9a87 2,19-20,162-165,179,185
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "df910257dfed28bcae3d0bbea3490fcc8e10b72f",
+  "prompts": {},
+  "humans": {
+    "h_5b36141b16afea": {
+      "author": "pazdiaz15 <mpdiaz@correo.um.edu.uy>"
+    }
+  },
+  "sessions": {
+    "s_583c645bf6b9d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c9b4514-5662-4110-b3ff-2520b91b008f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "pazdiaz15 <mpdiaz@correo.um.edu.uy>"
+    }
+  }
+}
