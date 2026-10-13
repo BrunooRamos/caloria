@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createHash, generateKeyPairSync } from "node:crypto";
+import { createHash, generateKeyPairSync, randomBytes } from "node:crypto";
 import { after, before, beforeEach, describe, it } from "node:test";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -15,7 +15,9 @@ import { captureLogger, listen } from "./helpers";
 
 const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
 
-const PASSWORD = "milanesa-con-pure";
+// Contraseñas generadas en cada corrida: no hay credenciales literales en el repo.
+const PASSWORD = randomBytes(12).toString("base64url");
+const WRONG_PASSWORD = randomBytes(12).toString("base64url");
 const profile = {
   sex: "female",
   birthDate: "2002-04-10",
@@ -157,7 +159,10 @@ describe("back-service: POST /auth/register y /auth/login", () => {
 
   it("login incorrecto → 401 con el mismo mensaje sea el email o la contraseña", async () => {
     await register();
-    const wrongPassword = await post("login", { email: "cami@example.com", password: "otra-cosa" });
+    const wrongPassword = await post("login", {
+      email: "cami@example.com",
+      password: WRONG_PASSWORD,
+    });
     const unknownEmail = await post("login", { email: "nadie@example.com", password: PASSWORD });
     assert.equal(wrongPassword.status, 401);
     assert.equal(unknownEmail.status, 401);
@@ -171,13 +176,13 @@ describe("back-service: POST /auth/register y /auth/login", () => {
   it("nunca loguea ni devuelve la contraseña ni su hash", async () => {
     const res = await register();
     await post("login", { email: "cami@example.com", password: PASSWORD });
-    await post("login", { email: "cami@example.com", password: "otra-cosa" });
+    await post("login", { email: "cami@example.com", password: WRONG_PASSWORD });
     const body = JSON.stringify(await res.json());
     for (const leak of [PASSWORD, "$2b$", "passwordHash"]) {
       assert.ok(!body.includes(leak), `la respuesta filtra ${leak}`);
     }
     const logs = JSON.stringify(lines);
-    for (const leak of [PASSWORD, "otra-cosa", "$2b$", "passwordHash", "cami@example.com"]) {
+    for (const leak of [PASSWORD, WRONG_PASSWORD, "$2b$", "passwordHash", "cami@example.com"]) {
       assert.ok(!logs.includes(leak), `el log filtra ${leak}`);
     }
   });
