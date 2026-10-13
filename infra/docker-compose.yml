@@ -19,6 +19,7 @@ services:
     environment:
       PORT: 3000
       BACKEND_URL: http://back:4000
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
     networks:
       - dmz
       - interna
@@ -33,6 +34,7 @@ services:
       PORT: 4000
       MONGO_URI: mongodb://mongo:27017/caloria
       REDIS_URL: redis://redis:6379
+      JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY}
     networks:
       - interna
     depends_on:

@@ -14,3 +14,17 @@ export type { LogFields, Logger, LoggerOptions, LogLevel } from "./logger";
 export { isValidRequestId, REQUEST_ID_HEADER, requestContext } from "./request-context";
 export type { RequestContextOptions } from "./request-context";
 export { errorHandler, notFoundHandler, toAppError } from "./error-handler";
+export {
+  ageOn,
+  emailSchema,
+  loginSchema,
+  PASSWORD_MAX_BYTES,
+  PASSWORD_MIN_CHARS,
+  passwordSchema,
+  profileSchema,
+  registerSchema,
+} from "./auth/schemas";
+export type { AuthResponse, LoginInput, Profile, RegisterInput } from "./auth/schemas";
+export { ACCESS_TOKEN_TTL_SECONDS, JWT_ALGORITHM, verifyAccessToken } from "./auth/jwt";
+export type { AccessTokenClaims, PlanTier } from "./auth/jwt";
+export { loadPrivateKey, loadPublicKey } from "./auth/keys";
