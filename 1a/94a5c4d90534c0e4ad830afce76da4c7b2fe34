@@ -1,0 +1,92 @@
+shared/package.json
+  s_583c645bf6b9d6::t_fa313e44bd7498 21,27-31
+back-service/src/services/auth.ts
+  s_583c645bf6b9d6::t_7f79f33eb28b50 1-61
+prompts/historial/pazdiaz15.md
+  h_5b36141b16afea 28
+  h_5b36141b16afea 3,5,8-9,11-16,18-26,29
+docs/api.md
+  s_583c645bf6b9d6::t_0ea6dddaf57a2c 43,51-65
+  s_583c645bf6b9d6::t_12ff439048a467 66
+shared/src/auth/keys.ts
+  s_583c645bf6b9d6::t_86fe51c7f695c2 1-7,10-38,42-45
+  s_583c645bf6b9d6::t_a21734b4c31b03 8-9,39-41
+front-service/src/routes/auth.ts
+  s_583c645bf6b9d6::t_e846c49139e18a 1-7,9-23
+  s_583c645bf6b9d6::t_10f38a038471e2 8
+infra/docker-compose.yml
+  s_583c645bf6b9d6::t_af420a9779e229 22,37
+back-service/src/models/user.ts
+  s_583c645bf6b9d6::t_d19f71539b73e8 13-21,39
+  s_583c645bf6b9d6::t_b73c809a19c64e 1-12,22-38,40-45
+back-service/src/index.ts
+  s_583c645bf6b9d6::t_5cab4442eb8baa 1-2,4-7,11-25
+back-service/src/config/index.ts
+  s_583c645bf6b9d6::t_61b55b7407ad4e 1-12
+shared/src/auth/jwt.ts
+  s_583c645bf6b9d6::t_679eb8ff8d4653 1-31
+back-service/src/controllers/auth.ts
+  s_583c645bf6b9d6::t_89b011876e3f6c 1-14
+shared/src/auth/schemas.ts
+  s_583c645bf6b9d6::t_643e619f7cd4eb 1-82
+front-service/src/config/index.ts
+  s_583c645bf6b9d6::t_3274642bc802a0 1-11
+back-service/package.json
+  s_583c645bf6b9d6::t_1f3828e52a80af 23-26,30,32
+front-service/src/index.ts
+  s_583c645bf6b9d6::t_5489232ccc21d2 1,3-5,9-21
+front-service/test/auth.test.ts
+  s_583c645bf6b9d6::t_d5ee8d4cf6e473 1-32,36,38-145
+  s_583c645bf6b9d6::t_4ee2c5ef368d02 33-35,37
+back-service/src/services/tokens.ts
+  s_583c645bf6b9d6::t_a31064b519f87b 1-32
+back-service/.env.example
+  h_5b36141b16afea 4-5
+back-service/src/routes/index.ts
+  s_583c645bf6b9d6::t_1c01fc9c3620c3 1-11
+package.json
+  s_583c645bf6b9d6::t_e22c08336a9b48 6
+front-service/.env.example
+  h_5b36141b16afea 3
+README.md
+  s_583c645bf6b9d6::t_0ea6dddaf57a2c 17-18,20-21,25
+  s_583c645bf6b9d6::t_05f8a84536e081 26
+scripts/generate-jwt-keys.mjs
+  s_583c645bf6b9d6::t_f86da49fe0b04f 1-13,25,27,29-69
+  s_583c645bf6b9d6::t_e22c08336a9b48 14-24,26,28
+back-service/test/auth.test.ts
+  s_583c645bf6b9d6::t_a34a87d536e275 175-179,181
+  s_583c645bf6b9d6::t_9e43a929887587 1-174,180,182-201
+shared/src/index.ts
+  s_583c645bf6b9d6::t_fa313e44bd7498 17-30
+back-service/Dockerfile
+  s_583c645bf6b9d6::t_2ce7141c864cd7 6
+shared/test/auth.test.ts
+  s_583c645bf6b9d6::t_49d1666c30dff4 1-29,36-91,96-107,112-113,115-168,173-174
+  s_583c645bf6b9d6::t_a21734b4c31b03 30-35,92-95,108-111,114,169-172
+back-service/package-lock.json
+  s_583c645bf6b9d6::t_f77d806b75b574 12-15,19,21,29-32,35,41,490-504,558-575,621-635,649-777,815-829,868-887,968-976,1079-1088,1132-1138,1160-1212,1348-1361,1399-1531,1554-1559,1597-1781,1817-1829,1863-1901,1911-1920,1931-1950,1968-1976,2037-2056,2063-2074,2198-2212,2222-2266,2276-2294,2384-2405,2411-2423
+shared/package-lock.json
+  s_583c645bf6b9d6::t_13f89e636f8177 10-13,16,22,520-537,639-644,789-797,1158-1242,1535-1554,1562-1573
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1a94a5c4d90534c0e4ad830afce76da4c7b2fe34",
+  "prompts": {},
+  "humans": {
+    "h_5b36141b16afea": {
+      "author": "pazdiaz15 <mpdiaz@correo.um.edu.uy>"
+    }
+  },
+  "sessions": {
+    "s_583c645bf6b9d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c9b4514-5662-4110-b3ff-2520b91b008f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "pazdiaz15 <mpdiaz@correo.um.edu.uy>"
+    }
+  }
+}
