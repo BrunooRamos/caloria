@@ -1,0 +1,31 @@
+back-service/package-lock.json
+  s_cc42b078f4ad64::t_0dbb51ca8875a6 12-13,482-490,589-603,654-662,1119-1127,1150-1155,1193-1291,1396-1404,1594-1608,1627-1638,1728-1749
+back-service/package.json
+  s_cc42b078f4ad64::t_4f3e0f2306c892 23-24
+back-service/src/app.ts
+  s_cc42b078f4ad64::t_5aab29252b50e9 9-10,13,21-24
+back-service/src/config/db.ts
+  s_cc42b078f4ad64::t_46557e99de8478 1-37
+back-service/src/index.ts
+  s_cc42b078f4ad64::t_4dc1eb8734eb67 3-4,9,12-18
+back-service/src/models/User.ts
+  s_cc42b078f4ad64::t_ecd53508688d52 1-129
+prompts/historial/bruno-ramos.md
+  s_cc42b078f4ad64::t_e287167d731952 1-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "65eb34797119e1a0b3341ab2fe0f517fea45ac47",
+  "prompts": {},
+  "sessions": {
+    "s_cc42b078f4ad64": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "727e5814-9217-4112-8484-b77d51a0f3ad",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "pazdiaz15 <mpdiaz@correo.um.edu.uy>"
+    }
+  }
+}
