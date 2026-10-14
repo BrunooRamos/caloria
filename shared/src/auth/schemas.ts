@@ -71,12 +71,33 @@ export const loginSchema = z.object({
     }),
 });
 
+export const updateMeSchema = z
+  .object({
+    profile: profileSchema
+      .partial()
+      .strict()
+      .refine((profile) => Object.keys(profile).length > 0, {
+        message: "Indicá al menos un dato del perfil",
+      }),
+  })
+  .strict();
+
 export type Profile = z.infer<typeof profileSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type UpdateMeInput = z.infer<typeof updateMeSchema>;
 
 export interface AuthResponse {
   accessToken: string;
   refreshToken: string;
   user: { id: string; email: string };
+}
+
+export interface MeResponse {
+  id: string;
+  email: string;
+  profile: Profile;
+  targets: { kcal: number; proteinG: number; carbsG: number; fatG: number };
+  tone: "motivador" | "neutro" | "roast" | "off";
+  plan: { tier: "free" | "premium"; since: string; renewsAt?: string };
 }

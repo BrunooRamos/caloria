@@ -1,11 +1,26 @@
+import type { KeyObject } from "node:crypto";
 import { Router } from "express";
 import { authController } from "../controllers/auth";
+import { usersController } from "../controllers/users";
+import { requireAuth } from "../middleware/auth";
 import type { AuthService } from "../services/auth";
+import type { UserService } from "../services/users";
 
-export function apiRouter({ auth }: { auth: AuthService }): Router {
+export interface ApiDeps {
+  auth: AuthService;
+  users: UserService;
+  publicKey: KeyObject;
+}
+
+export function apiRouter({ auth, users, publicKey }: ApiDeps): Router {
   const router = Router();
   const authHandlers = authController(auth);
   router.post("/auth/register", authHandlers.register);
   router.post("/auth/login", authHandlers.login);
+
+  const authenticated = requireAuth(publicKey);
+  const userHandlers = usersController(users);
+  router.get("/users/me", authenticated, userHandlers.getMe);
+  router.patch("/users/me", authenticated, userHandlers.updateMe);
   return router;
 }

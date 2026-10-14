@@ -64,6 +64,38 @@ Content-Type: application/json
 
 Devuelve 200 con la misma forma que el registro. Con email inexistente o contraseña incorrecta responde 401 `UNAUTHORIZED` con el mismo mensaje y en un tiempo similar, para no revelar si la cuenta existe.
 
+### Perfil y metas
+
+```http
+GET /api/v1/users/me
+Authorization: Bearer <accessToken>
+```
+```json
+{
+  "id": "66f1…",
+  "email": "cami@example.com",
+  "profile": { "sex": "female", "birthDate": "2002-04-10", "heightCm": 165, "weightKg": 60,
+               "activity": "moderate", "goal": "maintain", "timezone": "America/Montevideo" },
+  "targets": { "kcal": 2093, "proteinG": 108, "carbsG": 285, "fatG": 58 },
+  "tone": "neutro",
+  "plan": { "tier": "free", "since": "2026-10-14T19:00:00.000Z" }
+}
+```
+
+```http
+PATCH /api/v1/users/me
+Authorization: Bearer <accessToken>
+Content-Type: application/json
+
+{ "profile": { "weightKg": 58, "goal": "lose" } }
+```
+
+Devuelve 200 con la misma forma que `GET`, con las metas ya recalculadas.
+
+- En `profile` van solo los campos que cambian, con los mismos rangos que el registro. Fuera de rango, sin ningún campo o con un campo desconocido → 400 `VALIDATION_ERROR`.
+- Las metas se recalculan en cada PATCH con la fórmula de [modelo-datos.md](modelo-datos.md#cálculo-de-metas-rf-02). Si dos PATCH llegan a la vez, ninguno pisa los cambios del otro y las metas guardadas corresponden siempre al perfil guardado.
+- El Backend re-verifica el JWT: sin token o inválido → 401 `UNAUTHORIZED`, vencido → 401 `TOKEN_EXPIRED`. Un token válido de una cuenta que ya no existe también es 401.
+
 ### Registrar una comida (endpoint central)
 
 ```http
