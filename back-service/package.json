@@ -12,7 +12,8 @@
     "format:check": "prettier --check . --ignore-path ../.prettierignore"
   },
   "dependencies": {
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "mongoose": "^8.24.5"
   },
   "devDependencies": {
     "@types/express": "^5.0.3",
