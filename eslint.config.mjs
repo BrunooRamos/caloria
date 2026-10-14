@@ -30,7 +30,7 @@ export default defineConfig([
     },
   },
   {
-    files: ["front-service/**/*.ts", "back-service/**/*.ts", "**/*.mjs"],
+    files: ["front-service/**/*.ts", "back-service/**/*.ts", "shared/**/*.ts", "**/*.mjs"],
     languageOptions: { globals: globals.node },
   },
   // Archivos de config en CommonJS (metro.config.js, babel.config.js, app.config.js, ...).

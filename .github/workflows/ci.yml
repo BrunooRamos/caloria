@@ -33,7 +33,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: [app, front-service, back-service]
+        package: [shared, app, front-service, back-service]
     defaults:
       run:
         working-directory: ${{ matrix.package }}
@@ -46,6 +46,7 @@ jobs:
           cache: npm
           cache-dependency-path: |
             package-lock.json
+            shared/package-lock.json
             ${{ matrix.package }}/package-lock.json
 
       - name: npm ci (raíz)

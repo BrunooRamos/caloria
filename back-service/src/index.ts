@@ -1,23 +1,18 @@
-import express from "express";
+import { createLogger } from "@caloria/shared";
+import { createApp } from "./app";
 import { connectMongo, mongoStatus } from "./config/db";
 import { UserModel } from "./models/User";
 
-const app = express();
+const logger = createLogger({ service: "back" });
 const port = Number(process.env.PORT) || 4000;
 
-app.get("/health", (_req, res) => {
-  const mongo = mongoStatus();
-  const ok = mongo === "connected";
-  res.status(ok ? 200 : 503).json({ status: ok ? "ok" : "degraded", service: "back", mongo });
-});
-
-app.listen(port, () => {
-  console.log(`back-service escuchando en :${port}`);
+createApp({ logger, mongoStatus }).listen(port, () => {
+  logger.info(`back-service escuchando en :${port}`);
 });
 
 connectMongo()
   .then(() => UserModel.syncIndexes())
   .catch((err) => {
-    console.error(err);
+    logger.error("no se pudo inicializar mongo", { err });
     process.exit(1);
   });
