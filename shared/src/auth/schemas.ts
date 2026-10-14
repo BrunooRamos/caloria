@@ -71,6 +71,11 @@ export const loginSchema = z.object({
     }),
 });
 
+/** El refresh token es opaco: base64url, sin espacios ni caracteres raros. */
+export const refreshSchema = z
+  .object({ refreshToken: z.string().regex(/^[A-Za-z0-9_-]{1,512}$/) })
+  .strict();
+
 export const updateMeSchema = z
   .object({
     profile: profileSchema
@@ -85,6 +90,7 @@ export const updateMeSchema = z
 export type Profile = z.infer<typeof profileSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type RefreshInput = z.infer<typeof refreshSchema>;
 export type UpdateMeInput = z.infer<typeof updateMeSchema>;
 
 export interface AuthResponse {

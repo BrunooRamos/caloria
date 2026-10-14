@@ -6,7 +6,7 @@ import { AppError, errorHandler, requestContext } from "@caloria/shared";
 import { createApp } from "../src/app";
 import { createBackendClient } from "../src/clients/backend";
 import { loadConfig } from "../src/config";
-import { authRouter } from "../src/routes/auth";
+import { apiRouter } from "../src/routes";
 import { captureLogger, listen } from "./helpers";
 
 const profile = {
@@ -44,6 +44,7 @@ function fakeBackend() {
 
 describe("front-service: /auth/register y /auth/login", () => {
   const back = fakeBackend();
+  const { publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
   let frontUrl: string;
   let closeFront: () => Promise<void>;
   let closeBack: () => Promise<void>;
@@ -54,7 +55,7 @@ describe("front-service: /auth/register y /auth/login", () => {
     const { logger } = captureLogger("front");
     const client = createBackendClient({ baseUrl: backend.url, timeoutMs: 2000 });
     ({ url: frontUrl, close: closeFront } = await listen(
-      createApp({ logger, api: authRouter(client) }),
+      createApp({ logger, api: apiRouter(client, publicKey) }),
     ));
   });
   after(async () => {

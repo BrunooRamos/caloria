@@ -9,7 +9,7 @@ REST + JSON, versionada en `/api/v1`. El Front Service expone los mismos endpoin
 | POST | `/auth/register` | Pública | Alta con email, password y perfil inicial | 201 | RF-01, RF-02 |
 | POST | `/auth/login` | Pública | Devuelve `accessToken` (15 min) + `refreshToken` (30 d) | 200 | RF-01 |
 | POST | `/auth/refresh` | Refresh token | Rota el par de tokens | 200 | RF-01 |
-| POST | `/auth/logout` | JWT | Revoca la familia de refresh tokens | 204 | RF-01 |
+| POST | `/auth/logout` | JWT | Revoca la familia del `refreshToken` del body | 204 | RF-01 |
 | GET | `/users/me` | JWT | Perfil, metas diarias y plan vigente | 200 | RF-02 |
 | PATCH | `/users/me` | JWT | Edita perfil o preferencias (tono, push tokens); recalcula metas | 200 | RF-02, RF-11, RF-13 |
 | DELETE | `/users/me` | JWT | Borrado total de cuenta, media y documentos | 204 | RNF-04 |
@@ -63,6 +63,33 @@ Content-Type: application/json
 ```
 
 Devuelve 200 con la misma forma que el registro. Con email inexistente o contraseña incorrecta responde 401 `UNAUTHORIZED` con el mismo mensaje y en un tiempo similar, para no revelar si la cuenta existe.
+
+### Refresh y logout
+
+```http
+POST /api/v1/auth/refresh
+Content-Type: application/json
+
+{ "refreshToken": "…" }
+```
+
+Devuelve 200 con la misma forma que el login. Es público: no lleva `Authorization`, porque se usa justo cuando el access token venció.
+
+```http
+POST /api/v1/auth/logout
+Authorization: Bearer <accessToken>
+Content-Type: application/json
+
+{ "refreshToken": "…" }
+```
+
+Responde 204. El refresh token identifica la familia a revocar.
+
+### Validación en el Front
+
+- Toda ruta valida con zod body, params y query. Un campo desconocido en la query (o en params) → 400 `VALIDATION_ERROR`, sin llegar al Backend.
+- Las rutas con JWT lo verifican con la clave pública antes de validar el body: sin token o inválido → 401 `UNAUTHORIZED`, vencido → 401 `TOKEN_EXPIRED`.
+- Al Backend se reenvía solo lo validado, más el mismo `Authorization` en las rutas con JWT. En las públicas no se reenvía el `Authorization` del cliente.
 
 ### Perfil y metas
 
