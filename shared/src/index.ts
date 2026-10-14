@@ -23,8 +23,16 @@ export {
   passwordSchema,
   profileSchema,
   registerSchema,
+  updateMeSchema,
 } from "./auth/schemas";
-export type { AuthResponse, LoginInput, Profile, RegisterInput } from "./auth/schemas";
+export type {
+  AuthResponse,
+  LoginInput,
+  MeResponse,
+  Profile,
+  RegisterInput,
+  UpdateMeInput,
+} from "./auth/schemas";
 export { ACCESS_TOKEN_TTL_SECONDS, JWT_ALGORITHM, verifyAccessToken } from "./auth/jwt";
 export type { AccessTokenClaims, PlanTier } from "./auth/jwt";
 export { loadPrivateKey, loadPublicKey } from "./auth/keys";
