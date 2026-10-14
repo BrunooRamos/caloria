@@ -1,4 +1,4 @@
-# Mongo y Redis nunca están en la red dmz.
+# Mongo y Redis nunca están en la red dmz; el Front solo llega al Back por la red front-back.
 
 services:
   nginx:
@@ -22,7 +22,7 @@ services:
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
     networks:
       - dmz
-      - interna
+      - front-back
     depends_on:
       - back
 
@@ -36,6 +36,7 @@ services:
       REDIS_URL: redis://redis:6379
       JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY}
     networks:
+      - front-back
       - interna
     depends_on:
       - mongo
@@ -67,5 +68,7 @@ services:
 
 networks:
   dmz: {}
+  front-back:
+    internal: true
   interna:
     internal: true

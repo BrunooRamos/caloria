@@ -22,6 +22,7 @@ export {
   PASSWORD_MIN_CHARS,
   passwordSchema,
   profileSchema,
+  refreshSchema,
   registerSchema,
   updateMeSchema,
 } from "./auth/schemas";
@@ -30,6 +31,7 @@ export type {
   LoginInput,
   MeResponse,
   Profile,
+  RefreshInput,
   RegisterInput,
   UpdateMeInput,
 } from "./auth/schemas";
