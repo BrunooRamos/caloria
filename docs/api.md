@@ -40,13 +40,29 @@ Content-Type: application/json
   "email": "cami@example.com",
   "password": "********",
   "profile": { "sex": "female", "birthDate": "2002-04-10", "heightCm": 165, "weightKg": 60,
-               "activity": "moderate", "goal": "maintain" }
+               "activity": "moderate", "goal": "maintain", "timezone": "America/Montevideo" }
 }
 ```
 ```http
 201 Created
 { "accessToken": "…", "refreshToken": "…", "user": { "id": "66f1…", "email": "cami@example.com" } }
 ```
+
+- El email se normaliza (`trim` + minúsculas) antes de validar y guardar; si ya existe → 409 `EMAIL_TAKEN`.
+- La contraseña tiene entre 8 caracteres y 72 bytes (límite de bcrypt).
+- El perfil sigue los rangos de RF-02 (edad 16–100, altura 100–250 cm, peso 30–300 kg) y `timezone` es una zona IANA.
+- `accessToken`: JWT RS256 de 15 min con `{ sub, plan, iat, exp }`. `refreshToken`: opaco, de 30 días; en la base se guarda solo su hash SHA-256.
+
+### Login
+
+```http
+POST /api/v1/auth/login
+Content-Type: application/json
+
+{ "email": "cami@example.com", "password": "********" }
+```
+
+Devuelve 200 con la misma forma que el registro. Con email inexistente o contraseña incorrecta responde 401 `UNAUTHORIZED` con el mismo mensaje y en un tiempo similar, para no revelar si la cuenta existe.
 
 ### Registrar una comida (endpoint central)
 

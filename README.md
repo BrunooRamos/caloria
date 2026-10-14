@@ -14,9 +14,15 @@ Infraestructura en `infra/`, prompts de IA en `prompts/`, documentación en `doc
 
 ## Levantar localmente
 
+Los JWT se firman con RS256. Generá el par de claves una vez, fuera del repo, y pasalas a `infra/.env`:
+
 ```sh
+npm run keys:generate                      # escribe ~/.caloria/jwt (o: npm run keys:generate -- <carpeta>)
+cat ~/.caloria/jwt/jwt.env >> infra/.env   # JWT_PRIVATE_KEY (back) y JWT_PUBLIC_KEY (front)
 docker compose -f infra/docker-compose.yml up
 ```
+
+Sin su clave, cada servicio se niega a arrancar.
 
 Queda disponible en http://localhost:8080 (por ejemplo `/health`).
 
