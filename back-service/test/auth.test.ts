@@ -8,9 +8,10 @@ import mongoose from "mongoose";
 import { verifyAccessToken } from "@caloria/shared";
 import { createApp } from "../src/app";
 import { loadConfig } from "../src/config";
-import { User } from "../src/models/user";
+import { UserModel as User } from "../src/models/User";
 import { apiRouter } from "../src/routes";
-import { createAuthService } from "../src/services/auth";
+import { createAuthService, MAX_SESSIONS } from "../src/services/auth";
+import { computeTargets } from "../src/services/targets";
 import { captureLogger, listen } from "./helpers";
 
 const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
@@ -155,6 +156,31 @@ describe("back-service: POST /auth/register y /auth/login", () => {
       stored?.sessions[1].tokenHash,
       createHash("sha256").update(body.refreshToken).digest("hex"),
     );
+  });
+
+  it("register guarda las metas calculadas según RF-02 y los valores por defecto", async () => {
+    await register();
+    const stored = await User.findOne({ email: "cami@example.com" }).lean();
+    assert.deepEqual(stored?.targets, computeTargets(profile as never));
+    assert.equal(stored?.tone, "neutro");
+    assert.equal(stored?.usage.analyses, 0);
+    assert.deepEqual(stored?.pushTokens, []);
+  });
+
+  it("login descarta las sesiones vencidas y deja como mucho MAX_SESSIONS", async () => {
+    await register();
+    const expired = { tokenHash: "viejo", family: "f", expiresAt: new Date(Date.now() - 1000) };
+    await User.updateOne({ email: "cami@example.com" }, { $push: { sessions: expired } });
+
+    for (let i = 0; i < MAX_SESSIONS + 2; i++) {
+      assert.equal(
+        (await post("login", { email: "cami@example.com", password: PASSWORD })).status,
+        200,
+      );
+    }
+    const stored = await User.findOne({ email: "cami@example.com" }).lean();
+    assert.equal(stored?.sessions.length, MAX_SESSIONS);
+    assert.ok(stored?.sessions.every((s) => s.expiresAt.getTime() > Date.now()));
   });
 
   it("login incorrecto → 401 con el mismo mensaje sea el email o la contraseña", async () => {

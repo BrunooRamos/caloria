@@ -47,3 +47,20 @@ describe("back-service: sobre de error y requestId", () => {
     assert.ok(lines.some((l) => l.level === "warn" && l.requestId === requestId));
   });
 });
+
+describe("back-service: /health", () => {
+  const { logger } = captureLogger("back");
+
+  for (const [mongo, status] of [
+    ["connected", 200],
+    ["connecting", 503],
+  ] as const) {
+    it(`mongo ${mongo} → ${status}`, async () => {
+      const { url, close } = await listen(createApp({ logger, mongoStatus: () => mongo }));
+      const res = await fetch(`${url}/health`);
+      await close();
+      assert.equal(res.status, status);
+      assert.equal(((await res.json()) as { mongo: string }).mongo, mongo);
+    });
+  }
+});

@@ -6,9 +6,11 @@ import type { Logger } from "@caloria/shared";
 export interface AppOptions {
   logger: Logger;
   api?: Router;
+  /** Estado de la conexión a Mongo; si no es "connected", /health responde 503. */
+  mongoStatus?: () => string;
 }
 
-export function createApp({ logger, api }: AppOptions) {
+export function createApp({ logger, api, mongoStatus }: AppOptions) {
   const app = express();
   app.disable("x-powered-by");
 
@@ -16,7 +18,10 @@ export function createApp({ logger, api }: AppOptions) {
   app.use(express.json());
 
   app.get("/health", (_req, res) => {
-    res.json({ status: "ok", service: "back" });
+    if (!mongoStatus) return res.json({ status: "ok", service: "back" });
+    const mongo = mongoStatus();
+    const ok = mongo === "connected";
+    res.status(ok ? 200 : 503).json({ status: ok ? "ok" : "degraded", service: "back", mongo });
   });
   if (api) app.use("/api/v1", api);
 
