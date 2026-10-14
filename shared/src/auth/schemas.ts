@@ -71,17 +71,39 @@ export const loginSchema = z.object({
     }),
 });
 
-export const refreshTokenSchema = z.object({
-  refreshToken: z.string().min(1).max(256),
-});
+/** El refresh token es opaco: base64url, sin espacios ni caracteres raros. */
+export const refreshSchema = z
+  .object({ refreshToken: z.string().regex(/^[A-Za-z0-9_-]{1,512}$/) })
+  .strict();
+
+export const updateMeSchema = z
+  .object({
+    profile: profileSchema
+      .partial()
+      .strict()
+      .refine((profile) => Object.keys(profile).length > 0, {
+        message: "Indicá al menos un dato del perfil",
+      }),
+  })
+  .strict();
 
 export type Profile = z.infer<typeof profileSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
-export type RefreshTokenInput = z.infer<typeof refreshTokenSchema>;
+export type RefreshInput = z.infer<typeof refreshSchema>;
+export type UpdateMeInput = z.infer<typeof updateMeSchema>;
 
 export interface AuthResponse {
   accessToken: string;
   refreshToken: string;
   user: { id: string; email: string };
+}
+
+export interface MeResponse {
+  id: string;
+  email: string;
+  profile: Profile;
+  targets: { kcal: number; proteinG: number; carbsG: number; fatG: number };
+  tone: "motivador" | "neutro" | "roast" | "off";
+  plan: { tier: "free" | "premium"; since: string; renewsAt?: string };
 }

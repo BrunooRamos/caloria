@@ -9,7 +9,7 @@ REST + JSON, versionada en `/api/v1`. El Front Service expone los mismos endpoin
 | POST | `/auth/register` | Pública | Alta con email, password y perfil inicial | 201 | RF-01, RF-02 |
 | POST | `/auth/login` | Pública | Devuelve `accessToken` (15 min) + `refreshToken` (30 d) | 200 | RF-01 |
 | POST | `/auth/refresh` | Refresh token | Rota el par de tokens | 200 | RF-01 |
-| POST | `/auth/logout` | JWT | Revoca la familia de refresh tokens | 204 | RF-01 |
+| POST | `/auth/logout` | JWT | Revoca la familia del `refreshToken` del body | 204 | RF-01 |
 | GET | `/users/me` | JWT | Perfil, metas diarias y plan vigente | 200 | RF-02 |
 | PATCH | `/users/me` | JWT | Edita perfil o preferencias (tono, push tokens); recalcula metas | 200 | RF-02, RF-11, RF-13 |
 | DELETE | `/users/me` | JWT | Borrado total de cuenta, media y documentos | 204 | RNF-04 |
@@ -91,6 +91,44 @@ Content-Type: application/json
 ```
 
 Revoca la familia de ese refresh si pertenece al usuario del access y responde 204 sin cuerpo. Es idempotente: si el refresh no existe, es de otro usuario o la familia ya estaba revocada, también responde 204 (sin revocar nada ajeno). Las otras familias del usuario (otros dispositivos) siguen activas.
+
+### Validación en el Front
+
+- Toda ruta valida con zod body, params y query. Un campo desconocido en la query (o en params) → 400 `VALIDATION_ERROR`, sin llegar al Backend.
+- Las rutas con JWT lo verifican con la clave pública antes de validar el body: sin token o inválido → 401 `UNAUTHORIZED`, vencido → 401 `TOKEN_EXPIRED`.
+- Al Backend se reenvía solo lo validado, más el mismo `Authorization` en las rutas con JWT. En las públicas no se reenvía el `Authorization` del cliente.
+
+### Perfil y metas
+
+```http
+GET /api/v1/users/me
+Authorization: Bearer <accessToken>
+```
+```json
+{
+  "id": "66f1…",
+  "email": "cami@example.com",
+  "profile": { "sex": "female", "birthDate": "2002-04-10", "heightCm": 165, "weightKg": 60,
+               "activity": "moderate", "goal": "maintain", "timezone": "America/Montevideo" },
+  "targets": { "kcal": 2093, "proteinG": 108, "carbsG": 285, "fatG": 58 },
+  "tone": "neutro",
+  "plan": { "tier": "free", "since": "2026-10-14T19:00:00.000Z" }
+}
+```
+
+```http
+PATCH /api/v1/users/me
+Authorization: Bearer <accessToken>
+Content-Type: application/json
+
+{ "profile": { "weightKg": 58, "goal": "lose" } }
+```
+
+Devuelve 200 con la misma forma que `GET`, con las metas ya recalculadas.
+
+- En `profile` van solo los campos que cambian, con los mismos rangos que el registro. Fuera de rango, sin ningún campo o con un campo desconocido → 400 `VALIDATION_ERROR`.
+- Las metas se recalculan en cada PATCH con la fórmula de [modelo-datos.md](modelo-datos.md#cálculo-de-metas-rf-02). Si dos PATCH llegan a la vez, ninguno pisa los cambios del otro y las metas guardadas corresponden siempre al perfil guardado.
+- El Backend re-verifica el JWT: sin token o inválido → 401 `UNAUTHORIZED`, vencido → 401 `TOKEN_EXPIRED`. Un token válido de una cuenta que ya no existe también es 401.
 
 ### Registrar una comida (endpoint central)
 

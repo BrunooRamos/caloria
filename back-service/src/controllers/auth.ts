@@ -1,5 +1,6 @@
 import type { RequestHandler } from "express";
-import { authClaims, loginSchema, refreshTokenSchema, registerSchema } from "@caloria/shared";
+import { loginSchema, refreshSchema, registerSchema } from "@caloria/shared";
+import { userIdOf } from "../middleware/auth";
 import type { AuthService } from "../services/auth";
 
 export function authController(
@@ -13,12 +14,12 @@ export function authController(
       res.json(await auth.login(loginSchema.parse(req.body)));
     },
     async refresh(req, res) {
-      const { refreshToken } = refreshTokenSchema.parse(req.body);
+      const { refreshToken } = refreshSchema.parse(req.body);
       res.json(await auth.refresh(refreshToken, req.log));
     },
     async logout(req, res) {
-      const { refreshToken } = refreshTokenSchema.parse(req.body);
-      await auth.logout(authClaims(req).sub, refreshToken);
+      const { refreshToken } = refreshSchema.parse(req.body);
+      await auth.logout(userIdOf(res), refreshToken);
       res.status(204).end();
     },
   };

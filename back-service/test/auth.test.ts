@@ -11,6 +11,7 @@ import { loadConfig } from "../src/config";
 import { UserModel as User } from "../src/models/User";
 import { apiRouter } from "../src/routes";
 import { createAuthService, MAX_SESSIONS } from "../src/services/auth";
+import { createUserService } from "../src/services/users";
 import { computeTargets } from "../src/services/targets";
 import { captureLogger, listen } from "./helpers";
 
@@ -43,7 +44,9 @@ describe("back-service: POST /auth/register y /auth/login", () => {
     await mongoose.connect(mongo.getUri());
     await User.init();
     const auth = createAuthService({ privateKey });
-    ({ url, close } = await listen(createApp({ logger, api: apiRouter({ auth, publicKey }) })));
+    ({ url, close } = await listen(
+      createApp({ logger, api: apiRouter({ auth, users: createUserService(), publicKey }) }),
+    ));
   });
   after(async () => {
     await close();

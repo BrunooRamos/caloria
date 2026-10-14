@@ -1,23 +1,17 @@
 import assert from "node:assert/strict";
 import { createHmac, generateKeyPairSync } from "node:crypto";
-import { after, before, describe, it } from "node:test";
-import express from "express";
+import { describe, it } from "node:test";
 import jwt from "jsonwebtoken";
 import {
   ageOn,
   AppError,
-  authClaims,
-  errorHandler,
   loadPrivateKey,
   loadPublicKey,
   loginSchema,
-  refreshTokenSchema,
+  refreshSchema,
   registerSchema,
-  requestContext,
-  requireAuth,
   verifyAccessToken,
 } from "../src";
-import { captureLogger, listen } from "./helpers";
 
 const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
 const privatePem = privateKey.export({ type: "pkcs8", format: "pem" }).toString();
@@ -180,60 +174,17 @@ describe("verifyAccessToken", () => {
   });
 });
 
-describe("refreshTokenSchema", () => {
-  it("acepta un string no vacío de hasta 256 caracteres y descarta campos extra", () => {
-    assert.deepEqual(refreshTokenSchema.parse({ refreshToken: "abc", otro: 1 }), {
-      refreshToken: "abc",
-    });
-    for (const refreshToken of ["", "a".repeat(257), 123, undefined]) {
-      assert.equal(refreshTokenSchema.safeParse({ refreshToken }).success, false);
+describe("refreshSchema", () => {
+  it("acepta un refresh base64url y rechaza vacío, otros caracteres, otro tipo o campos extra", () => {
+    assert.deepEqual(refreshSchema.parse({ refreshToken: "abc_-9" }), { refreshToken: "abc_-9" });
+    for (const body of [
+      { refreshToken: "" },
+      { refreshToken: "a b" },
+      { refreshToken: "a".repeat(513) },
+      { refreshToken: 123 },
+      { refreshToken: "abc", otro: 1 },
+    ]) {
+      assert.equal(refreshSchema.safeParse(body).success, false, JSON.stringify(body));
     }
-  });
-});
-
-describe("requireAuth", () => {
-  const { logger } = captureLogger();
-  let url: string;
-  let close: () => Promise<void>;
-
-  before(async () => {
-    const app = express();
-    app.use(requestContext({ logger, trustIncomingId: false }));
-    app.get("/privada", requireAuth(publicKey), (req, res) => {
-      res.json(authClaims(req));
-    });
-    app.use(errorHandler({ logger }));
-    ({ url, close } = await listen(app));
-  });
-  after(() => close());
-
-  const get = (authorization?: string) =>
-    fetch(`${url}/privada`, { headers: authorization ? { authorization } : {} });
-  const codeOf = async (res: Response) =>
-    ((await res.json()) as { error: { code: string } }).error.code;
-  const sign = (payload: object, options: jwt.SignOptions = {}) =>
-    jwt.sign(payload, privateKey, { algorithm: "RS256", expiresIn: 900, ...options });
-
-  it("con Bearer válido deja los claims en req.auth", async () => {
-    const res = await get(`Bearer ${sign({ sub: "u1", plan: "premium" })}`);
-    assert.equal(res.status, 200);
-    assert.deepEqual(await res.json(), { sub: "u1", plan: "premium" });
-  });
-
-  it("sin header, con otro esquema o con token inválido → 401 UNAUTHORIZED", async () => {
-    const token = sign({ sub: "u1", plan: "free" });
-    for (const header of [undefined, `Basic ${token}`, token, "Bearer ", "Bearer basura"]) {
-      const res = await get(header);
-      assert.equal(res.status, 401, String(header));
-      assert.equal(await codeOf(res), "UNAUTHORIZED");
-    }
-  });
-
-  it("token vencido → 401 TOKEN_EXPIRED", async () => {
-    const res = await get(
-      `Bearer ${sign({ sub: "u1", plan: "free", iat: Math.floor(Date.now() / 1000) - 1000 })}`,
-    );
-    assert.equal(res.status, 401);
-    assert.equal(await codeOf(res), "TOKEN_EXPIRED");
   });
 });

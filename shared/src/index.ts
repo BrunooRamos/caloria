@@ -22,17 +22,19 @@ export {
   PASSWORD_MIN_CHARS,
   passwordSchema,
   profileSchema,
-  refreshTokenSchema,
+  refreshSchema,
   registerSchema,
+  updateMeSchema,
 } from "./auth/schemas";
 export type {
   AuthResponse,
   LoginInput,
+  MeResponse,
   Profile,
-  RefreshTokenInput,
+  RefreshInput,
   RegisterInput,
+  UpdateMeInput,
 } from "./auth/schemas";
 export { ACCESS_TOKEN_TTL_SECONDS, JWT_ALGORITHM, verifyAccessToken } from "./auth/jwt";
-export { authClaims, requireAuth } from "./auth/middleware";
 export type { AccessTokenClaims, PlanTier } from "./auth/jwt";
 export { loadPrivateKey, loadPublicKey } from "./auth/keys";

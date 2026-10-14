@@ -6,7 +6,7 @@ import { AppError, errorHandler, requestContext } from "@caloria/shared";
 import { createApp } from "../src/app";
 import { createBackendClient } from "../src/clients/backend";
 import { loadConfig } from "../src/config";
-import { authRouter } from "../src/routes/auth";
+import { apiRouter } from "../src/routes";
 import { captureLogger, listen } from "./helpers";
 
 const profile = {
@@ -63,6 +63,7 @@ function fakeBackend() {
 
 describe("front-service: rutas /auth", () => {
   const back = fakeBackend();
+  const { publicKey } = keys;
   let frontUrl: string;
   let closeFront: () => Promise<void>;
   let closeBack: () => Promise<void>;
@@ -73,7 +74,7 @@ describe("front-service: rutas /auth", () => {
     const { logger } = captureLogger("front");
     const client = createBackendClient({ baseUrl: backend.url, timeoutMs: 2000 });
     ({ url: frontUrl, close: closeFront } = await listen(
-      createApp({ logger, api: authRouter(client, { publicKey: keys.publicKey }) }),
+      createApp({ logger, api: apiRouter(client, publicKey) }),
     ));
   });
   after(async () => {
@@ -143,10 +144,11 @@ describe("front-service: rutas /auth", () => {
     assert.equal(((await res.json()) as Envelope).error.message, "Email o contraseña incorrectos");
     assert.deepEqual(back.received[0].body, { email: "juan@example.com", password: "lo-que-sea" });
   });
-  it("refresh es público: no exige JWT, reenvía solo el body validado y devuelve el par nuevo", async () => {
+
+  it("refresh es público: no exige JWT, no reenvía el Authorization y devuelve el par nuevo", async () => {
     const res = await post(
       "refresh",
-      { refreshToken: "r1", extra: true },
+      { refreshToken: "r1" },
       { authorization: "Bearer cualquiera" },
     );
     assert.equal(res.status, 200);
@@ -155,8 +157,13 @@ describe("front-service: rutas /auth", () => {
     assert.equal(back.received[0].headers.authorization, undefined);
   });
 
-  it("refresh sin refreshToken → 400 sin llegar al Backend", async () => {
-    for (const body of [{}, { refreshToken: "" }, { refreshToken: 1 }]) {
+  it("refresh con body inválido o campos de más → 400 sin llegar al Backend", async () => {
+    for (const body of [
+      {},
+      { refreshToken: "" },
+      { refreshToken: 1 },
+      { refreshToken: "r1", x: 1 },
+    ]) {
       const res = await post("refresh", body);
       assert.equal(res.status, 400);
       assert.equal(((await res.json()) as Envelope).error.code, "VALIDATION_ERROR");

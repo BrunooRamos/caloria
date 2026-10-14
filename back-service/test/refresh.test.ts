@@ -9,6 +9,7 @@ import { createApp } from "../src/app";
 import { UserModel as User } from "../src/models/User";
 import { apiRouter } from "../src/routes";
 import { createAuthService, MAX_SESSIONS } from "../src/services/auth";
+import { createUserService } from "../src/services/users";
 import { captureLogger, listen } from "./helpers";
 
 const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
@@ -40,7 +41,9 @@ describe("back-service: POST /auth/refresh y /auth/logout", () => {
     await mongoose.connect(mongo.getUri());
     await User.init();
     const auth = createAuthService({ privateKey });
-    ({ url, close } = await listen(createApp({ logger, api: apiRouter({ auth, publicKey }) })));
+    ({ url, close } = await listen(
+      createApp({ logger, api: apiRouter({ auth, users: createUserService(), publicKey }) }),
+    ));
   });
   after(async () => {
     await close();

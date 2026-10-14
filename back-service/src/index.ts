@@ -5,17 +5,15 @@ import { connectMongo, mongoStatus } from "./config/db";
 import { UserModel } from "./models/User";
 import { apiRouter } from "./routes";
 import { createAuthService } from "./services/auth";
+import { createUserService } from "./services/users";
 
 const logger = createLogger({ service: "back" });
 
 async function main() {
   const config = loadConfig();
   const auth = createAuthService({ privateKey: config.jwtPrivateKey });
-  createApp({
-    logger,
-    api: apiRouter({ auth, publicKey: config.jwtPublicKey }),
-    mongoStatus,
-  }).listen(config.port, () => {
+  const api = apiRouter({ auth, users: createUserService(), publicKey: config.jwtPublicKey });
+  createApp({ logger, api, mongoStatus }).listen(config.port, () => {
     logger.info(`back-service escuchando en :${config.port}`);
   });
 
