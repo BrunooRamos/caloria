@@ -71,9 +71,14 @@ export const loginSchema = z.object({
     }),
 });
 
+export const refreshTokenSchema = z.object({
+  refreshToken: z.string().min(1).max(256),
+});
+
 export type Profile = z.infer<typeof profileSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type RefreshTokenInput = z.infer<typeof refreshTokenSchema>;
 
 export interface AuthResponse {
   accessToken: string;

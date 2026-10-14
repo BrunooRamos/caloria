@@ -38,6 +38,7 @@ export interface Session {
   tokenHash: string;
   family: string;
   expiresAt: Date;
+  rotatedAt?: Date;
   revokedAt?: Date;
 }
 
@@ -100,6 +101,7 @@ const sessionSchema = new Schema<Session>(
     tokenHash: { type: String, required: true },
     family: { type: String, required: true },
     expiresAt: { type: Date, required: true },
+    rotatedAt: Date,
     revokedAt: Date,
   },
   { _id: false },
@@ -125,5 +127,6 @@ const userSchema = new Schema<User>(
 );
 
 userSchema.index({ email: 1 }, { unique: true });
+userSchema.index({ "sessions.tokenHash": 1 });
 
 export const UserModel = model<User>("User", userSchema);

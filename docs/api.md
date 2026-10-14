@@ -64,6 +64,34 @@ Content-Type: application/json
 
 Devuelve 200 con la misma forma que el registro. Con email inexistente o contraseña incorrecta responde 401 `UNAUTHORIZED` con el mismo mensaje y en un tiempo similar, para no revelar si la cuenta existe.
 
+### Refresh
+
+```http
+POST /api/v1/auth/refresh
+Content-Type: application/json
+
+{ "refreshToken": "…" }
+```
+
+Es pública (no lleva `Authorization`): se usa cuando el access ya venció. Devuelve 200 con la misma forma que el registro y un par nuevo de la **misma familia**; el refresh usado queda marcado como rotado y deja de servir.
+
+- El access nuevo lleva el `plan` vigente en la base en ese momento, no el del access anterior.
+- Inexistente, vencido o revocado → 401 `UNAUTHORIZED`.
+- Ya rotado (reuso) → se revoca **toda la familia**, se loguea un warning con `userId` y familia, y responde el mismo 401 `UNAUTHORIZED`: la respuesta no deja ver que se detectó un reuso.
+- La rotación es atómica: de dos refresh simultáneos con el mismo token, uno rota y el otro cuenta como reuso.
+
+### Logout
+
+```http
+POST /api/v1/auth/logout
+Authorization: Bearer <accessToken>
+Content-Type: application/json
+
+{ "refreshToken": "…" }
+```
+
+Revoca la familia de ese refresh si pertenece al usuario del access y responde 204 sin cuerpo. Es idempotente: si el refresh no existe, es de otro usuario o la familia ya estaba revocada, también responde 204 (sin revocar nada ajeno). Las otras familias del usuario (otros dispositivos) siguen activas.
+
 ### Registrar una comida (endpoint central)
 
 ```http

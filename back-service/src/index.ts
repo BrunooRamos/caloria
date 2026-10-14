@@ -11,7 +11,11 @@ const logger = createLogger({ service: "back" });
 async function main() {
   const config = loadConfig();
   const auth = createAuthService({ privateKey: config.jwtPrivateKey });
-  createApp({ logger, api: apiRouter({ auth }), mongoStatus }).listen(config.port, () => {
+  createApp({
+    logger,
+    api: apiRouter({ auth, publicKey: config.jwtPublicKey }),
+    mongoStatus,
+  }).listen(config.port, () => {
     logger.info(`back-service escuchando en :${config.port}`);
   });
 

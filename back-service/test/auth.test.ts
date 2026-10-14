@@ -43,7 +43,7 @@ describe("back-service: POST /auth/register y /auth/login", () => {
     await mongoose.connect(mongo.getUri());
     await User.init();
     const auth = createAuthService({ privateKey });
-    ({ url, close } = await listen(createApp({ logger, api: apiRouter({ auth }) })));
+    ({ url, close } = await listen(createApp({ logger, api: apiRouter({ auth, publicKey }) })));
   });
   after(async () => {
     await close();

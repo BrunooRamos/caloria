@@ -1,45 +1,118 @@
 import { randomBytes } from "node:crypto";
 import type { KeyObject } from "node:crypto";
 import bcrypt from "bcryptjs";
-import { mongo } from "mongoose";
+import { isValidObjectId, mongo } from "mongoose";
 import { AppError } from "@caloria/shared";
-import type { AuthResponse, LoginInput, RegisterInput } from "@caloria/shared";
+import type { AuthResponse, LoginInput, Logger, RegisterInput } from "@caloria/shared";
 import { UserModel } from "../models/User";
 import type { Session, User } from "../models/User";
 import { computeTargets } from "./targets";
-import { newRefreshSession, signAccessToken } from "./tokens";
+import { hashRefreshToken, newRefreshSession, signAccessToken } from "./tokens";
 
 export const BCRYPT_COST = 12;
 const INVALID_CREDENTIALS = "Email o contraseña incorrectos";
-/** Tope de sesiones por usuario: al pasarlo se descartan las más viejas. */
 export const MAX_SESSIONS = 10;
+export const MAX_INACTIVE_SESSIONS = 100;
 
 export interface AuthService {
   register(input: RegisterInput): Promise<AuthResponse>;
   login(input: LoginInput): Promise<AuthResponse>;
+  refresh(refreshToken: string, log: Logger): Promise<AuthResponse>;
+  logout(userId: string, refreshToken: string): Promise<void>;
 }
 
 function isDuplicateKey(err: unknown): boolean {
   return err instanceof mongo.MongoServerError && err.code === 11000;
 }
 
-/**
- * Agrega la sesión y, en la misma escritura, descarta las vencidas y deja solo las
- * MAX_SESSIONS más recientes, así `sessions` no crece sin límite.
- */
-export function addSession(session: Session, now = new Date()) {
-  const alive = {
-    $filter: { input: "$sessions", cond: { $gt: ["$$this.expiresAt", now] } },
-  };
+type Expr = unknown;
+
+const isUnset = (field: string) => ({ $eq: [{ $ifNull: [field, null] }, null] });
+const isActive = (s: string) => ({
+  $and: [isUnset(`${s}.rotatedAt`), isUnset(`${s}.revokedAt`)],
+});
+
+function writeSessions(next: Expr, now: Date) {
+  const alive = { $filter: { input: next, as: "s", cond: { $gt: ["$$s.expiresAt", now] } } };
   return [
+    { $set: { sessions: alive } },
     {
       $set: {
         sessions: {
-          $slice: [{ $concatArrays: [alive, [{ $literal: session }]] }, -MAX_SESSIONS],
+          $concatArrays: [
+            {
+              $slice: [
+                { $filter: { input: "$sessions", as: "s", cond: { $not: [isActive("$$s")] } } },
+                -MAX_INACTIVE_SESSIONS,
+              ],
+            },
+            {
+              $slice: [
+                { $filter: { input: "$sessions", as: "s", cond: isActive("$$s") } },
+                -MAX_SESSIONS,
+              ],
+            },
+          ],
         },
       },
     },
   ];
+}
+
+export function addSession(session: Session, now = new Date()) {
+  return writeSessions({ $concatArrays: ["$sessions", [{ $literal: session }]] }, now);
+}
+
+function familyOf(tokenHash: string) {
+  return {
+    $let: {
+      vars: {
+        match: {
+          $first: {
+            $filter: { input: "$sessions", as: "s", cond: { $eq: ["$$s.tokenHash", tokenHash] } },
+          },
+        },
+      },
+      in: "$$match.family",
+    },
+  };
+}
+
+function rotateSession(tokenHash: string, next: Omit<Session, "family">, now: Date) {
+  const marked = {
+    $map: {
+      input: "$sessions",
+      as: "s",
+      in: {
+        $cond: [
+          { $eq: ["$$s.tokenHash", tokenHash] },
+          { $mergeObjects: ["$$s", { rotatedAt: now }] },
+          "$$s",
+        ],
+      },
+    },
+  };
+  const added = { $mergeObjects: [{ $literal: next }, { family: familyOf(tokenHash) }] };
+  return writeSessions({ $concatArrays: [marked, [added]] }, now);
+}
+
+function revokeFamily(family: Expr, now: Date) {
+  return writeSessions(
+    {
+      $map: {
+        input: "$sessions",
+        as: "s",
+        in: {
+          $cond: [
+            { $eq: ["$$s.family", family] },
+            { $mergeObjects: ["$$s", { revokedAt: { $ifNull: ["$$s.revokedAt", now] } }] },
+            "$$s",
+          ],
+        },
+      },
+    },
+    now,
+  );
 }
 
 export function createAuthService({ privateKey }: { privateKey: KeyObject }): AuthService {
@@ -85,6 +158,59 @@ export function createAuthService({ privateKey }: { privateKey: KeyObject }): Au
       const { response, session } = issueTokens(user);
       await UserModel.updateOne({ _id: user._id }, addSession(session));
       return response;
+    },
+
+    async refresh(refreshToken, log) {
+      const tokenHash = hashRefreshToken(refreshToken);
+      const now = new Date();
+      const usable = {
+        tokenHash,
+        rotatedAt: null,
+        revokedAt: null,
+        expiresAt: { $gt: now },
+      };
+
+      // Operación atómica que solo matchea si el refresh sigue sin rotar: de dos refresh
+      // simultáneos con el mismo token, uno rota y el otro cae abajo como reuso.
+      const { token, session } = newRefreshSession(now);
+      const { tokenHash: nextHash, expiresAt } = session;
+      const user = await UserModel.findOneAndUpdate(
+        { sessions: { $elemMatch: usable } },
+        rotateSession(tokenHash, { tokenHash: nextHash, expiresAt }, now),
+        { projection: { email: 1, plan: 1 }, new: true, lean: true },
+      );
+      if (user) {
+        const id = user._id.toString();
+        return {
+          // El plan sale de la base ahora, no del access anterior: puede haber pasado a premium.
+          accessToken: signAccessToken({ sub: id, plan: user.plan.tier }, privateKey),
+          refreshToken: token,
+          user: { id, email: user.email },
+        };
+      }
+
+      const found = await UserModel.findOne(
+        { "sessions.tokenHash": tokenHash },
+        { sessions: { $elemMatch: { tokenHash } } },
+      ).lean();
+      const used = found?.sessions[0];
+      if (found && used?.rotatedAt && !used.revokedAt && used.expiresAt > now) {
+        await UserModel.updateOne({ _id: found._id }, revokeFamily({ $literal: used.family }, now));
+        log.warn("reuso de refresh token: se revocó la familia", {
+          userId: found._id.toString(),
+          family: used.family,
+        });
+      }
+      throw new AppError("UNAUTHORIZED");
+    },
+
+    async logout(userId, refreshToken) {
+      if (!isValidObjectId(userId)) return;
+      const tokenHash = hashRefreshToken(refreshToken);
+      await UserModel.updateOne(
+        { _id: userId, "sessions.tokenHash": tokenHash },
+        revokeFamily(familyOf(tokenHash), new Date()),
+      );
     },
   };
 }
