@@ -1,0 +1,69 @@
+shared/test/auth.test.ts
+  s_62d2063c8afe75::t_3e00e73958d92f 3,11,177-187
+prompts/historial/bruno-ramos.md
+  s_62d2063c8afe75::t_096c9f38986feb 16-79
+front-service/src/index.ts
+  s_62d2063c8afe75::t_096c9f38986feb 5,15-17
+back-service/test/refresh.test.ts
+  s_62d2063c8afe75::t_2a4bcdd1eb2714 12,44-46
+back-service/src/routes/index.ts
+  s_62d2063c8afe75::t_ebbb4d21977f3a 23-24
+  s_62d2063c8afe75::t_096c9f38986feb 4-5,7,9,11,13-15,21-22,25-27
+back-service/src/middleware/auth.ts
+  s_62d2063c8afe75::t_096c9f38986feb 1-23
+shared/src/auth/schemas.ts
+  s_62d2063c8afe75::t_096c9f38986feb 74-88,93-94,101-108
+  s_62d2063c8afe75::t_cec335f90d546c 109
+infra/docker-compose.yml
+  s_62d2063c8afe75::t_096c9f38986feb 1,25,39,71-72
+back-service/src/controllers/users.ts
+  s_62d2063c8afe75::t_096c9f38986feb 1-15
+back-service/src/services/users.ts
+  s_62d2063c8afe75::t_096c9f38986feb 1-64
+back-service/test/auth.test.ts
+  s_62d2063c8afe75::t_096c9f38986feb 14,47-49
+docs/api.md
+  s_62d2063c8afe75::t_096c9f38986feb 12,95-131
+  s_62d2063c8afe75::t_ad4e134fd7b6fe 132
+back-service/src/index.ts
+  s_62d2063c8afe75::t_096c9f38986feb 8,15-16
+front-service/src/schemas/index.ts
+  s_62d2063c8afe75::t_096c9f38986feb 1-22
+back-service/src/controllers/auth.ts
+  s_62d2063c8afe75::t_3e00e73958d92f 2-3,17,21-22
+front-service/src/routes/index.ts
+  s_62d2063c8afe75::t_096c9f38986feb 1-32
+front-service/test/users.test.ts
+  s_62d2063c8afe75::t_096c9f38986feb 1-272
+front-service/test/auth.test.ts
+  s_62d2063c8afe75::t_76a88b17d7f9ca 66,147-148,151,160-166
+  s_62d2063c8afe75::t_096c9f38986feb 9,77
+shared/src/index.ts
+  s_62d2063c8afe75::t_096c9f38986feb 25,27,32,34,36
+front-service/src/middleware/auth.ts
+  s_62d2063c8afe75::t_096c9f38986feb 1-25
+back-service/test/users.test.ts
+  s_62d2063c8afe75::t_096c9f38986feb 1-251
+front-service/package.json
+  s_62d2063c8afe75::t_096c9f38986feb 23-24
+front-service/src/controllers/forward.ts
+  s_62d2063c8afe75::t_096c9f38986feb 1-32
+front-service/package-lock.json
+  s_62d2063c8afe75::t_f9cf9db6941edf 12-13,25-28,31,37,1554-1562
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "87c3b841a665ed4f62ef12163ad640e531530fa7",
+  "prompts": {},
+  "sessions": {
+    "s_62d2063c8afe75": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d362d7c1-6fc3-4d78-9ee1-e387485768a5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "pazdiaz15 <mpdiaz@correo.um.edu.uy>"
+    }
+  }
+}
