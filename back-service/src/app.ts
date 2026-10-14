@@ -6,7 +6,7 @@ import type { Logger } from "@caloria/shared";
 export interface AppOptions {
   logger: Logger;
   api?: Router;
-  /** Estado de la conexión a Mongo; si no es "connected", /health responde 503. */
+  // Si se pasa, /health reporta el estado de Mongo y responde 503 si no está conectado.
   mongoStatus?: () => string;
 }
 
@@ -18,7 +18,7 @@ export function createApp({ logger, api, mongoStatus }: AppOptions) {
   app.use(express.json());
 
   app.get("/health", (_req, res) => {
-    if (!mongoStatus) return res.json({ status: "ok", service: "back" });
+    if (!mongoStatus) return void res.json({ status: "ok", service: "back" });
     const mongo = mongoStatus();
     const ok = mongo === "connected";
     res.status(ok ? 200 : 503).json({ status: ok ? "ok" : "degraded", service: "back", mongo });
