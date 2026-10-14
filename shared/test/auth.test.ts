@@ -8,6 +8,7 @@ import {
   loadPrivateKey,
   loadPublicKey,
   loginSchema,
+  refreshSchema,
   registerSchema,
   verifyAccessToken,
 } from "../src";
@@ -170,5 +171,20 @@ describe("verifyAccessToken", () => {
       () => verifyAccessToken(sign({ sub: "u1", plan: "gold" }), publicKey),
       "UNAUTHORIZED",
     );
+  });
+});
+
+describe("refreshSchema", () => {
+  it("acepta un refresh base64url y rechaza vacío, otros caracteres, otro tipo o campos extra", () => {
+    assert.deepEqual(refreshSchema.parse({ refreshToken: "abc_-9" }), { refreshToken: "abc_-9" });
+    for (const body of [
+      { refreshToken: "" },
+      { refreshToken: "a b" },
+      { refreshToken: "a".repeat(513) },
+      { refreshToken: 123 },
+      { refreshToken: "abc", otro: 1 },
+    ]) {
+      assert.equal(refreshSchema.safeParse(body).success, false, JSON.stringify(body));
+    }
   });
 });

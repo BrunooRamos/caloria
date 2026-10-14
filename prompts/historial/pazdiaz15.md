@@ -52,3 +52,33 @@ Decisiones:
 Tests:
 Cubrí cada criterio de aceptación, más: email con mayúsculas que choca con uno existente, contraseña de 7 y de 73 bytes, el hash guardado no es la contraseña, el access token se verifica con la clave pública y tiene `exp` a 15 minutos, un token firmado con otro algoritmo o con `alg: none` se rechaza, y el refresh guardado en la base es un hash.
 ```
+
+## Sesión `d362d7c1-6fc3-4d78-9ee1-e387485768a5` · 2026-10-14
+
+### 2026-10-14 19:33
+
+```text
+Tengo que implementar el ticket de refresh con rotación y logout que revoca la familia. La idea es que las sesiones usen un refresh token de 30 días y que se detecte cuando alguien reusa uno.
+
+Para el contexto, fijate en docs/requerimientos.md, docs/seguridad.md y docs/api.md, que tiene el contrato de /auth/refresh y /auth/logout. Ya está hecho el register y el login, así que reutilizá lo que haya de ahí: cómo se genera y se hashea el refresh, cómo se firma el access y el AppError para los errores.
+
+Los criterios de aceptación son estos: POST /auth/refresh tiene que invalidar el refresh que se usó y devolver un par nuevo de la misma familia; si alguien reusa un refresh que ya fue rotado, se revoca toda la familia; POST /auth/logout revoca los refresh de la familia y devuelve 204; y en users.sessions solo se guarda el hash del refresh, nunca el token.
+
+Algunas cosas que pensé y quiero que se respeten:
+
+Los refresh que ya se usaron no los borres, marcalos como rotados (con un rotatedAt o algo así), y lo mismo con los revocados. Si los borramos, cuando alguien reuse uno no lo vamos a encontrar y no hay forma de saber si es un reuso o un token inventado, así que se pierde la detección. Para buscarlos usá el hash SHA-256 del token que llega, y agregá un índice en sessions.tokenHash.
+
+En el refresh, si el hash no existe, está vencido o revocado, devolvé 401. Si existe pero ya estaba rotado, eso es un reuso: revocá todas las sesiones de esa familia, dejá un warning en el log con el userId y la familia (el token no) y devolvé 401. Si está todo bien, marcalo como rotado y creá el nuevo con la misma familia y vencimiento a 30 días. Quiero que esto sea una operación atómica que solo funcione si el token todavía no estaba rotado, así si llegan dos refresh con el mismo token al mismo tiempo, uno gana y el otro se toma como reuso.
+
+El access nuevo firmalo con el plan que tenga el usuario en la base en ese momento, no con el del token anterior, por si se pasó a premium. Y en todos los casos de refresh inválido devolvé el mismo UNAUTHORIZED con el mismo mensaje; no quiero que la respuesta deje ver que detectamos un reuso.
+
+El logout pide JWT y recibe el refresh en el body para saber qué familia cerrar. Solo revocá la familia si es del mismo usuario que viene en el access. Que sea idempotente: si ya estaba revocada o el token no existe, igual devolvé 204.
+
+Aprovechá cada vez que se escriben sesiones para sacar las que ya vencieron, así el array no crece para siempre.
+
+En el Front, /auth/refresh es público, así que no verifica JWT, solo valida el body con zod y reenvía. /auth/logout sí verifica el JWT como el resto.
+
+Para los tests, además de los criterios de aceptación, quiero cubrir que el refresh viejo deje de servir después de rotar y el nuevo funcione; que después de un reuso también quede inválido el refresh más nuevo de esa familia; que otras familias del mismo usuario (otro dispositivo) no se toquen; refresh vencido da 401; logout con un refresh de otro usuario no revoca nada; logout dos veces da 204 las dos; dos refresh simultáneos con el mismo token terminan con la familia revocada; y que en la base nunca quede el token en texto plano.
+
+Cuando termines, pasame qué archivos tocaste, si tomaste alguna decisión distinta a lo que puse acá y cómo dieron los tests.
+```
