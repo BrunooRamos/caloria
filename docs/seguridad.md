@@ -21,8 +21,8 @@
 
 ## Validación y sanitización
 
-- Esquemas **zod** en cada endpoint (body, params y query tipados). Lo que no cumple → 400. Se valida en el Front y otra vez en el Backend.
-- **Sanitización NoSQL:** se eliminan claves con `$` y `.` de las entradas.
+- Esquemas **zod** estrictos en cada endpoint (body, params y query tipados): un campo desconocido o lo que no cumple → 400. Se valida en el Front y otra vez en el Backend.
+- **Sanitización NoSQL:** una entrada con claves que contienen `$` o `.`, a cualquier profundidad, se rechaza con 400 (en el Front, antes de validar la forma).
 - **Límites duros:** foto ≤ 8 MB, audio ≤ 60 s, JSON ≤ 100 KB. Tipos MIME verificados por contenido, no solo por extensión.
 
 ## Manejo de secretos

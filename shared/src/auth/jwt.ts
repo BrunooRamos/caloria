@@ -20,8 +20,10 @@ export function verifyAccessToken(token: string, publicKey: KeyObject): AccessTo
     if (err instanceof jwt.TokenExpiredError) throw new AppError("TOKEN_EXPIRED");
     throw new AppError("UNAUTHORIZED", undefined, { cause: err });
   }
+
   if (
     typeof payload === "string" ||
+    typeof payload.exp !== "number" ||
     typeof payload.sub !== "string" ||
     (payload.plan !== "free" && payload.plan !== "premium")
   ) {

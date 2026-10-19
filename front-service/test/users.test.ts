@@ -252,7 +252,7 @@ describe("front-service: aislamiento", () => {
     }
   });
 
-  it("en docker compose no comparte red con Mongo ni Redis, ni recibe la clave privada", () => {
+  it("en docker compose no comparte red con Mongo ni Redis, ni recibe credenciales de datos", () => {
     const compose = readFileSync(join(__dirname, "../../infra/docker-compose.yml"), "utf8");
     const service = (name: string) =>
       new RegExp(`\\n  ${name}:\\n([\\s\\S]*?)(?=\\n  \\w|\\nnetworks:)`).exec(compose)?.[1] ?? "";
@@ -267,6 +267,21 @@ describe("front-service: aislamiento", () => {
       for (const net of networks(db))
         assert.ok(!front.includes(net), `front comparte ${net} con ${db}`);
     }
-    assert.ok(!service("front").includes("PRIVATE_KEY"));
+    // Ni clave privada, ni Mongo/Redis, ni storage, ni IA; y sin env_file, que metería todo el .env.
+    const frontService = service("front");
+    for (const forbidden of [
+      /PRIVATE_KEY/,
+      /MONGO/,
+      /REDIS/,
+      /STORAGE|S3_|BUCKET/,
+      /AI_/,
+      /env_file/,
+    ]) {
+      assert.ok(!forbidden.test(frontService), `el contenedor front recibe ${forbidden}`);
+    }
+    const allowed = ["PORT", "BACKEND_URL", "BACKEND_TIMEOUT_MS", "JWT_PUBLIC_KEY", "LOG_LEVEL"];
+    const vars = [...frontService.matchAll(/^ {6}([A-Z_]+):/gm)].map((m) => m[1]);
+    assert.ok(vars.includes("JWT_PUBLIC_KEY"));
+    for (const name of vars) assert.ok(allowed.includes(name), `variable inesperada: ${name}`);
   });
 });
