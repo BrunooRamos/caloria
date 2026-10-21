@@ -1,10 +1,13 @@
-# Solo para desarrollo: publica MinIO en el host para que la app abra las URLs firmadas.
+# Solo para desarrollo: publica MinIO en el host para que la app abra las URLs firmadas,
+# y la consola web en http://localhost:9001 (login con MINIO_ROOT_USER / MINIO_ROOT_PASSWORD).
 # Uso: docker compose -f infra/docker-compose.yml -f infra/docker-compose.dev.yml up
-# En un teléfono real, usá la IP de la LAN en lugar de 127.0.0.1 acá y en S3_PUBLIC_ENDPOINT.
+# En un teléfono real, usá la IP de la LAN en lugar de 127.0.0.1 en el puerto 9000 y en S3_PUBLIC_ENDPOINT.
 services:
   minio:
+    command: ["server", "/data", "--console-address", ":9001"]
     ports:
       - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     # Docker no publica puertos de redes internal; esta red existe solo para el port mapping.
     networks:
       - interna

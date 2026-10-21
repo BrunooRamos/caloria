@@ -21,7 +21,7 @@ npm run keys:generate                      # escribe ~/.caloria/jwt (o: npm run 
 cat ~/.caloria/jwt/jwt.env >> infra/.env   # JWT_PRIVATE_KEY (back) y JWT_PUBLIC_KEY (front)
 ```
 
-La media (fotos y audios) va a un bucket privado de MinIO. Completá en `infra/.env` las credenciales root y las del usuario de servicio que usan Back y Worker (ver `infra/.env.example`). En dev, el override publica MinIO en `127.0.0.1:9000` para que la app abra las URLs firmadas:
+La media (fotos y audios) va a un bucket privado de MinIO. Completá en `infra/.env` las credenciales root y las del usuario de servicio que usan Back y Worker (ver `infra/.env.example`). En dev, el override publica MinIO en `127.0.0.1:9000` para que la app abra las URLs firmadas, y la consola web en http://localhost:9001 (login con las credenciales root):
 
 ```sh
 docker compose -f infra/docker-compose.yml -f infra/docker-compose.dev.yml up
