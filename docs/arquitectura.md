@@ -29,7 +29,7 @@ Arquitectura en tres capas: **App → Front Service → Backend → MongoDB**. V
 | Worker de jobs | 3 · Red segura | — | Consume la cola: transcribe audio, busca platos similares, llama a la IA, guarda el análisis, reintentos con backoff, cron del Wrapped, envía push | — (único con claves de IA) |
 | Redis | 3 · Red segura | 6379 | Cola de trabajos entre Backend y Worker | — |
 | MongoDB | 3 · Red segura | 27017 | Las 4 collections (`users`, `meals`, `weekly_summaries`, `gamification`) | — |
-| Storage privado | 3 · Red segura | — | Fotos y audios en bucket sin acceso público, servidos con URLs firmadas | — |
+| Storage privado (MinIO en local) | 3 · Red segura | 9000 | Fotos y audios en bucket sin acceso público, servidos con URLs firmadas (≤ 15 min). Solo Backend y Worker tienen credenciales, de un usuario limitado al bucket | — |
 
 ## Comunicaciones y puertos
 
@@ -85,6 +85,6 @@ Firewall **default deny**: todo cerrado salvo estas reglas.
 | App móvil | iOS y Android | EAS Build → TestFlight / APK interno |
 | nginx, Front, Backend, Worker, Redis | A definir (DigitalOcean previsto) | GitHub Actions: build de imágenes → `docker compose` en cada merge a `main` |
 | MongoDB | A definir | Backups programados |
-| Storage | A definir | Gestionado; acceso solo con credenciales del Backend |
+| Storage | MinIO en `docker compose` (local); bucket gestionado compatible con S3 en prod (DO Spaces previsto) | Acceso solo con credenciales de Backend y Worker. Las URLs se firman con `S3_PUBLIC_ENDPOINT`, el host que alcanza la app |
 
 Dependencias externas: API de IA (visión · speech-to-text · texto) y Expo Push, cada una encapsulada en un service propio.

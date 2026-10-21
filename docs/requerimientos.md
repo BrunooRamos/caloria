@@ -183,4 +183,4 @@ Endpoints: `GET /billing/plan`, `POST /billing/subscribe`.
 9. **mTLS entre Front y Backend:** la presentación lo plantea, pero el `docker-compose` actual usa HTTP. Decidir si se implementa o queda para producción.
 10. **Dominio y hosting:** el RFC dice "si conseguimos un dominio barato" y la presentación usa `api.caloria.app` y DigitalOcean. El despliegue está marcado como "a definir".
 11. **Proveedor de IA:** qué modelos de visión, transcripción y texto se usan.
-12. **Storage:** qué bucket se usa (S3, DigitalOcean Spaces, MinIO en local).
+12. ~~**Storage:** qué bucket se usa (S3, DigitalOcean Spaces, MinIO en local).~~ Resuelto en #14: MinIO en local y bucket compatible con S3 en prod (DO Spaces previsto); el código usa el SDK de S3.

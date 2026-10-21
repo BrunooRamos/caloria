@@ -1,5 +1,6 @@
 import { createPublicKey } from "node:crypto";
 import { loadPrivateKey } from "@caloria/shared";
+import { loadStorageConfig } from "./storage";
 
 /** Lee la configuración del entorno. Lanza si falta algo obligatorio: el servicio no arranca. */
 export function loadConfig(env = process.env) {
@@ -11,5 +12,6 @@ export function loadConfig(env = process.env) {
     mongoUri,
     jwtPrivateKey,
     jwtPublicKey: createPublicKey(jwtPrivateKey),
+    storage: loadStorageConfig(env),
   };
 }

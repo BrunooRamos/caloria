@@ -102,3 +102,14 @@ En este ticket no se cablean rutas. El service se construye en `index.ts` y qued
 | Subir, borrar, URL ≤ 15 min | `services/media.ts` con el TTL recortado a 900 s + unit tests |
 | Bucket sin acceso público | `mc anonymous set none` + el GET anónimo con 403 del test de integración |
 | Credenciales solo en Back y Worker | Las root solo en `minio` y `minio-init`; `front` no tiene `S3_*` |
+
+## Cambios durante la implementación
+
+- **Imágenes:** `minio/minio` y `minio/mc` ya no se publican (ni en Docker Hub ni en quay). Se usan `cgr.dev/chainguard/minio` y `cgr.dev/chainguard/minio-client` (variante `latest-dev`, que trae `sh`), fijadas por digest.
+- **Override de dev:** se llama `infra/docker-compose.dev.yml` y se pasa con `-f`, porque el README ya usa `-f infra/docker-compose.yml` y un `docker-compose.override.yml` no se cargaría solo. Docker no publica puertos de contenedores que están solo en redes `internal`, así que el override suma una red `minio-host` exclusiva de MinIO.
+- **`createMediaService(config: StorageConfig)`** arma los dos `S3Client` adentro. Todavía no se instancia en `index.ts` porque ninguna ruta lo usa. `loadConfig` y `worker.ts` ya validan las `S3_*` al arrancar.
+- **Verificado contra MinIO real:**
+  - Pasan los 4 tests de integración.
+  - El init se puede correr de nuevo sin romper nada.
+  - El usuario de servicio no puede crear buckets, listar usuarios ni hacer público el bucket.
+  - `front` no recibe `S3_*`.
