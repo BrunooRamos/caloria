@@ -9,13 +9,16 @@ export interface AppOptions {
   api?: Router;
 }
 
+export const JSON_BODY_LIMIT = "100kb";
+
 export function createApp({ logger, api }: AppOptions) {
   const app = express();
   app.disable("x-powered-by");
+  app.set("trust proxy", 1);
 
   // El Front es la cara pública: nunca confía en el X-Request-Id del cliente.
   app.use(requestContext({ logger, trustIncomingId: false }));
-  app.use(express.json());
+  app.use(express.json({ limit: JSON_BODY_LIMIT }));
 
   app.get("/health", (_req, res) => {
     res.json({ status: "ok", service: "front" });

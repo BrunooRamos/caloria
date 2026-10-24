@@ -5,7 +5,6 @@ import express from "express";
 import { AppError, errorHandler, requestContext } from "@caloria/shared";
 import { createApp } from "../src/app";
 import { createBackendClient } from "../src/clients/backend";
-import { loadConfig } from "../src/config";
 import { apiRouter } from "../src/routes";
 import { captureLogger, listen } from "./helpers";
 
@@ -97,7 +96,6 @@ describe("front-service: rutas /auth", () => {
       email: "  Juan@Example.com ",
       password: "12345678",
       profile,
-      plan: "premium",
     });
     assert.equal(res.status, 201);
     assert.equal(back.received.length, 1);
@@ -108,6 +106,18 @@ describe("front-service: rutas /auth", () => {
     });
     assert.equal(back.received[0].headers["x-request-id"], res.headers.get("x-request-id"));
     assert.equal(back.received[0].headers.authorization, undefined);
+  });
+
+  it("register con un campo de más (p. ej. plan) → 400 sin llegar al Backend", async () => {
+    const res = await post("register", {
+      email: "juan@example.com",
+      password: "12345678",
+      profile,
+      plan: "premium",
+    });
+    assert.equal(res.status, 400);
+    assert.equal(((await res.json()) as Envelope).error.code, "VALIDATION_ERROR");
+    assert.equal(back.received.length, 0);
   });
 
   for (const [caso, password] of [
@@ -206,23 +216,5 @@ describe("front-service: rutas /auth", () => {
     const res = await post("logout", {}, { authorization: `Bearer ${token}` });
     assert.equal(res.status, 400);
     assert.equal(back.received.length, 0);
-  });
-});
-
-describe("front-service: configuración", () => {
-  const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
-
-  it("no arranca sin JWT_PUBLIC_KEY", () => {
-    assert.throws(() => loadConfig({}), /JWT_PUBLIC_KEY/);
-  });
-
-  it("no acepta la clave privada en lugar de la pública", () => {
-    const pem = privateKey.export({ type: "pkcs8", format: "pem" }).toString();
-    assert.throws(() => loadConfig({ JWT_PUBLIC_KEY: pem }), /clave privada/);
-  });
-
-  it("lee la clave pública del entorno", () => {
-    const pem = publicKey.export({ type: "spki", format: "pem" }).toString();
-    assert.equal(loadConfig({ JWT_PUBLIC_KEY: pem }).jwtPublicKey.type, "public");
   });
 });

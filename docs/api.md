@@ -50,6 +50,7 @@ Content-Type: application/json
 
 - El email se normaliza (`trim` + minúsculas) antes de validar y guardar; si ya existe → 409 `EMAIL_TAKEN`.
 - La contraseña tiene entre 8 caracteres y 72 bytes (límite de bcrypt).
+- Un campo desconocido, arriba o dentro de `profile` (por ejemplo `plan`), → 400 `VALIDATION_ERROR`. Lo mismo en login.
 - El perfil sigue los rangos de RF-02 (edad 16–100, altura 100–250 cm, peso 30–300 kg) y `timezone` es una zona IANA.
 - `accessToken`: JWT RS256 de 15 min con `{ sub, plan, iat, exp }`. `refreshToken`: opaco, de 30 días; en la base se guarda solo su hash SHA-256.
 
@@ -94,9 +95,12 @@ Revoca la familia de ese refresh si pertenece al usuario del access y responde 2
 
 ### Validación en el Front
 
-- Toda ruta valida con zod body, params y query. Un campo desconocido en la query (o en params) → 400 `VALIDATION_ERROR`, sin llegar al Backend.
-- Las rutas con JWT lo verifican con la clave pública antes de validar el body: sin token o inválido → 401 `UNAUTHORIZED`, vencido → 401 `TOKEN_EXPIRED`.
-- Al Backend se reenvía solo lo validado, más el mismo `Authorization` en las rutas con JWT. En las públicas no se reenvía el `Authorization` del cliente.
+- Toda ruta valida con zod body, params y query, en modo estricto: un campo desconocido en cualquiera de los tres → 400 `VALIDATION_ERROR`, sin llegar al Backend.
+- Sanitización NoSQL: una clave con `$` o `.`, a cualquier profundidad, → 400 `VALIDATION_ERROR`. Se rechaza, no se borra. Los valores no se miran (un email lleva `.`).
+- Body JSON de hasta 100 KB; más grande → 413 `PAYLOAD_TOO_LARGE`.
+- Las rutas con JWT lo verifican con la clave pública, solo RS256, antes de validar el body: sin token o inválido (otra firma, otro algoritmo, sin `exp`) → 401 `UNAUTHORIZED`; vencido y con firma válida → 401 `TOKEN_EXPIRED`.
+- Al Backend se reenvía solo lo validado, con el mismo método, ruta y query, más el mismo `Authorization` en las rutas con JWT. En las públicas no se reenvía el `Authorization` del cliente.
+- La respuesta del Backend vuelve con el mismo status y el mismo body. De sus headers pasan solo `Content-Type`, `Retry-After` y `Cache-Control`; el resto (`Set-Cookie`, `Location`, …) no sale de la red segura. Un redirect del Backend no se sigue.
 
 ### Perfil y metas
 
@@ -121,12 +125,15 @@ PATCH /api/v1/users/me
 Authorization: Bearer <accessToken>
 Content-Type: application/json
 
-{ "profile": { "weightKg": 58, "goal": "lose" } }
+{ "profile": { "weightKg": 58, "goal": "lose" }, "tone": "roast" }
 ```
 
 Devuelve 200 con la misma forma que `GET`, con las metas ya recalculadas.
 
+- El body lleva al menos uno de `profile`, `tone` y `pushTokens`.
 - En `profile` van solo los campos que cambian, con los mismos rangos que el registro. Fuera de rango, sin ningún campo o con un campo desconocido → 400 `VALIDATION_ERROR`.
+- `tone`: `motivador`, `neutro`, `roast` u `off` (RF-11). `pushTokens`: hasta 10 tokens de Expo sin repetir, `ExponentPushToken[…]` o `ExpoPushToken[…]` (RF-13).
+- Por ahora el Backend implementa solo `profile`: a `tone` y `pushTokens` el Front los valida y los reenvía, y el Backend responde 400 hasta RF-11 y RF-13.
 - Las metas se recalculan en cada PATCH con la fórmula de [modelo-datos.md](modelo-datos.md#cálculo-de-metas-rf-02). Si dos PATCH llegan a la vez, ninguno pisa los cambios del otro y las metas guardadas corresponden siempre al perfil guardado.
 - El Backend re-verifica el JWT: sin token o inválido → 401 `UNAUTHORIZED`, vencido → 401 `TOKEN_EXPIRED`. Un token válido de una cuenta que ya no existe también es 401.
 
@@ -211,7 +218,7 @@ Toda la API responde los errores con la misma forma. La app mapea `code` → men
   - El Front **siempre** genera un UUID nuevo e ignora el `X-Request-Id` que mande el cliente. Lo devuelve en el header `X-Request-Id` de toda respuesta.
   - El Backend usa el `X-Request-Id` recibido; si falta o no es un UUID, genera uno y loguea un warning.
 - Los errores nunca exponen stack traces ni detalles internos: un error no previsto responde `500 INTERNAL_ERROR` con un mensaje genérico. El detalle (con stack) queda solo en el log.
-- Los errores del Backend con sobre válido llegan al cliente sin modificar. Si el Backend no está alcanzable, el Front responde `503 SERVICE_UNAVAILABLE`; si responde algo que no es un sobre válido, `500 INTERNAL_ERROR`.
+- Los errores del Backend con sobre válido llegan al cliente sin modificar. Si el Backend no está alcanzable o no termina de responder dentro del timeout (`BACKEND_TIMEOUT_MS`, 10 s por defecto), el Front responde `503 SERVICE_UNAVAILABLE`; si responde algo que no es un sobre válido, `500 INTERNAL_ERROR`. El Front no reintenta: si vence el timeout de una escritura, el Backend pudo haberla completado.
 - Si la IA falla, el job reintenta con backoff y la comida queda en `processing`: nunca se pierde la media.
 
 El catálogo, `AppError` y el middleware de errores viven en `shared/` (paquete `@caloria/shared`) y los usan ambos servicios. El status se deriva del `code`: en el código se lanza `throw new AppError("MEAL_QUOTA_EXCEEDED")`, nunca se arma la respuesta a mano.
@@ -229,7 +236,7 @@ El catálogo, `AppError` y el middleware de errores viven en `shared/` (paquete 
 | `RATE_LIMITED` | 429 |
 | `INTERNAL_ERROR` | 500 |
 | `AI_UNAVAILABLE` | 503 |
-| `SERVICE_UNAVAILABLE` | 503 (el Front no alcanza al Backend) |
+| `SERVICE_UNAVAILABLE` | 503 (el Front no alcanza al Backend o vence el timeout) |
 
 El middleware traduce además estos errores de librerías:
 

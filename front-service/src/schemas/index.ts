@@ -1,6 +1,8 @@
 import { z } from "zod";
 import type { ZodType } from "zod";
-import { loginSchema, refreshSchema, registerSchema, updateMeSchema } from "@caloria/shared";
+import { loginSchema, refreshSchema, registerSchema } from "@caloria/shared";
+import { withoutOperatorKeys } from "./safe-keys";
+import { updateMeRequestSchema } from "./users";
 
 /** Sin params ni query: cualquier campo de más es un 400. */
 const none = z.object({}).strict();
@@ -11,12 +13,20 @@ export interface RouteSchema {
   query: ZodType;
 }
 
+function route({ body, params = none, query = none }: Partial<RouteSchema>): RouteSchema {
+  return {
+    body: body && withoutOperatorKeys(body),
+    params: withoutOperatorKeys(params),
+    query: withoutOperatorKeys(query),
+  };
+}
+
 export const schemas = {
-  register: { body: registerSchema, params: none, query: none },
-  login: { body: loginSchema, params: none, query: none },
-  refresh: { body: refreshSchema, params: none, query: none },
-  logout: { body: refreshSchema, params: none, query: none },
-  getMe: { params: none, query: none },
-  updateMe: { body: updateMeSchema, params: none, query: none },
-  deleteMe: { params: none, query: none },
+  register: route({ body: registerSchema }),
+  login: route({ body: loginSchema }),
+  refresh: route({ body: refreshSchema }),
+  logout: route({ body: refreshSchema }),
+  getMe: route({}),
+  updateMe: route({ body: updateMeRequestSchema }),
+  deleteMe: route({}),
 } satisfies Record<string, RouteSchema>;
