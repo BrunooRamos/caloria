@@ -1,4 +1,4 @@
-import { ApiError, apiErrorFromResponse } from "./api-error";
+import { ApiError, apiErrorFromResponse, parseRetryAfter } from "./api-error";
 import { parseTokens } from "./token-storage";
 import type { AuthTokens, TokenStorage } from "./token-storage";
 
@@ -120,7 +120,12 @@ export function createHttpClient({
 
     const payload = parsePayload(text);
     const requestId = response.headers.get("X-Request-Id");
-    if (!response.ok) throw apiErrorFromResponse(response.status, payload, requestId);
+    if (!response.ok) {
+      throw apiErrorFromResponse(response.status, payload, {
+        requestId,
+        retryAfterSeconds: parseRetryAfter(response.headers.get("Retry-After")),
+      });
+    }
     if (payload === INVALID_JSON) {
       throw new ApiError({
         status: response.status,

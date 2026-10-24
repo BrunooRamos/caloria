@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button, Text, View } from "react-native";
 import { api } from "@/services/api";
-import { errorMessage } from "@/services/api-error";
+import { errorMessage } from "@/services/error-messages";
 
 export function SessionDebug() {
   const [result, setResult] = useState<string | null>(null);
