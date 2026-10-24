@@ -39,37 +39,43 @@ function isTimeZone(value: string): boolean {
   }
 }
 
-export const profileSchema = z.object({
-  sex: z.enum(["female", "male"]),
-  birthDate: z.iso.date().refine(
-    (value) => {
-      const age = ageOn(value, new Date());
-      return age >= 16 && age <= 100;
-    },
-    { message: "La edad tiene que estar entre 16 y 100 años" },
-  ),
-  heightCm: z.number().min(100).max(250),
-  weightKg: z.number().min(30).max(300),
-  activity: z.enum(["sedentary", "light", "moderate", "active", "very_active"]),
-  goal: z.enum(["lose", "maintain", "gain"]),
-  timezone: z.string().refine(isTimeZone, { message: "Zona horaria inválida" }),
-});
+export const profileSchema = z
+  .object({
+    sex: z.enum(["female", "male"]),
+    birthDate: z.iso.date().refine(
+      (value) => {
+        const age = ageOn(value, new Date());
+        return age >= 16 && age <= 100;
+      },
+      { message: "La edad tiene que estar entre 16 y 100 años" },
+    ),
+    heightCm: z.number().min(100).max(250),
+    weightKg: z.number().min(30).max(300),
+    activity: z.enum(["sedentary", "light", "moderate", "active", "very_active"]),
+    goal: z.enum(["lose", "maintain", "gain"]),
+    timezone: z.string().refine(isTimeZone, { message: "Zona horaria inválida" }),
+  })
+  .strict();
 
-export const registerSchema = z.object({
-  email: emailSchema,
-  password: passwordSchema,
-  profile: profileSchema,
-});
+export const registerSchema = z
+  .object({
+    email: emailSchema,
+    password: passwordSchema,
+    profile: profileSchema,
+  })
+  .strict();
 
-export const loginSchema = z.object({
-  email: emailSchema,
-  password: z
-    .string()
-    .min(1)
-    .refine((value) => Buffer.byteLength(value, "utf8") <= PASSWORD_MAX_BYTES, {
-      message: `Máximo ${PASSWORD_MAX_BYTES} bytes`,
-    }),
-});
+export const loginSchema = z
+  .object({
+    email: emailSchema,
+    password: z
+      .string()
+      .min(1)
+      .refine((value) => Buffer.byteLength(value, "utf8") <= PASSWORD_MAX_BYTES, {
+        message: `Máximo ${PASSWORD_MAX_BYTES} bytes`,
+      }),
+  })
+  .strict();
 
 /** El refresh token es opaco: base64url, sin espacios ni caracteres raros. */
 export const refreshSchema = z

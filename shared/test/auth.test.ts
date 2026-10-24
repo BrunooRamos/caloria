@@ -73,10 +73,11 @@ describe("registerSchema", () => {
     assert.equal(withProfile({ birthDate: `${year - 120}-01-01` }).success, false);
   });
 
-  it("descarta claves desconocidas (p. ej. operadores de Mongo)", () => {
-    const result = register({ $where: "1", plan: "premium" });
-    assert.equal(result.success, true);
-    assert.deepEqual(Object.keys(result.data ?? {}).sort(), ["email", "password", "profile"]);
+  it("rechaza claves desconocidas, arriba y dentro del perfil (p. ej. operadores de Mongo)", () => {
+    assert.equal(register({ plan: "premium" }).success, false);
+    assert.equal(register({ $where: "1" }).success, false);
+    assert.equal(register({ profile: { ...profile, $gt: "" } }).success, false);
+    assert.equal(register({ email: { $ne: null } }).success, false);
   });
 
   it("ageOn cuenta el cumpleaños", () => {
@@ -94,6 +95,11 @@ describe("loginSchema", () => {
       loginSchema.safeParse({ email: "a@b.co", password: "a".repeat(73) }).success,
       false,
     );
+  });
+
+  it("rechaza claves desconocidas", () => {
+    const extra = { email: "a@b.co", password: "x", remember: true };
+    assert.equal(loginSchema.safeParse(extra).success, false);
   });
 });
 
@@ -162,6 +168,11 @@ describe("verifyAccessToken", () => {
   it("rechaza un token firmado con otra clave privada", () => {
     const other = generateKeyPairSync("rsa", { modulusLength: 2048 });
     const token = jwt.sign({ sub: "u1", plan: "free" }, other.privateKey, { algorithm: "RS256" });
+    expectAppError(() => verifyAccessToken(token, publicKey), "UNAUTHORIZED");
+  });
+
+  it("rechaza un token sin exp aunque la firma sea válida", () => {
+    const token = jwt.sign({ sub: "u1", plan: "free" }, privateKey, { algorithm: "RS256" });
     expectAppError(() => verifyAccessToken(token, publicKey), "UNAUTHORIZED");
   });
 

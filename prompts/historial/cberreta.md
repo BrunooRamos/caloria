@@ -21,3 +21,34 @@ Sumá tests del cliente HTTP con `fetch` mockeado que cubran el refresh exitoso 
 
 Antes de implementar, contame tu plan: qué archivos vas a crear o modificar y qué decisiones tomaste, y esperá mi OK.
 ```
+
+## Sesión `33d426ea-e71e-4a5e-8fdd-0ed68537e123` · 2026-10-19
+
+### 2026-10-19 11:17
+
+```text
+Ahora vamos a hacer el Front Service (`front-service/`), la cara pública de `/api/v1` que corre en la DMZ detrás de nginx. Antes de empezar, leé `docs/arquitectura.md` (sobre todo la tabla de componentes, las reglas de comunicación y la organización del repo), `docs/seguridad.md` y `docs/api.md`, donde están los endpoints, el sobre de error y los códigos. Revisá también lo que ya existe en `front-service/` y en `infra/docker-compose.yml` para respetar la estructura de carpetas (`routes/`, `controllers/`, `middleware/`, `schemas/`, `clients/`, `config/`).
+
+Los criterios de aceptación son estos: verifica el JWT con la clave pública y responde 401 si no hay token o es inválido; tiene esquemas zod para body, params y query de los endpoints de auth y perfil; register, login y refresh son rutas públicas; reenvía al Backend en `BACKEND_URL` y devuelve la respuesta tal cual; y no tiene acceso a Mongo, Redis ni a la clave privada.
+
+Para la verificación del JWT, la clave pública entra por variable de entorno y el algoritmo se fija explícitamente en RS256, sin aceptar otro, para evitar ataques de confusión de algoritmo. Hay un detalle del que depende la app: un token vencido no es lo mismo que uno inválido. Si el token expiró, la respuesta tiene que ser 401 con código `TOKEN_EXPIRED`, porque es lo que dispara el refresh en el cliente; cualquier otro problema (sin header, firma mala, formato roto) es 401 `UNAUTHORIZED`. Las rutas públicas son `POST /auth/register`, `/auth/login` y `/auth/refresh`; `/auth/logout` y todo `/users/me` requieren token. El refresh no usa el access token, viaja en el body.
+
+Los esquemas zod van en `schemas/` y cubren register, login, refresh, logout y `GET`, `PATCH` y `DELETE` de `/users/me`. Las reglas de validación salen de los criterios de RF-01 y RF-02 en `docs/requerimientos.md` y del modelo en `docs/modelo-datos.md`: email normalizado a minúsculas, password de al menos 8 caracteres, y en el perfil los enums de sexo, actividad y objetivo, edad entre 16 y 100 calculada desde `birthDate`, altura entre 100 y 250 cm, peso entre 30 y 300 kg y una zona horaria válida. El `PATCH /users/me` acepta cambios parciales del perfil, el tono y los push tokens. Los esquemas tienen que ser estrictos, rechazando claves desconocidas, y además hay que eliminar o rechazar cualquier clave con `$` o `.` como pide la sanitización NoSQL de `seguridad.md`. Lo que no valida responde 400 `VALIDATION_ERROR` con el sobre de error estándar, sin exponer detalles internos. Limitá el body JSON a 100 KB y respondé 413 `PAYLOAD_TOO_LARGE` si se pasa.
+
+El reenvío va en un cliente en `clients/` que llama a `BACKEND_URL` con el mismo método, ruta y query, el body ya validado y el header `Authorization` original, porque el Backend vuelve a verificar el token. El Front genera el `requestId` de cada request, lo manda en `X-Request-Id` y lo incluye en sus logs. La respuesta del Backend se devuelve tal cual: mismo status, mismo body y los headers que importan, como `Content-Type` y `Retry-After`. Poné un timeout a la llamada y, si el Backend no responde o no está disponible, devolvé un error con el sobre estándar; proponeme qué código usar para ese caso, porque `api.md` no lo define. El mTLS entre Front y Backend es una decisión abierta, así que no lo implementes ahora, pero dejá el cliente armado de forma que sumarlo después sea solo configuración.
+
+El Front no puede tener nada que le permita tocar datos: no instales drivers de Mongo ni de Redis, no leas la clave privada y validá las variables de entorno al arrancar con zod, de modo que el servicio solo conozca lo que necesita (puerto, `BACKEND_URL`, clave pública, timeout). Revisá que en `docker-compose.yml` el contenedor del Front no reciba credenciales de Mongo, Redis, storage ni IA. Los logs nunca incluyen tokens, passwords ni bodies con datos personales. Como corre detrás de nginx, configurá `trust proxy` para que la IP del cliente se lea bien.
+
+Las rutas de comidas, dashboard y billing quedan fuera de este ticket; el `POST /meals` multipart va a necesitar reenvío en streaming y lo hacemos aparte.
+
+Sumá tests con supertest y el Backend mockeado que cubran: rutas públicas sin token, rutas protegidas sin token, con firma inválida y con token vencido (verificando que el código sea `TOKEN_EXPIRED`), un token firmado con otro algoritmo rechazado, bodies inválidos y con claves `$` que dan 400, el reenvío de status, body y `Retry-After` tal cual, la propagación del `X-Request-Id` y el Backend caído. Todo en TypeScript estricto, con lint y typecheck en verde.
+
+Fijate tambien las cosas que ya tenemos implementadas para que sea coherente.
+
+Antes de implementar, contame tu plan con los archivos que vas a crear o modificar y las decisiones que tomaste, y esperá mi OK. Trabajá en la rama `feat/front-service-gateway`. Cuando termines, pasame un resumen de lo que hiciste, cómo lo pruebo a mano con `curl` (incluyendo cómo generar un par de claves y un token de prueba) y qué quedó pendiente.
+```
+### 2026-10-19 12:18
+
+```text
+arma el pr
+```
