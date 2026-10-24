@@ -110,7 +110,7 @@ describe("al abrir la app", () => {
     const router = start(rotatingBackend(), null);
     await router;
 
-    expect(await screen.findByPlaceholderText("Email")).toBeOnTheScreen();
+    expect(await screen.findByLabelText("Email")).toBeOnTheScreen();
     expect(router.getPathname()).toBe("/login");
     expect(rootRoutes(router)).toEqual(["(auth)"]);
     expect(mockRenders.home).toBe(0);
@@ -125,7 +125,7 @@ describe("al abrir la app", () => {
     );
     await router;
 
-    expect(await screen.findByPlaceholderText("Email")).toBeOnTheScreen();
+    expect(await screen.findByLabelText("Email")).toBeOnTheScreen();
     expect(router.getPathname()).toBe("/login");
     expect(mockRenders.home).toBe(0);
     expect(mockTokenStorage.current()).toBeNull();
@@ -158,7 +158,7 @@ describe("al abrir la app", () => {
 
     // El refresh termina después y el servidor lo rechaza: vuelve al login.
     await act(async () => refreshResponse.resolve(apiError(401, "UNAUTHORIZED")));
-    expect(await screen.findByPlaceholderText("Email")).toBeOnTheScreen();
+    expect(await screen.findByLabelText("Email")).toBeOnTheScreen();
     expect(router.getPathname()).toBe("/login");
   });
 });
@@ -173,8 +173,8 @@ describe("con la app abierta", () => {
     }, null);
     await router;
 
-    await fireEvent.changeText(await screen.findByPlaceholderText("Email"), " cami@example.com ");
-    await fireEvent.changeText(screen.getByPlaceholderText("Contraseña"), "secreto123");
+    await fireEvent.changeText(await screen.findByLabelText("Email"), " cami@example.com ");
+    await fireEvent.changeText(screen.getByLabelText("Contraseña"), "secreto123");
     await fireEvent.press(screen.getByText("Ingresar"));
 
     expect(await screen.findByText("Sesión iniciada")).toBeOnTheScreen();
@@ -200,12 +200,29 @@ describe("con la app abierta", () => {
     const router = start(() => apiError(401, "UNAUTHORIZED"), null);
     await router;
 
-    await fireEvent.changeText(await screen.findByPlaceholderText("Email"), "cami@example.com");
-    await fireEvent.changeText(screen.getByPlaceholderText("Contraseña"), "incorrecta");
+    await fireEvent.changeText(await screen.findByLabelText("Email"), "cami@example.com");
+    await fireEvent.changeText(screen.getByLabelText("Contraseña"), "incorrecta");
     await fireEvent.press(screen.getByText("Ingresar"));
 
-    expect(await screen.findByText("mensaje de UNAUTHORIZED")).toBeOnTheScreen();
+    expect(await screen.findByText("El email o la contraseña no son correctos.")).toBeOnTheScreen();
     expect(router.getPathname()).toBe("/login");
+  });
+
+  it("el logout desde el perfil pide confirmación y se puede cancelar", async () => {
+    const router = start(rotatingBackend(), OLD_TOKENS);
+    await router;
+
+    await fireEvent.press(await screen.findByText("Mi perfil"));
+    expect(router.getPathname()).toBe("/profile");
+
+    await fireEvent.press(await screen.findByText("Cerrar sesión"));
+    expect(screen.getByText("¿Querés cerrar la sesión?")).toBeOnTheScreen();
+    await fireEvent.press(screen.getByText("Cancelar"));
+
+    expect(screen.getByText("Cerrar sesión")).toBeOnTheScreen();
+    expect(router.getPathname()).toBe("/profile");
+    expect(calls.some((call) => call.path === "/auth/logout")).toBe(false);
+    expect(mockTokenStorage.current()).toEqual(NEW_TOKENS);
   });
 
   it("el logout borra los tokens y vuelve al login aunque /auth/logout falle", async () => {
@@ -216,9 +233,11 @@ describe("con la app abierta", () => {
     }, OLD_TOKENS);
     await router;
 
+    await fireEvent.press(await screen.findByText("Mi perfil"));
     await fireEvent.press(await screen.findByText("Cerrar sesión"));
+    await fireEvent.press(screen.getByText("Sí, cerrar sesión"));
 
-    expect(await screen.findByPlaceholderText("Email")).toBeOnTheScreen();
+    expect(await screen.findByLabelText("Email")).toBeOnTheScreen();
     expect(router.getPathname()).toBe("/login");
     expect(mockTokenStorage.current()).toBeNull();
     const logout = calls.find((call) => call.path === "/auth/logout");
@@ -241,7 +260,7 @@ describe("con la app abierta", () => {
     await mockTokenStorage.set({ accessToken: "access-vencido", refreshToken: "refresh-2" });
     await fireEvent.press(screen.getByText("Probar 2 requests en paralelo (dev)"));
 
-    expect(await screen.findByPlaceholderText("Email")).toBeOnTheScreen();
+    expect(await screen.findByLabelText("Email")).toBeOnTheScreen();
     expect(router.getPathname()).toBe("/login");
     expect(calls.filter((call) => call.path === "/auth/refresh")).toHaveLength(2);
   });

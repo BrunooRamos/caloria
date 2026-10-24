@@ -25,8 +25,13 @@ export function json(
 }
 
 /** Respuesta con el sobre de error de la API. */
-export function apiError(status: number, code: string, requestId = "req-1"): Response {
-  return json(status, { error: { code, message: `mensaje de ${code}`, requestId } });
+export function apiError(
+  status: number,
+  code: string,
+  requestId = "req-1",
+  headers: Record<string, string> = {},
+): Response {
+  return json(status, { error: { code, message: `mensaje de ${code}`, requestId } }, headers);
 }
 
 export function deferred<T>() {

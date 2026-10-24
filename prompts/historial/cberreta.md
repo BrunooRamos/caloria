@@ -52,3 +52,32 @@ Antes de implementar, contame tu plan con los archivos que vas a crear o modific
 ```text
 arma el pr
 ```
+
+## Sesión `13f854cd-a6d2-4c30-8fad-e9aaa53efdd7` · 2026-10-19
+
+### 2026-10-19 12:51
+
+```text
+Antes de empezar, leé la skill `caloria-design` completa y revisá lo que ya existe en `components/`, `theme/`, `services/` y en el store de sesión, porque la idea es usar todo eso y no duplicar nada. Leé también RF-01 en `docs/requerimientos.md` y el sobre de error y los códigos en `docs/api.md`.
+
+Los criterios de aceptación son estos: validación de email y contraseña en el formulario; mostrar los errores de la API según `error.code`; y que el logout desde el perfil borre los tokens.
+
+Las pantallas de login y registro ya existen como placeholders en el grupo de auth; completalas. Se arman solo con los componentes base (`Screen`, `Text`, `Input`, `Button`) y los tokens del theme, sin estilos inline ni valores hardcodeados. En el login va el logo arriba, respetando las reglas de uso de la skill, y las dos pantallas tienen un link para pasar de una a la otra.
+
+La validación del formulario sigue las mismas reglas que valida el Front Service: email con formato válido y contraseña de al menos 8 caracteres. Si te sirve, usá zod también en la app, pero no armes un paquete compartido entre servicios en este ticket. Los errores se muestran debajo de cada campo, usando el estado de error del `Input`, y aparecen al salir del campo o al intentar enviar, no mientras la persona todavía está escribiendo. El botón de enviar pasa a loading durante la request y no permite doble envío.
+
+Cuidá los detalles de formulario en el teléfono: teclado de email y sin mayúscula automática en el email, `autoComplete` y `textContentType` correctos para que funcione el autocompletado de contraseñas en iOS y Android, un botón para mostrar u ocultar la contraseña con un target táctil de al menos 44, el botón de "siguiente" del teclado pasando al campo de contraseña y el de "ir" enviando el formulario, y que el teclado nunca tape los campos ni el botón.
+
+Para los errores de la API, armá un único lugar que traduzca cada `error.code` a un mensaje para el usuario, pensado para reutilizarse en toda la app y no solo en auth. En login, un `UNAUTHORIZED` muestra el mismo mensaje sea el email o la contraseña lo que está mal, como pide RF-01. En registro, `EMAIL_TAKEN` se muestra en el campo de email. Cubrí también `VALIDATION_ERROR`, `RATE_LIMITED` (si viene `Retry-After`, que el mensaje lo tenga en cuenta), los errores internos, la falta de conexión y un mensaje genérico para cualquier código desconocido. Los textos en español rioplatense, cortos y en tono tranquilo, y los errores generales que no son de un campo se muestran en la pantalla con el estilo de error de la skill, nunca como alerta del sistema.
+
+Revisá qué pide el Front Service para `POST /auth/register`. Si el endpoint exige el perfil en la misma llamada, no inventes los campos del perfil: el onboarding es otro ticket, así que avisame y definimos cómo encadenar el registro con ese paso.
+
+Para el logout, agregá una pantalla de perfil en el grupo con sesión, accesible desde la home, con un botón de cerrar sesión que use la acción del store que ya existe (llama a `/auth/logout`, borra los tokens de SecureStore y vuelve al login). Pedí una confirmación antes de cerrar la sesión. El botón va en variante `secondary` o `ghost`: según la skill, `danger` queda reservado para errores técnicos.
+
+Sumá tests unitarios de la validación del formulario y del mapeo de `error.code` a mensajes. Todo en TypeScript estricto, con lint y typecheck en verde.
+
+Antes de implementar, contame tu plan con los archivos que vas a crear o modificar y las decisiones que tomaste, y esperá mi OK. Trabajá en la rama `feat/rf-01-auth-screens`. Cuando termines, pasame un resumen de lo que hiciste, cómo pruebo cada error a mano contra el Front Service y qué quedó pendiente.
+
+Hacelo desde la branch de feat/rf-01-app-auth-base
+para no generar conflictos.
+```

@@ -1,56 +1,79 @@
 import { Link } from "expo-router";
-import { useState } from "react";
-import { ActivityIndicator, Button, Text, TextInput, View } from "react-native";
-import { errorMessage } from "@/services/api-error";
+import { useRef } from "react";
+import { StyleSheet, View } from "react-native";
+import type { TextInput } from "react-native";
+import { Button, FormError, Input, Logo, Screen, Text } from "@/components";
 import { useSession } from "@/store/session";
+import { spacing } from "@/theme";
+import { passwordPlaceholders } from "./placeholders";
+import { useAuthForm } from "./useAuthForm";
+import { loginSchema } from "./validation";
 
 export default function LoginScreen() {
   const { signIn } = useSession();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  async function handleSubmit() {
-    setError(null);
-    setSubmitting(true);
-    try {
-      await signIn({ email: email.trim(), password });
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setSubmitting(false);
-    }
-  }
+  const passwordRef = useRef<TextInput>(null);
+  const form = useAuthForm({
+    schema: loginSchema,
+    initialValues: { email: "", password: "" },
+    onSubmit: signIn,
+    messages: { UNAUTHORIZED: "El email o la contraseña no son correctos." },
+  });
 
   return (
-    <View>
-      <TextInput
-        placeholder="Email"
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        autoComplete="email"
-        keyboardType="email-address"
-        textContentType="emailAddress"
-      />
-      <TextInput
-        placeholder="Contraseña"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        autoComplete="current-password"
-        textContentType="password"
-      />
-      {error !== null && <Text>{error}</Text>}
-      {submitting ? (
-        <ActivityIndicator />
-      ) : (
-        <Button title="Ingresar" onPress={handleSubmit} disabled={!email || !password} />
-      )}
-      <Link href="/register" asChild>
-        <Button title="Crear una cuenta" />
-      </Link>
-    </View>
+    <Screen scroll tone="brand">
+      <View style={styles.header}>
+        <Logo />
+        <Text variant="h1" color="cream" accessibilityRole="header" style={styles.centered}>
+          Hola de nuevo
+        </Text>
+        <Text color="onPrimaryMuted" style={styles.centered}>
+          Ingresá con tu email y tu contraseña.
+        </Text>
+      </View>
+
+      <View style={styles.spacer} />
+
+      <View style={styles.form}>
+        <Input
+          {...form.field("email")}
+          label="Email"
+          placeholder="tu@email.com"
+          keyboardType="email-address"
+          inputMode="email"
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="email"
+          textContentType="username"
+          returnKeyType="next"
+          submitBehavior="submit"
+          onSubmitEditing={() => passwordRef.current?.focus()}
+        />
+        <Input
+          {...form.field("password")}
+          ref={passwordRef}
+          label="Contraseña"
+          {...passwordPlaceholders}
+          secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="current-password"
+          textContentType="password"
+          returnKeyType="go"
+          onSubmitEditing={form.submit}
+        />
+        <FormError message={form.formError} />
+        <Button title="Ingresar" loading={form.submitting} onPress={form.submit} />
+        <Link href="/register" asChild>
+          <Button variant="ghost" title="Crear una cuenta" />
+        </Link>
+      </View>
+    </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  header: { alignItems: "center", gap: spacing.xs },
+  spacer: { flexGrow: 1, minHeight: spacing.xl, maxHeight: spacing.xxxl },
+  centered: { textAlign: "center" },
+  form: { gap: spacing.md },
+});

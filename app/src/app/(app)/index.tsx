@@ -1,15 +1,23 @@
-import { Button, Text, View } from "react-native";
+import { Link } from "expo-router";
+import { StyleSheet, View } from "react-native";
+import { Button, Screen, Text } from "@/components";
 import { SessionDebug } from "@/features/auth/SessionDebug";
-import { useSession } from "@/store/session";
+import { spacing } from "@/theme";
 
 export default function HomeScreen() {
-  const { signOut } = useSession();
-
   return (
-    <View>
-      <Text>Sesión iniciada</Text>
-      {__DEV__ && <SessionDebug />}
-      <Button title="Cerrar sesión" onPress={signOut} />
-    </View>
+    <Screen edges={["bottom", "left", "right"]}>
+      <View style={styles.content}>
+        <Text>Sesión iniciada</Text>
+        <Link href="/profile" asChild>
+          <Button variant="secondary" title="Mi perfil" />
+        </Link>
+        {__DEV__ && <SessionDebug />}
+      </View>
+    </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  content: { gap: spacing.md },
+});

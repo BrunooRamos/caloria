@@ -109,6 +109,38 @@ describe("errores", () => {
     });
   });
 
+  it("guarda los segundos de Retry-After", async () => {
+    const { client } = setup(() => apiError(429, "RATE_LIMITED", "req-1", { "Retry-After": "30" }));
+
+    await expect(client.get("/users/me")).rejects.toMatchObject({
+      status: 429,
+      code: "RATE_LIMITED",
+      retryAfterSeconds: 30,
+    });
+  });
+
+  it("sin Retry-After, retryAfterSeconds es null", async () => {
+    const { client } = setup(() => apiError(429, "RATE_LIMITED"));
+
+    await expect(client.get("/users/me")).rejects.toMatchObject({ retryAfterSeconds: null });
+  });
+
+  it("un 429 sin sobre (por ejemplo, de nginx) sigue siendo RATE_LIMITED", async () => {
+    const { client } = setup(
+      () =>
+        new Response("<html>Too Many Requests</html>", {
+          status: 429,
+          headers: { "Retry-After": "5" },
+        }),
+    );
+
+    await expect(client.get("/users/me")).rejects.toMatchObject({
+      status: 429,
+      code: "RATE_LIMITED",
+      retryAfterSeconds: 5,
+    });
+  });
+
   it("una falla de red da NETWORK_ERROR con status 0", async () => {
     const { client } = setup(() => {
       throw new TypeError("Network request failed");
