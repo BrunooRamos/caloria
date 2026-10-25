@@ -1,0 +1,115 @@
+app/__tests__/auth-screens.test.tsx
+  s_37629fa7ed2f62::t_c2575fe49bc34e 39,166,178,202
+app/features/onboarding/MeasuresStep.tsx
+  s_37629fa7ed2f62::t_15ea825b1b227e 6,13
+  s_37629fa7ed2f62::t_28a0bb7a619ba5 1-5,7-12,14-55
+app/features/profile/TargetsCard.tsx
+  s_37629fa7ed2f62::t_dbf64e630c5d02 1-15,17-38,40-53
+  s_37629fa7ed2f62::t_677674a9b9eb52 16,39
+app/src/app/(auth)/_layout.tsx
+  s_37629fa7ed2f62::t_b4121b2d9641ee 14-16
+app/src/app/(auth)/onboarding/measures.tsx
+  s_37629fa7ed2f62::t_bb7eb7b5acd7c2 1
+app/src/app/(auth)/onboarding/routine.tsx
+  s_37629fa7ed2f62::t_bb7eb7b5acd7c2 1
+app/src/app/(app)/_layout.tsx
+  s_37629fa7ed2f62::t_d32b84337b90de 3,7-8,19-25
+app/features/auth/validation.ts
+  s_37629fa7ed2f62::t_fdcd226c33e665 9,63-64,70-71,73
+app/features/auth/LoginScreen.tsx
+  s_37629fa7ed2f62::t_15ea825b1b227e 9,15
+app/features/onboarding/RoutineStep.tsx
+  s_37629fa7ed2f62::t_1297b6d96e5c48 1-3,5-11,13-59
+  s_37629fa7ed2f62::t_15ea825b1b227e 4,12
+app/features/profile/validation.ts
+  s_37629fa7ed2f62::t_880ce774bae134 36-37,39-41
+  s_37629fa7ed2f62::t_5005c0102c3bb2 1-35,38,42-121
+app/src/app/(app)/goals.tsx
+  s_37629fa7ed2f62::t_bb7eb7b5acd7c2 1
+app/app.json
+  s_37629fa7ed2f62::t_02cc6f701af1cd 25-31
+app/features/profile/ProfileScreen.tsx
+  s_37629fa7ed2f62::t_15ea825b1b227e 5,42
+  s_37629fa7ed2f62::t_67e1aac1976ac9 57-60,103,113
+  s_37629fa7ed2f62::t_0d8463316a591d 1,3-4,6-7,9-16,19-41,43-56,61-102,104-112,114-149,160-187,193-200
+app/features/auth/RegisterScreen.tsx
+  s_37629fa7ed2f62::t_15ea825b1b227e 9,16
+app/components/index.ts
+  s_37629fa7ed2f62::t_f3b21e04dab1e9 12-13
+  s_37629fa7ed2f62::t_13f80a51c5e0fe 3-6
+app/features/onboarding/OnboardingStep.tsx
+  s_37629fa7ed2f62::t_e35fcd0767ec4d 48-53
+  s_37629fa7ed2f62::t_015fc11461712e 1-47,54-64
+app/features/profile/MeFallback.tsx
+  s_37629fa7ed2f62::t_46dc3bdc960134 1-35
+app/services/users.ts
+  s_37629fa7ed2f62::t_71ec5940ecc02d 1-26
+app/package.json
+  s_37629fa7ed2f62::t_02cc6f701af1cd 6,10
+app/__tests__/navigation.test.tsx
+  s_37629fa7ed2f62::t_ab5b6acdd88edb 212-217
+app/components/Card.tsx
+  s_37629fa7ed2f62::t_5c6cb9a819a965 1-25
+app/src/app/(auth)/onboarding/index.tsx
+  s_37629fa7ed2f62::t_bb7eb7b5acd7c2 1
+app/__tests__/profile-screens.test.tsx
+  s_37629fa7ed2f62::t_65a9fed8b7db4f 317
+  s_37629fa7ed2f62::t_ab5b6acdd88edb 72-73,190-195,326-327,334-339,357-361,388-390,404-408
+  s_37629fa7ed2f62::t_c34edfceb27697 1-71,74-189,196-316,318-325,328-333,340-356,362-387,391-403,409-418
+app/features/profile/timezone.ts
+  s_37629fa7ed2f62::t_4333d23508f1a1 1-7
+app/store/session.tsx
+  s_37629fa7ed2f62::t_82f5ba9a0a08e0 11,15,44,74,84,89-90,92-93
+  s_37629fa7ed2f62::t_7b0e389c538624 46-53
+app/components/OptionGroup.tsx
+  s_37629fa7ed2f62::t_ceada718fc50bc 1-87,92-104,106-110,112-115,117-132
+  s_37629fa7ed2f62::t_f66835cfc02fcb 88-91,105,111,116
+app/features/auth/useForm.ts
+  s_37629fa7ed2f62::t_15ea825b1b227e 9-10,12-13,19,23,27,58,111,113
+app/features/profile/__tests__/validation.test.ts
+  s_37629fa7ed2f62::t_abef02c7f2597b 1-132
+  s_37629fa7ed2f62::t_ae0da97ef8e241 133-135
+app/features/auth/sign-up-draft.tsx
+  s_37629fa7ed2f62::t_34c9ac7d9788e1 4-6,8,13,16-17,25,33-36,38,41,52-53
+app/features/profile/options.ts
+  s_37629fa7ed2f62::t_d9ec94ef55a55f 1-26,30
+  s_37629fa7ed2f62::t_e5254cbcc6cf96 27-29
+app/features/onboarding/AboutYouStep.tsx
+  s_37629fa7ed2f62::t_15ea825b1b227e 4,11
+  s_37629fa7ed2f62::t_7d5177853e8d66 1-3,5-10,12-52
+app/features/profile/useMe.ts
+  s_37629fa7ed2f62::t_e35fcd0767ec4d 7
+  s_37629fa7ed2f62::t_1e0a00d7647e39 1-6,8,16-18,27-28,33-38,40
+  s_37629fa7ed2f62::t_998f015b289994 9-15,19-26,29-32,39
+app/features/profile/GoalsScreen.tsx
+  s_37629fa7ed2f62::t_5526d4705bc3b8 1-49
+app/components/DateField.tsx
+  s_37629fa7ed2f62::t_c43d668883fa90 1-180
+app/features/profile/HealthDisclaimer.tsx
+  s_37629fa7ed2f62::t_985ea0b2f43345 1-30
+app/package-lock.json
+  s_37629fa7ed2f62::t_e25baf86922553 11,15,2472-2494,4875-4887,9840-9845
+prompts/historial/pazdiaz15.md
+  s_37629fa7ed2f62::t_dd9bbec5f41b3f 85-118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6bf72a8dde7329983c45c40aaec7341ce9c7b87f",
+  "prompts": {},
+  "humans": {
+    "h_5b36141b16afea": {
+      "author": "pazdiaz15 <mpdiaz@correo.um.edu.uy>"
+    }
+  },
+  "sessions": {
+    "s_37629fa7ed2f62": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6592e532-49b6-4541-9617-961d95a330b2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "pazdiaz15 <mpdiaz@correo.um.edu.uy>"
+    }
+  }
+}
