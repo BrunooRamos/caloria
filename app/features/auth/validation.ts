@@ -6,7 +6,7 @@ export const PASSWORD_MAX_BYTES = 72;
 
 export type FormValues<F extends string> = Record<F, string>;
 export type FormErrors<F extends string> = Partial<Record<F, string>>;
-export type FormSchema<F extends string> = z.ZodType<FormValues<F>, FormValues<F>>;
+export type FormSchema<F extends string, Out = FormValues<F>> = z.ZodType<Out, FormValues<F>>;
 
 export type LoginField = "email" | "password";
 export type RegisterField = LoginField | "confirmPassword";
@@ -60,17 +60,17 @@ export const registerSchema: FormSchema<RegisterField> = registerFields.refine(
   },
 );
 
-export type ValidationResult<F extends string> =
-  { ok: true; data: FormValues<F> } | { ok: false; errors: FormErrors<F> };
+export type ValidationResult<F extends string, Out = FormValues<F>> =
+  { ok: true; data: Out } | { ok: false; errors: FormErrors<F> };
 
 function isField<F extends string>(key: PropertyKey | undefined, values: FormValues<F>): key is F {
   return typeof key === "string" && key in values;
 }
 
-export function validateForm<F extends string>(
-  schema: FormSchema<F>,
+export function validateForm<F extends string, Out>(
+  schema: FormSchema<F, Out>,
   values: FormValues<F>,
-): ValidationResult<F> {
+): ValidationResult<F, Out> {
   const result = schema.safeParse(values);
   if (result.success) return { ok: true, data: result.data };
 

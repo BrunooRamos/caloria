@@ -6,13 +6,13 @@ import { Button, FormError, Input, Logo, Screen, Text } from "@/components";
 import { useSession } from "@/store/session";
 import { spacing } from "@/theme";
 import { passwordPlaceholders } from "./placeholders";
-import { useAuthForm } from "./useAuthForm";
+import { useForm } from "./useForm";
 import { loginSchema } from "./validation";
 
 export default function LoginScreen() {
   const { signIn } = useSession();
   const passwordRef = useRef<TextInput>(null);
-  const form = useAuthForm({
+  const form = useForm({
     schema: loginSchema,
     initialValues: { email: "", password: "" },
     onSubmit: signIn,

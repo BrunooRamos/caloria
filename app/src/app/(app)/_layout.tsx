@@ -1,8 +1,11 @@
 import { Stack } from "expo-router";
 import { StyleSheet } from "react-native";
+import { useSession } from "@/store/session";
 import { colors, fonts, typography } from "@/theme";
 
 export default function AppLayout() {
+  const { pendingGoals } = useSession();
+
   return (
     <Stack
       screenOptions={{
@@ -13,8 +16,13 @@ export default function AppLayout() {
         contentStyle: styles.content,
       }}
     >
-      <Stack.Screen name="index" options={{ title: "CalorIA" }} />
-      <Stack.Screen name="profile" options={{ title: "Perfil" }} />
+      <Stack.Protected guard={pendingGoals}>
+        <Stack.Screen name="goals" options={{ headerShown: false, gestureEnabled: false }} />
+      </Stack.Protected>
+      <Stack.Protected guard={!pendingGoals}>
+        <Stack.Screen name="index" options={{ title: "CalorIA" }} />
+        <Stack.Screen name="profile" options={{ title: "Perfil" }} />
+      </Stack.Protected>
     </Stack>
   );
 }

@@ -1,10 +1,16 @@
 export { Button } from "./Button";
 export type { ButtonProps, ButtonVariant } from "./Button";
+export { Card } from "./Card";
+export type { CardProps } from "./Card";
+export { DateField, formatLongDate } from "./DateField";
+export type { DateFieldProps } from "./DateField";
 export { FormError } from "./FormError";
 export type { FormErrorProps } from "./FormError";
 export { Input } from "./Input";
 export type { InputProps } from "./Input";
 export { Logo } from "./Logo";
+export { OptionGroup } from "./OptionGroup";
+export type { OptionGroupOption, OptionGroupProps } from "./OptionGroup";
 export { Screen } from "./Screen";
 export type { ScreenProps } from "./Screen";
 export type { SurfaceTone } from "./tone";
