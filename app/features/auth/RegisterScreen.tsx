@@ -6,14 +6,14 @@ import { Button, FormError, Input, Logo, Screen, Text } from "@/components";
 import { spacing } from "@/theme";
 import { passwordPlaceholders } from "./placeholders";
 import { useSignUpDraft } from "./sign-up-draft";
-import { useAuthForm } from "./useAuthForm";
+import { useForm } from "./useForm";
 import { PASSWORD_MAX_BYTES, PASSWORD_MIN_CHARS, registerSchema } from "./validation";
 
 export default function RegisterScreen() {
   const draft = useSignUpDraft();
   const passwordRef = useRef<TextInput>(null);
   const confirmPasswordRef = useRef<TextInput>(null);
-  const form = useAuthForm({
+  const form = useForm({
     schema: registerSchema,
     initialValues: { email: draft.credentials?.email ?? "", password: "", confirmPassword: "" },
     onSubmit: async ({ email, password }) => {

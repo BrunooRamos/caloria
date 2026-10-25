@@ -8,10 +8,11 @@ export type SessionStatus = "loading" | "authenticated" | "unauthenticated";
 
 export interface Session {
   status: SessionStatus;
+  pendingGoals: boolean;
   signIn(credentials: Credentials): Promise<void>;
   signUp(input: RegisterInput): Promise<void>;
-  /** Borra los tokens al instante; el `/auth/logout` sale en segundo plano y no bloquea si falla. */
   signOut(): Promise<void>;
+  finishOnboarding(): void;
 }
 
 const SessionContext = createContext<Session | null>(null);
@@ -40,8 +41,16 @@ async function startSession({ accessToken, refreshToken }: AuthResponse): Promis
 
 export function SessionProvider({ children }: PropsWithChildren) {
   const [status, setStatus] = useState<SessionStatus>("loading");
+  const [pendingGoals, setPendingGoals] = useState(false);
 
-  useEffect(() => api.onSessionExpired(() => setStatus("unauthenticated")), []);
+  useEffect(
+    () =>
+      api.onSessionExpired(() => {
+        setPendingGoals(false);
+        setStatus("unauthenticated");
+      }),
+    [],
+  );
 
   useEffect(() => {
     let active = true;
@@ -62,6 +71,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
 
   const signUp = useCallback(async (input: RegisterInput) => {
     await startSession(await auth.register(input));
+    setPendingGoals(true);
     setStatus("authenticated");
   }, []);
 
@@ -71,13 +81,16 @@ export function SessionProvider({ children }: PropsWithChildren) {
       if (tokens) auth.logout(tokens).catch(() => undefined);
       await api.clearSession();
     } finally {
+      setPendingGoals(false);
       setStatus("unauthenticated");
     }
   }, []);
 
+  const finishOnboarding = useCallback(() => setPendingGoals(false), []);
+
   const session = useMemo(
-    () => ({ status, signIn, signUp, signOut }),
-    [status, signIn, signUp, signOut],
+    () => ({ status, pendingGoals, signIn, signUp, signOut, finishOnboarding }),
+    [status, pendingGoals, signIn, signUp, signOut, finishOnboarding],
   );
 
   return <SessionContext value={session}>{children}</SessionContext>;

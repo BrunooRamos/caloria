@@ -1,7 +1,4 @@
 import { act, fireEvent, renderRouter, screen } from "expo-router/testing-library";
-import { Pressable, Text } from "react-native";
-import { useSignUpDraft } from "@/features/auth/sign-up-draft";
-import type { Profile } from "@/services/auth";
 import { createHttpClient } from "@/services/http-client";
 import type { HttpClient } from "@/services/http-client";
 import {
@@ -32,26 +29,6 @@ jest.mock("@/services/api", () => ({
   },
 }));
 
-const PROFILE: Profile = {
-  sex: "female",
-  birthDate: "2002-04-10",
-  heightCm: 165,
-  weightKg: 60,
-  activity: "moderate",
-  goal: "maintain",
-  timezone: "America/Montevideo",
-};
-
-/** Hace de onboarding (#12): solo completa el registro con un perfil fijo. */
-function FakeOnboarding() {
-  const { complete } = useSignUpDraft();
-  return (
-    <Pressable onPress={() => complete(PROFILE)}>
-      <Text>Terminar onboarding</Text>
-    </Pressable>
-  );
-}
-
 let calls: Call[];
 
 function start(handler: Handler, initialUrl = "/login") {
@@ -59,10 +36,7 @@ function start(handler: Handler, initialUrl = "/login") {
   const fake = fakeFetch(handler);
   calls = fake.calls;
   mockApi = createHttpClient({ baseUrl: BASE_URL, storage: mockTokenStorage, fetch: fake.fetch });
-  return renderRouter(
-    { appDir: "./src/app", overrides: { "(auth)/onboarding": FakeOnboarding } },
-    { initialUrl },
-  );
+  return renderRouter("./src/app", { initialUrl });
 }
 
 const loggedIn = () => json(200, { ...NEW_TOKENS, user: { id: "u1", email: "cami@example.com" } });
@@ -189,7 +163,7 @@ describe("login", () => {
 });
 
 describe("registro", () => {
-  it("valida, guarda email y contraseña sin llamar a la API y sigue al onboarding", async () => {
+  it("valida, guarda email y contraseña sin llamar a la API y sigue al perfil", async () => {
     const router = start(loggedIn, "/register");
     await router;
 
@@ -201,7 +175,7 @@ describe("registro", () => {
     await fireEvent.changeText(confirmPassword(), "secreto123");
     await fireEvent.press(screen.getByText("Continuar"));
 
-    expect(await screen.findByText("Terminar onboarding")).toBeOnTheScreen();
+    expect(await screen.findByText("Contanos sobre vos")).toBeOnTheScreen();
     expect(router.getPathname()).toBe("/onboarding");
     expect(calls).toHaveLength(0);
   });
@@ -225,43 +199,7 @@ describe("registro", () => {
 
     // El "ir" del teclado en la repetición envía el form.
     await fireEvent(confirmPassword(), "submitEditing");
-    expect(await screen.findByText("Terminar onboarding")).toBeOnTheScreen();
+    expect(await screen.findByText("Contanos sobre vos")).toBeOnTheScreen();
     expect(calls).toHaveLength(0);
-  });
-
-  it("al terminar el onboarding crea la cuenta con el perfil y entra a la app", async () => {
-    await start(
-      (call) => (call.path === "/auth/register" ? loggedIn() : apiError(404, "NOT_FOUND")),
-      "/register",
-    );
-
-    await fill(" Cami@Example.com ", "secreto123", "secreto123");
-    await fireEvent.press(screen.getByText("Continuar"));
-    await fireEvent.press(await screen.findByText("Terminar onboarding"));
-
-    expect(await screen.findByText("Sesión iniciada")).toBeOnTheScreen();
-    // Sin la repetición: el Front Service rechaza cualquier campo de más.
-    expect(calls[0].body).toBe(
-      JSON.stringify({ email: "cami@example.com", password: "secreto123", profile: PROFILE }),
-    );
-    expect(mockTokenStorage.current()).toEqual(NEW_TOKENS);
-  });
-
-  it("si el email ya existe, vuelve al registro con el error en el campo email", async () => {
-    const router = start(() => apiError(409, "EMAIL_TAKEN"), "/register");
-    await router;
-
-    await fill("cami@example.com", "secreto123", "secreto123");
-    await fireEvent.press(screen.getByText("Continuar"));
-    await fireEvent.press(await screen.findByText("Terminar onboarding"));
-
-    expect(await screen.findByText("Ya hay una cuenta con este email.")).toBeOnTheScreen();
-    expect(router.getPathname()).toBe("/register");
-    expect(email()).toHaveProp("accessibilityHint", "Ya hay una cuenta con este email.");
-    expect(screen.queryByRole("alert")).not.toBeOnTheScreen();
-
-    // Al editar el email, el error de la API se va.
-    await fireEvent.changeText(email(), "otra@example.com");
-    expect(screen.queryByText("Ya hay una cuenta con este email.")).not.toBeOnTheScreen();
   });
 });

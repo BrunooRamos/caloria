@@ -82,3 +82,37 @@ Para los tests, además de los criterios de aceptación, quiero cubrir que el re
 
 Cuando termines, pasame qué archivos tocaste, si tomaste alguna decisión distinta a lo que puse acá y cómo dieron los tests.
 ```
+
+## Sesión `6592e532-49b6-4541-9617-961d95a330b2` · 2026-10-24
+
+### 2026-10-24 21:15
+
+```text
+Tengo que implementar en la app la parte de completar el perfil al registrarse y ver las metas calculadas.
+
+Para el contexto, fijate en docs/requerimientos.md (la parte de RF-02, perfil y metas), en docs/api.md para el contrato de /auth/register y /users/me, y en el RNF-10 de contenido responsable. Para todo lo visual (colores, tipografía, espaciados, componentes) usá la skill caloria-design; cargala antes de empezar con las pantallas y seguila en todo, no quiero estilos inventados.
+
+Los criterios de aceptación son estos: en el registro se pide sexo, fecha de nacimiento, altura, peso, actividad y objetivo; se toma la zona horaria del dispositivo; se muestran las metas que devuelve la API; el perfil se puede editar después y se ven las metas recalculadas; y hay un aviso visible de que la app no es consejo médico.
+
+Algunas cosas que pensé y quiero que se respeten:
+
+Antes de arrancar, revisá cómo está hecho hoy el registro en la app y qué acepta y devuelve el Backend en /auth/register y /users/me. Si al Backend le falta algún campo (por ejemplo la zona horaria) o no devuelve las metas, avisame antes de tocar el server, porque eso sería otro ticket.
+
+El registro lo pensé como un flujo de varios pasos y no un formulario largo: primero email y contraseña, después los datos del perfil agrupados (por ejemplo sexo y fecha de nacimiento, después altura y peso, después actividad y objetivo), y al final se manda todo junto en un solo POST /auth/register. Que se pueda volver atrás sin perder lo cargado. Para la fecha de nacimiento usá un selector de fecha, y para altura y peso teclado numérico, en cm y kg.
+
+Validá en la app con zod usando los mismos rangos que valida el Backend, para que el usuario vea el error en el campo antes de mandar. Igual, si la API devuelve error, mapeá el code a un mensaje entendible (por ejemplo EMAIL_TAKEN o VALIDATION_ERROR) usando el sobre de error que ya tenemos.
+
+La zona horaria sacala del dispositivo con expo-localization y mandala en el registro sin preguntarle al usuario. Es importante porque el día y la racha se calculan con ella.
+
+Las metas no se calculan en la app: se muestran tal cual las devuelve la API (kcal y macros). Después de registrarse, el usuario tiene que ver una pantalla con sus metas antes de entrar al inicio.
+
+Para editar, una pantalla de perfil con los mismos campos ya cargados, que haga PATCH /users/me y muestre las metas nuevas con lo que responde la API, sin tener que salir y volver a entrar. Mientras guarda, que se vea que está cargando y que no se pueda tocar dos veces el botón.
+
+El aviso de que no es consejo médico tiene que estar visible en la pantalla de metas y en la de perfil, no escondido en un menú. Algo como "CalorIA no reemplaza el consejo de un profesional de la salud". Y por el RNF-10, nada de juicios sobre el cuerpo: no mostrar IMC ni etiquetas tipo "sobrepeso", y que las opciones de objetivo tengan nombres neutros.
+
+Organizalo como el resto de la app: las pantallas en app/, la lógica en features/ y las llamadas a la API en services/, reutilizando el cliente HTTP que ya maneja los tokens.
+
+Si el proyecto ya tiene tests de componentes, agregá los de validación del formulario, que se mande la zona horaria en el registro, que se muestren las metas que llegan de la API y que al editar se actualicen.
+
+Cuando termines, pasame qué archivos tocaste, si tomaste alguna decisión distinta a lo que puse acá y cómo probarlo en el simulador.
+```

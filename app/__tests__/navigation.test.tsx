@@ -209,7 +209,12 @@ describe("con la app abierta", () => {
   });
 
   it("el logout desde el perfil pide confirmación y se puede cancelar", async () => {
-    const router = start(rotatingBackend(), OLD_TOKENS);
+    // Aunque el perfil no cargue, cerrar sesión sigue disponible.
+    const backend = rotatingBackend();
+    const router = start(
+      (call) => (call.path === "/users/me" ? apiError(404, "NOT_FOUND") : backend(call)),
+      OLD_TOKENS,
+    );
     await router;
 
     await fireEvent.press(await screen.findByText("Mi perfil"));

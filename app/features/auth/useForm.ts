@@ -6,23 +6,25 @@ import type { ErrorMessageOverrides } from "@/services/error-messages";
 import { validateForm } from "./validation";
 import type { FormErrors, FormSchema, FormValues, ValidationResult } from "./validation";
 
-export interface AuthFormOptions<F extends string> {
-  schema: FormSchema<F>;
+export interface FormOptions<F extends string, Out = FormValues<F>> {
+  schema: FormSchema<F, Out>;
   initialValues: NoInfer<FormValues<F>>;
-  onSubmit(values: FormValues<F>): Promise<void>;
+  onSubmit(values: Out): Promise<void>;
+  onChange?(values: FormValues<F>): void;
   messages?: ErrorMessageOverrides;
   fieldErrors?: Partial<Record<ApiErrorCode, NoInfer<F>>>;
   externalError?: unknown;
 }
 
-export function useAuthForm<F extends string>({
+export function useForm<F extends string, Out = FormValues<F>>({
   schema,
   initialValues,
   onSubmit,
+  onChange,
   messages,
   fieldErrors,
   externalError,
-}: AuthFormOptions<F>) {
+}: FormOptions<F, Out>) {
   const [values, setValues] = useState<FormValues<F>>(initialValues);
   const [validationErrors, setValidationErrors] = useState<FormErrors<F>>({});
   const [serverErrors, setServerErrors] = useState<FormErrors<F>>({});
@@ -53,6 +55,7 @@ export function useAuthForm<F extends string>({
   function change(field: F, value: string) {
     const next: FormValues<F> = { ...values, [field]: value };
     setValues(next);
+    onChange?.(next);
     if (serverErrors[field]) setServerErrors((current) => ({ ...current, [field]: undefined }));
     const result = validateForm(schema, next);
     setValidationErrors((current) => keepStillFailing(current, result));
@@ -105,9 +108,9 @@ export function useAuthForm<F extends string>({
   return { values, formError, submitting, submit, field };
 }
 
-function keepStillFailing<F extends string>(
+function keepStillFailing<F extends string, Out>(
   current: FormErrors<F>,
-  result: ValidationResult<F>,
+  result: ValidationResult<F, Out>,
 ): FormErrors<F> {
   if (result.ok) return {};
   const kept: FormErrors<F> = {};

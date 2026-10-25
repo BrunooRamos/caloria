@@ -11,7 +11,9 @@ export default function AuthLayout() {
       <Stack screenOptions={{ headerShown: false, contentStyle: styles.content }}>
         <Stack.Screen name="login" />
         <Stack.Screen name="register" />
-        <Stack.Screen name="onboarding" />
+        <Stack.Screen name="onboarding/index" />
+        <Stack.Screen name="onboarding/measures" />
+        <Stack.Screen name="onboarding/routine" />
       </Stack>
     </SignUpDraftProvider>
   );
