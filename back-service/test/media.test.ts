@@ -33,7 +33,7 @@ describe("back-service: media", () => {
 
   it("rechaza tipos de archivo no permitidos sin tocar el bucket", async () => {
     const upload = (kind: "photo" | "audio", contentType: string) =>
-      media.upload({ userId: "u1", kind, body: new Uint8Array([1]), contentType });
+      media.upload({ userId: "u1", mealId: "m1", kind, body: new Uint8Array([1]), contentType });
     await assert.rejects(upload("photo", "image/gif"), { code: "VALIDATION_ERROR" });
     await assert.rejects(upload("photo", "audio/mp4"), { code: "VALIDATION_ERROR" });
     await assert.rejects(upload("audio", "image/jpeg"), { code: "VALIDATION_ERROR" });

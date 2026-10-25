@@ -32,3 +32,42 @@ export const storageEnv = {
   S3_ACCESS_KEY_ID: "test-access-key",
   S3_SECRET_ACCESS_KEY: "test-secret-key",
 };
+
+/** Caja ISO BMFF: tamaño (4 bytes) + tipo (4) + contenido. */
+function box(type: string, ...content: Buffer[]): Buffer {
+  const body = Buffer.concat(content);
+  const header = Buffer.alloc(8);
+  header.writeUInt32BE(8 + body.length);
+  header.write(type, 4, "latin1");
+  return Buffer.concat([header, body]);
+}
+
+const ftyp = (major: string, ...compatible: string[]) =>
+  box(
+    "ftyp",
+    Buffer.from(major, "latin1"),
+    Buffer.alloc(4),
+    Buffer.from(compatible.join(""), "latin1"),
+  );
+
+/** Solo los bytes que se miran para detectar el tipo; el resto es relleno. */
+export const fixtures = {
+  jpeg: (size = 1024) =>
+    Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(size - 4, 1)]),
+  png: () => Buffer.concat([Buffer.from("89504e470d0a1a0a", "hex"), Buffer.alloc(512, 2)]),
+  heic: () => Buffer.concat([ftyp("heic", "mif1", "heic"), Buffer.alloc(512, 3)]),
+  /** M4A con `moov/mvhd` (versión 0, timescale 1000) que declara `seconds` de duración. */
+  m4a(seconds: number) {
+    const mvhd = Buffer.alloc(100);
+    mvhd.writeUInt32BE(1000, 12); // timescale
+    mvhd.writeUInt32BE(Math.round(seconds * 1000), 16); // duration
+    return Buffer.concat([
+      ftyp("M4A ", "M4A ", "mp42", "isom"),
+      box("mdat", Buffer.alloc(2048, 4)),
+      box("moov", box("mvhd", mvhd)),
+    ]);
+  },
+  /** M4A sin `moov`: la duración no se puede leer. */
+  m4aWithoutMoov: () => Buffer.concat([ftyp("M4A ", "M4A "), box("mdat", Buffer.alloc(2048, 4))]),
+  text: () => Buffer.from("esto no es una imagen, es texto con extensión .jpg\n".repeat(20)),
+};

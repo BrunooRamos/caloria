@@ -59,7 +59,10 @@ analysis?: {
 corrections: { field: string; from: unknown; to: unknown; at: Date }[]
 comment?: { tone: string; text: string }
 attempts: number              // reintentos del job de análisis
+error?: { code: string }      // con status "failed", ej. "ENQUEUE_FAILED" (no se pudo encolar; reprocesable)
 ```
+
+La media vive en `users/{userId}/meals/{mealId}/photo.{jpg|png|heic}` y `…/audio.m4a`.
 
 Los valores que se muestran y que suman en el dashboard son los del análisis **con las correcciones aplicadas**. `corrections` guarda el historial de cambios.
 

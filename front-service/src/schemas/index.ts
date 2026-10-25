@@ -29,4 +29,6 @@ export const schemas = {
   getMe: route({}),
   updateMe: route({ body: updateMeRequestSchema }),
   deleteMe: route({}),
+  // El body es multipart: lo valida validateMealUpload después de multer.
+  createMeal: route({}),
 } satisfies Record<string, RouteSchema>;

@@ -1,5 +1,6 @@
 # Solo para desarrollo: publica MinIO en el host para que la app abra las URLs firmadas,
-# y la consola web en http://localhost:9001 (login con MINIO_ROOT_USER / MINIO_ROOT_PASSWORD).
+# la consola web en http://localhost:9001 (login con MINIO_ROOT_USER / MINIO_ROOT_PASSWORD)
+# y Redis en 127.0.0.1:6379 para los tests.
 # Uso: docker compose -f infra/docker-compose.yml -f infra/docker-compose.dev.yml up
 # En un teléfono real, usá la IP de la LAN en lugar de 127.0.0.1 en el puerto 9000 y en S3_PUBLIC_ENDPOINT.
 services:
@@ -13,5 +14,14 @@ services:
       - interna
       - minio-host
 
+  # Para correr los tests de back-service contra este Redis (REDIS_TEST_URL=redis://127.0.0.1:6379).
+  redis:
+    ports:
+      - "127.0.0.1:6379:6379"
+    networks:
+      - interna
+      - redis-host
+
 networks:
   minio-host: {}
+  redis-host: {}

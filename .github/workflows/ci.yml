@@ -37,6 +37,14 @@ jobs:
     defaults:
       run:
         working-directory: ${{ matrix.package }}
+    # Redis real para los tests de POST /meals (cola de BullMQ); los demás paquetes lo ignoran.
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+    env:
+      REDIS_TEST_URL: redis://localhost:6379
     steps:
       - uses: actions/checkout@v5
 

@@ -116,3 +116,37 @@ Si el proyecto ya tiene tests de componentes, agregá los de validación del for
 
 Cuando termines, pasame qué archivos tocaste, si tomaste alguna decisión distinta a lo que puse acá y cómo probarlo en el simulador.
 ```
+
+## Sesión `e5d29145-95e9-4973-8b89-5ecfa59a4cab` · 2026-10-25
+
+### 2026-10-25 16:34
+
+```text
+Tengo que implementar el ticket del endpoint central del registro de comidas, el POST /meals.
+
+Para el contexto, fijate en docs/requerimientos.md (la parte de RF-03), en docs/api.md en la sección de registrar una comida, y en el modelo de datos de meals. Reutilizá lo que ya tenemos: el sobre de error con AppError, el requestId y el middleware de auth en Front y Backend.
+
+Los criterios de aceptación son estos: el endpoint recibe un multipart con photo, audio opcional y note opcional; sube la media al bucket y crea el documento en meals con status "processing" y localDate; encola el job en Redis con BullMQ y responde 202 con { mealId, status } en menos de un segundo; y si el Worker está apagado igual responde 202 y el job queda esperando en la cola.
+
+Algunas cosas que pensé y quiero que se respeten:
+
+En el Front, verificá el JWT y validá el multipart antes de reenviar: foto obligatoria de hasta 8 MB y solo jpeg, png o heic, audio opcional, y note opcional con un largo máximo razonable. El tipo de archivo chequealo por el contenido real y no solo por la extensión o el Content-Type que manda el cliente. Si algo no cumple, 400 o 413 según el caso. Como el Front es stateless, no escribas nada a disco: procesalo en memoria con los límites puestos y reenvialo al Backend.
+
+En el Backend volvé a validar lo mismo, porque no confiamos en la DMZ. El límite de 60 segundos del audio validalo leyendo la duración del archivo; si no se puede leer, rechazalo.
+
+El orden en el Backend quiero que sea este: primero generar el id de la comida, después subir la media al bucket, después crear el documento y por último encolar. Así la media queda guardada antes de cualquier otra cosa, que es lo que pide el RNF-02. Las keys del bucket armalas con el usuario y la comida, algo como users/{userId}/meals/{mealId}/photo.jpg, y que los archivos queden privados.
+
+El localDate es el día de la comida en la zona horaria del usuario (la que guardamos en el perfil), en formato YYYY-MM-DD, calculado a partir del momento en que llega el pedido. Es lo que después usamos para el historial del día y la racha, así que agregá un índice en meals por userId y localDate.
+
+Para la cola, usá BullMQ con una cola para el análisis de comidas. Como id del job usá el mealId, así si por algún motivo se encola dos veces no se duplica. En el job mandá solo el mealId y el requestId (esto resuelve el TODO que quedó del ticket del sobre de error), nada de datos del usuario ni la media; el Worker lee lo demás de Mongo. Configurale reintentos con backoff exponencial.
+
+Pensemos qué pasa si algo falla en el medio. Si falla la subida al bucket, no se crea nada y respondés 503. Si falla la creación del documento después de subir la media, intentá borrar lo que se subió y respondés 500. Si falla el encolado porque Redis no está, no borres nada: marcá la comida como failed con un código de error para poder reprocesarla después, y respondés 503. En todos los casos logueá el detalle con el requestId.
+
+El 202 tiene que salir apenas se encola, sin esperar nada del Worker. Logueá cuánto tarda el request así podemos ver que estamos debajo del segundo.
+
+Fuera de alcance de este ticket: el control del cupo del plan free, la racha y el Worker en sí. Dejá un TODO donde iría el control de cupo.
+
+Para los tests: multipart válido con y sin audio da 202 con el body correcto; el documento queda en processing con el localDate bien calculado para una zona horaria distinta a UTC (por ejemplo una comida a las 23:30 de Montevideo); el job aparece en la cola en estado de espera sin ningún Worker corriendo; foto de más de 8 MB da 413; un archivo que no es imagen renombrado a .jpg da 400; audio de más de 60 segundos da 400; sin foto da 400; sin token da 401; y los tres casos de falla de arriba. El bucket mockealo o usá MinIO, y para BullMQ usá un Redis real, el del docker compose si ya está.
+
+Cuando termines, pasame qué archivos tocaste, si tomaste alguna decisión distinta a lo que puse acá y cómo dieron los tests.
+```

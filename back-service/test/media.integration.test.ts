@@ -25,11 +25,12 @@ describe(
     it("sube, sirve con URL firmada y borra", async () => {
       const key = await media.upload({
         userId,
+        mealId: randomUUID(),
         kind: "photo",
         body: photo,
         contentType: "image/jpeg",
       });
-      assert.match(key, new RegExp(`^users/${userId}/meals/[0-9a-f-]+\\.jpg$`));
+      assert.match(key, new RegExp(`^users/${userId}/meals/[0-9a-f-]+/photo\\.jpg$`));
 
       const res = await fetch(await media.signedUrl(key));
       assert.equal(res.status, 200);
@@ -44,6 +45,7 @@ describe(
     it("el bucket no permite acceso anónimo", async () => {
       const key = await media.upload({
         userId,
+        mealId: randomUUID(),
         kind: "photo",
         body: photo,
         contentType: "image/jpeg",
@@ -56,6 +58,7 @@ describe(
     it("una URL vencida no sirve", async () => {
       const key = await media.upload({
         userId,
+        mealId: randomUUID(),
         kind: "photo",
         body: photo,
         contentType: "image/jpeg",
@@ -69,11 +72,24 @@ describe(
     it("removeUserMedia borra solo la media de ese usuario", async () => {
       const other = randomUUID();
       const mine = await Promise.all([
-        media.upload({ userId, kind: "photo", body: photo, contentType: "image/png" }),
-        media.upload({ userId, kind: "audio", body: photo, contentType: "audio/mp4" }),
+        media.upload({
+          userId,
+          mealId: randomUUID(),
+          kind: "photo",
+          body: photo,
+          contentType: "image/png",
+        }),
+        media.upload({
+          userId,
+          mealId: randomUUID(),
+          kind: "audio",
+          body: photo,
+          contentType: "audio/mp4",
+        }),
       ]);
       const theirs = await media.upload({
         userId: other,
+        mealId: randomUUID(),
         kind: "photo",
         body: photo,
         contentType: "image/jpeg",

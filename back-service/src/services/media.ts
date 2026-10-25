@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import {
   DeleteObjectCommand,
   DeleteObjectsCommand,
@@ -23,13 +22,14 @@ const EXTENSIONS: Record<MediaKind, Record<string, string>> = {
 
 export interface UploadInput {
   userId: string;
+  mealId: string;
   kind: MediaKind;
   body: Uint8Array;
   contentType: string;
 }
 
 export interface MediaService {
-  /** Sube el archivo y devuelve su key, que se guarda en `meals.media`. */
+  /** Sube el archivo a `users/{userId}/meals/{mealId}/{kind}.{ext}` y devuelve esa key. */
   upload(input: UploadInput): Promise<string>;
   /** Idempotente: borrar una key inexistente no falla. */
   remove(key: string): Promise<void>;
@@ -53,11 +53,11 @@ export function createMediaService(config: StorageConfig): MediaService {
   const Bucket = config.bucket;
 
   return {
-    async upload({ userId, kind, body, contentType }) {
-      // hasOwn: el contentType viene del cliente; "constructor" no debe pasar la validación.
+    async upload({ userId, mealId, kind, body, contentType }) {
+      // hasOwn: "constructor" no debe pasar la validación.
       const ext = Object.hasOwn(EXTENSIONS[kind], contentType) && EXTENSIONS[kind][contentType];
       if (!ext) throw new AppError("VALIDATION_ERROR", `Tipo de ${kind} no permitido`);
-      const Key = `${userPrefix(userId)}meals/${randomUUID()}.${ext}`;
+      const Key = `${userPrefix(userId)}meals/${mealId}/${kind}.${ext}`;
       await client.send(
         new PutObjectCommand({ Bucket, Key, Body: body, ContentType: contentType }),
       );
