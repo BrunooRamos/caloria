@@ -1,0 +1,120 @@
+back-service/src/middleware/meal-upload.ts
+  s_3856d1ca334a50::t_6836a5ddd14c98 1-7
+front-service/src/schemas/index.ts
+  s_3856d1ca334a50::t_eaf261fc42a951 32-33
+shared/test/meals.test.ts
+  s_3856d1ca334a50::t_5fb8970f0821e8 1-98,100
+  s_3856d1ca334a50::t_c9e4bc01ecffbb 99,101-114
+back-service/src/controllers/meals.ts
+  s_3856d1ca334a50::t_7a033d04d77233 1-43
+back-service/README.md
+  s_3856d1ca334a50::t_4be16c2ec9f1f7 5-15
+back-service/test/helpers.ts
+  s_3856d1ca334a50::t_e5176a3fcf2e3e 35-73
+back-service/src/services/audio-duration.ts
+  s_3856d1ca334a50::t_d70b5d68408cba 1-56
+front-service/package.json
+  s_3856d1ca334a50::t_d03a059b6ff558 24,29
+shared/src/meals.ts
+  s_3856d1ca334a50::t_c1057760053771 1-132
+infra/nginx/nginx.conf
+  s_3856d1ca334a50::t_bd0668619905a9 32-47
+back-service/src/services/meals.ts
+  s_3856d1ca334a50::t_72c6b9f93e6471 1-137
+back-service/src/config/index.ts
+  s_3856d1ca334a50::t_90022910214e2d 9-10,15
+back-service/src/index.ts
+  s_3856d1ca334a50::t_9252e9eb64af99 5-6,10-11,19-28
+  s_3856d1ca334a50::t_0221b21bb148ca 36
+infra/docker-compose.dev.yml
+  s_3856d1ca334a50::t_e27a572a324435 17-24,27
+  s_3856d1ca334a50::t_2922eefe537174 2-3
+back-service/src/jobs/meal-analysis.ts
+  s_3856d1ca334a50::t_4473b2288b52cb 1-25,27-44,47-60,64-65,69-74
+  s_3856d1ca334a50::t_5f9ea024c14ec2 46
+  s_3856d1ca334a50::t_8f9a584842e743 61-63
+  s_3856d1ca334a50::t_cea97e0c184e77 66-68
+  s_3856d1ca334a50::t_105160684f8637 26
+  h_5b36141b16afea 45
+back-service/src/models/Meal.ts
+  s_3856d1ca334a50::t_e1ff1735d5f177 1-129
+.github/workflows/ci.yml
+  s_3856d1ca334a50::t_f594657b6b8453 40-47
+docs/modelo-datos.md
+  s_3856d1ca334a50::t_6f06815e4fb27b 62,65
+  s_3856d1ca334a50::t_32f4d703ecba6b 66
+back-service/test/meals.test.ts
+  s_3856d1ca334a50::t_aa12339a386761 1-55,57-242,245-248,251-264,266-270,272-379,381-423
+  s_3856d1ca334a50::t_df07385a0ac9d1 56
+  s_3856d1ca334a50::t_5e625471516bb7 380
+  s_3856d1ca334a50::t_2c1a7856369a59 243-244
+  s_3856d1ca334a50::t_681e5513d78b7c 249-250
+  s_3856d1ca334a50::t_8d6d289e6d84f3 265
+  s_3856d1ca334a50::t_f713b96afd40b0 271
+back-service/src/services/local-date.ts
+  s_3856d1ca334a50::t_ef7c4253a8de14 1-11
+docs/api.md
+  s_3856d1ca334a50::t_072cb74cb4d296 156-162
+back-service/package.json
+  s_3856d1ca334a50::t_e4bc1baa786f70 28
+  s_3856d1ca334a50::t_d03a059b6ff558 26,30-31,36
+back-service/test/auth.test.ts
+  s_3856d1ca334a50::t_f6ec6401517581 224-227
+  s_3856d1ca334a50::t_180f1bcb5eb831 234-240,242-247
+front-service/src/clients/backend.ts
+  s_3856d1ca334a50::t_058e59a0c8293d 26-27,77,92
+front-service/src/controllers/meals.ts
+  s_3856d1ca334a50::t_899f61ac057f98 1-9,14-17,20-45
+  s_3856d1ca334a50::t_2e61e00cdb16e2 10-13,18-19
+back-service/src/services/media.ts
+  s_3856d1ca334a50::t_5e23f06bae0c6b 32
+  s_3856d1ca334a50::t_d9a1df6f22453b 56-57,60
+  s_3856d1ca334a50::t_88b27e1d9f57ea 25
+front-service/test/meals.test.ts
+  s_3856d1ca334a50::t_d0c6d86b902822 1-254
+  s_3856d1ca334a50::t_917e03f57a8696 255-279
+back-service/test/audio-duration.test.ts
+  s_3856d1ca334a50::t_3aa3af626ef6a4 1-61
+back-service/src/routes/index.ts
+  s_3856d1ca334a50::t_4398c3aabc5778 4,7,9,15,19
+  s_3856d1ca334a50::t_76a6617a1ba5d8 32-35
+back-service/test/media.test.ts
+  s_3856d1ca334a50::t_c547c6c9c94a7a 36
+back-service/test/media.integration.test.ts
+  s_3856d1ca334a50::t_c547c6c9c94a7a 28,33,48,61,92
+  s_3856d1ca334a50::t_e5176a3fcf2e3e 75-88
+shared/src/index.ts
+  s_3856d1ca334a50::t_8dffcdaf29ad28 38-59
+front-service/src/routes/index.ts
+  s_3856d1ca334a50::t_0425e60427579d 34-35
+  s_3856d1ca334a50::t_d6f93841e338f9 6,8
+front-service/src/middleware/meal-upload.ts
+  s_3856d1ca334a50::t_8941e7c7694392 1-8
+back-service/package-lock.json
+  s_3856d1ca334a50::t_fcac39f0d79d5e 15,17,19-20,25,821-826,836-913,1066-1075,1160-1165,1344-1390,1442-1450,1498-1509,1527-1535,1545-1554,1985-2006,2129-2137,2461-2552,2595-2615,2807-2827,3020-3025,3035-3042
+front-service/package-lock.json
+  s_3856d1ca334a50::t_f801547bbcae46 13,18,581-590,673-678,730-740,1433-1493,1790-1797
+prompts/historial/pazdiaz15.md
+  h_5b36141b16afea 119-152
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b2a074da774185ba746d8c496e149d2e7bcb9bb8",
+  "prompts": {},
+  "humans": {
+    "h_5b36141b16afea": {
+      "author": "pazdiaz15 <mpdiaz@correo.um.edu.uy>"
+    }
+  },
+  "sessions": {
+    "s_3856d1ca334a50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e5d29145-95e9-4973-8b89-5ecfa59a4cab",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "pazdiaz15 <mpdiaz@correo.um.edu.uy>"
+    }
+  }
+}
