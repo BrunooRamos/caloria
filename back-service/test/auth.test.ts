@@ -13,7 +13,7 @@ import { apiRouter } from "../src/routes";
 import { createAuthService, MAX_SESSIONS } from "../src/services/auth";
 import { createUserService } from "../src/services/users";
 import { computeTargets } from "../src/services/targets";
-import { captureLogger, listen } from "./helpers";
+import { captureLogger, listen, storageEnv } from "./helpers";
 
 const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
 
@@ -229,7 +229,7 @@ describe("back-service: configuración", () => {
   });
 
   it("lee la clave privada del entorno", () => {
-    const config = loadConfig({ MONGO_URI: "mongodb://x", JWT_PRIVATE_KEY: pem });
+    const config = loadConfig({ MONGO_URI: "mongodb://x", JWT_PRIVATE_KEY: pem, ...storageEnv });
     assert.equal(config.jwtPrivateKey.type, "private");
   });
 });

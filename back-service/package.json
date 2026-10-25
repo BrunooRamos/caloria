@@ -19,6 +19,8 @@
     "format:check": "prettier --check . --ignore-path ../.prettierignore"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1154.0",
+    "@aws-sdk/s3-request-presigner": "^3.1154.0",
     "@caloria/shared": "file:../shared",
     "bcryptjs": "^3.0.3",
     "express": "^5.1.0",

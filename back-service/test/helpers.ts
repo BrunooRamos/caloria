@@ -22,3 +22,13 @@ export function captureLogger(service: string) {
 }
 
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Config de storage de prueba: firmar URLs no hace llamadas de red, así que no hace falta MinIO.
+export const storageEnv = {
+  S3_ENDPOINT: "http://minio:9000",
+  S3_PUBLIC_ENDPOINT: "http://localhost:9000",
+  S3_REGION: "us-east-1",
+  S3_BUCKET: "caloria-media",
+  S3_ACCESS_KEY_ID: "test-access-key",
+  S3_SECRET_ACCESS_KEY: "test-secret-key",
+};
