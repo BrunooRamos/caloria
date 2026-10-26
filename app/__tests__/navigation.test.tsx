@@ -73,7 +73,7 @@ function start(handler: Handler, tokens: AuthTokens | null) {
 }
 
 /** Rutas del Stack raíz: muestra qué grupos llegaron a montarse. */
-const rootRoutes = (router: ReturnType<typeof start>) =>
+const rootRoutes = (router: Awaited<ReturnType<typeof start>>) =>
   router.getRouterState()?.routes[0]?.state?.routes.map((route) => route.name);
 
 beforeEach(() => {
@@ -85,11 +85,10 @@ beforeEach(() => {
 describe("al abrir la app", () => {
   it("mantiene el splash mientras refresca y entra directo al grupo con sesión", async () => {
     const refreshResponse = deferred<Response>();
-    const router = start(
+    const router = await start(
       rotatingBackend(() => refreshResponse.promise),
       OLD_TOKENS,
     );
-    await router;
 
     // Refresh en vuelo: no hay ninguna pantalla montada y el splash sigue arriba.
     expect(mockRenders).toEqual({ login: 0, home: 0 });
@@ -107,8 +106,7 @@ describe("al abrir la app", () => {
   });
 
   it("sin tokens guardados va al login sin llamar a la API", async () => {
-    const router = start(rotatingBackend(), null);
-    await router;
+    const router = await start(rotatingBackend(), null);
 
     expect(await screen.findByLabelText("Email")).toBeOnTheScreen();
     expect(router.getPathname()).toBe("/login");
@@ -119,11 +117,10 @@ describe("al abrir la app", () => {
   });
 
   it("si el servidor rechaza el refresh, limpia y va al login", async () => {
-    const router = start(
+    const router = await start(
       rotatingBackend(() => apiError(401, "UNAUTHORIZED")),
       OLD_TOKENS,
     );
-    await router;
 
     expect(await screen.findByLabelText("Email")).toBeOnTheScreen();
     expect(router.getPathname()).toBe("/login");
@@ -132,11 +129,10 @@ describe("al abrir la app", () => {
   });
 
   it("si el refresh falla por red, entra con los tokens guardados", async () => {
-    const router = start(
+    const router = await start(
       rotatingBackend(() => Promise.reject(new TypeError("Network request failed"))),
       OLD_TOKENS,
     );
-    await router;
 
     expect(await screen.findByText("Sesión iniciada")).toBeOnTheScreen();
     expect(router.getPathname()).toBe("/");
@@ -145,11 +141,10 @@ describe("al abrir la app", () => {
 
   it("si el refresh se cuelga, no deja el splash trabado y sigue en segundo plano", async () => {
     const refreshResponse = deferred<Response>();
-    const router = start(
+    const router = await start(
       rotatingBackend(() => refreshResponse.promise),
       OLD_TOKENS,
     );
-    await router;
     expect(SplashScreen.hide).not.toHaveBeenCalled();
 
     await act(async () => jest.advanceTimersByTime(STARTUP_REFRESH_TIMEOUT_MS));
@@ -165,13 +160,12 @@ describe("al abrir la app", () => {
 
 describe("con la app abierta", () => {
   it("el login guarda los tokens y lleva a la home", async () => {
-    const router = start((call) => {
+    const router = await start((call) => {
       if (call.path === "/auth/login") {
         return json(200, { ...NEW_TOKENS, user: { id: "u1", email: "cami@example.com" } });
       }
       return apiError(404, "NOT_FOUND");
     }, null);
-    await router;
 
     await fireEvent.changeText(await screen.findByLabelText("Email"), " cami@example.com ");
     await fireEvent.changeText(screen.getByLabelText("Contraseña"), "secreto123");
@@ -186,8 +180,7 @@ describe("con la app abierta", () => {
   });
 
   it("el login y el registro se enlazan entre sí", async () => {
-    const router = start(rotatingBackend(), null);
-    await router;
+    const router = await start(rotatingBackend(), null);
 
     await fireEvent.press(await screen.findByText("Crear una cuenta"));
     expect(router.getPathname()).toBe("/register");
@@ -197,8 +190,7 @@ describe("con la app abierta", () => {
   });
 
   it("muestra el error de la API si el login falla", async () => {
-    const router = start(() => apiError(401, "UNAUTHORIZED"), null);
-    await router;
+    const router = await start(() => apiError(401, "UNAUTHORIZED"), null);
 
     await fireEvent.changeText(await screen.findByLabelText("Email"), "cami@example.com");
     await fireEvent.changeText(screen.getByLabelText("Contraseña"), "incorrecta");
@@ -211,11 +203,10 @@ describe("con la app abierta", () => {
   it("el logout desde el perfil pide confirmación y se puede cancelar", async () => {
     // Aunque el perfil no cargue, cerrar sesión sigue disponible.
     const backend = rotatingBackend();
-    const router = start(
+    const router = await start(
       (call) => (call.path === "/users/me" ? apiError(404, "NOT_FOUND") : backend(call)),
       OLD_TOKENS,
     );
-    await router;
 
     await fireEvent.press(await screen.findByText("Mi perfil"));
     expect(router.getPathname()).toBe("/profile");
@@ -231,12 +222,11 @@ describe("con la app abierta", () => {
   });
 
   it("el logout borra los tokens y vuelve al login aunque /auth/logout falle", async () => {
-    const router = start((call) => {
+    const router = await start((call) => {
       if (call.path === "/auth/refresh") return json(200, { ...NEW_TOKENS });
       if (call.path === "/auth/logout") return apiError(500, "INTERNAL_ERROR");
       return apiError(404, "NOT_FOUND");
     }, OLD_TOKENS);
-    await router;
 
     await fireEvent.press(await screen.findByText("Mi perfil"));
     await fireEvent.press(await screen.findByText("Cerrar sesión"));
@@ -252,13 +242,12 @@ describe("con la app abierta", () => {
 
   it("si la sesión expira en medio del uso, el cliente avisa al store y vuelve al login", async () => {
     let refreshes = 0;
-    const router = start(
+    const router = await start(
       rotatingBackend(() =>
         refreshes++ === 0 ? json(200, { ...NEW_TOKENS }) : apiError(401, "UNAUTHORIZED"),
       ),
       OLD_TOKENS,
     );
-    await router;
     await screen.findByText("Sesión iniciada");
 
     // El access token vence y el backend ya no acepta el refresh token.

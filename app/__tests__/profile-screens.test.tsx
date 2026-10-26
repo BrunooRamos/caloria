@@ -200,8 +200,7 @@ describe("registro con perfil", () => {
   });
 
   it("manda todo en un solo POST con la zona horaria del dispositivo y muestra las metas de la API", async () => {
-    const router = start(signUpBackend(), "/register");
-    await router;
+    const router = await start(signUpBackend(), "/register");
     await fillCredentials();
     await fillAboutYou();
     await fillMeasures("165", "60");
@@ -266,8 +265,7 @@ describe("registro con perfil", () => {
   });
 
   it("si el email ya existe, vuelve al registro con el error en el campo email", async () => {
-    const router = start(() => apiError(409, "EMAIL_TAKEN"), "/register");
-    await router;
+    const router = await start(() => apiError(409, "EMAIL_TAKEN"), "/register");
     await fillCredentials();
     await fillAboutYou();
     await fillMeasures();

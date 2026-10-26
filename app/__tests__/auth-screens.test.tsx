@@ -164,8 +164,7 @@ describe("login", () => {
 
 describe("registro", () => {
   it("valida, guarda email y contraseña sin llamar a la API y sigue al perfil", async () => {
-    const router = start(loggedIn, "/register");
-    await router;
+    const router = await start(loggedIn, "/register");
 
     await fill("cami@example.com", "corta");
     await fireEvent(password(), "blur");
@@ -181,8 +180,7 @@ describe("registro", () => {
   });
 
   it("pide repetir la contraseña y que coincida antes de seguir", async () => {
-    const router = start(loggedIn, "/register");
-    await router;
+    const router = await start(loggedIn, "/register");
 
     await fill("cami@example.com", "secreto123");
     await fireEvent.press(screen.getByText("Continuar"));

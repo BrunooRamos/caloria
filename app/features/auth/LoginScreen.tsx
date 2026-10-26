@@ -1,7 +1,7 @@
 import { Link } from "expo-router";
 import { useRef } from "react";
 import { StyleSheet, View } from "react-native";
-import type { TextInput } from "react-native";
+import type { TextInputInstance } from "react-native";
 import { Button, FormError, Input, Logo, Screen, Text } from "@/components";
 import { useSession } from "@/store/session";
 import { spacing } from "@/theme";
@@ -11,7 +11,7 @@ import { loginSchema } from "./validation";
 
 export default function LoginScreen() {
   const { signIn } = useSession();
-  const passwordRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInputInstance>(null);
   const form = useForm({
     schema: loginSchema,
     initialValues: { email: "", password: "" },

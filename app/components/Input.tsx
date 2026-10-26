@@ -2,7 +2,7 @@ import { Eye, EyeClosed } from "lucide-react-native";
 import { useState } from "react";
 import type { Ref } from "react";
 import { Pressable, StyleSheet, TextInput, View } from "react-native";
-import type { TextInputProps } from "react-native";
+import type { TextInputInstance, TextInputProps } from "react-native";
 import { borderWidth, colors, fonts, opacity, radius, sizes, spacing, typography } from "@/theme";
 import type { ColorToken } from "@/theme";
 import { Text } from "./Text";
@@ -17,7 +17,7 @@ export interface InputProps extends Omit<TextInputProps, "style" | "placeholderT
   hint?: string;
   /** Con `secureTextEntry`: el placeholder mientras se muestra lo escrito. */
   revealedPlaceholder?: string;
-  ref?: Ref<TextInput>;
+  ref?: Ref<TextInputInstance>;
 }
 
 /** Colores de los textos del campo según el fondo de la pantalla. */

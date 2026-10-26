@@ -3,7 +3,7 @@ import { StyleSheet } from "react-native";
 import { SignUpDraftProvider } from "@/features/auth/sign-up-draft";
 import { colors } from "@/theme";
 
-export const unstable_settings = { initialRouteName: "login" };
+export const unstable_settings = { anchor: "login" };
 
 export default function AuthLayout() {
   return (

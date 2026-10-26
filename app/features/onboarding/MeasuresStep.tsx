@@ -1,6 +1,6 @@
 import { Redirect, router } from "expo-router";
 import { useRef } from "react";
-import type { TextInput } from "react-native";
+import type { TextInputInstance } from "react-native";
 import { Input } from "@/components";
 import { useSignUpDraft } from "@/features/auth/sign-up-draft";
 import { useForm } from "@/features/auth/useForm";
@@ -9,7 +9,7 @@ import { OnboardingStep } from "./OnboardingStep";
 
 export default function MeasuresStep() {
   const draft = useSignUpDraft();
-  const weightRef = useRef<TextInput>(null);
+  const weightRef = useRef<TextInputInstance>(null);
   const form = useForm({
     schema: measuresSchema,
     initialValues: { heightCm: draft.profile.heightCm, weightKg: draft.profile.weightKg },

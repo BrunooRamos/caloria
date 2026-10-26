@@ -1,7 +1,7 @@
 import { Link, router } from "expo-router";
 import { useRef } from "react";
 import { StyleSheet, View } from "react-native";
-import type { TextInput } from "react-native";
+import type { TextInputInstance } from "react-native";
 import { Button, FormError, Input, Logo, Screen, Text } from "@/components";
 import { spacing } from "@/theme";
 import { passwordPlaceholders } from "./placeholders";
@@ -11,8 +11,8 @@ import { PASSWORD_MAX_BYTES, PASSWORD_MIN_CHARS, registerSchema } from "./valida
 
 export default function RegisterScreen() {
   const draft = useSignUpDraft();
-  const passwordRef = useRef<TextInput>(null);
-  const confirmPasswordRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInputInstance>(null);
+  const confirmPasswordRef = useRef<TextInputInstance>(null);
   const form = useForm({
     schema: registerSchema,
     initialValues: { email: draft.credentials?.email ?? "", password: "", confirmPassword: "" },
