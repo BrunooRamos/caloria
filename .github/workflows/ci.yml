@@ -27,6 +27,14 @@ jobs:
       - run: npm run lint -- --max-warnings 0
       - run: npm run format:check
 
+  # nginx -t y smoke test de los límites de POST /meals, con un stub del Front.
+  nginx:
+    name: nginx (config + smoke)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: bash scripts/nginx-smoke.sh
+
   package:
     name: ${{ matrix.package }}
     runs-on: ubuntu-latest

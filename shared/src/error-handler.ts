@@ -6,7 +6,9 @@ import { serializeError } from "./logger";
 import type { Logger } from "./logger";
 
 const BODY_TOO_LARGE = new Set(["entity.too.large", "parameters.too.many"]);
-const MULTER_NOT_A_LIMIT = "LIMIT_UNEXPECTED_FILE";
+// Errores de multer que son 400 y no 413: un archivo en un campo inesperado o un campo de texto
+// que pasa el `fieldSize` (una nota larga es 400 aunque no llegue a zod).
+const MULTER_VALIDATION = new Set(["LIMIT_UNEXPECTED_FILE", "LIMIT_FIELD_VALUE"]);
 
 interface ZodLikeError {
   name: "ZodError";
@@ -37,7 +39,7 @@ export function toAppError(err: unknown): AppError {
   if (err instanceof AppError) return err;
   if (isZodError(err)) return new AppError("VALIDATION_ERROR", undefined, { cause: err });
   if (isMulterError(err)) {
-    return err.code === MULTER_NOT_A_LIMIT
+    return MULTER_VALIDATION.has(err.code)
       ? new AppError("VALIDATION_ERROR", undefined, { cause: err })
       : new AppError("PAYLOAD_TOO_LARGE", undefined, { cause: err });
   }

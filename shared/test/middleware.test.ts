@@ -23,7 +23,7 @@ function buildApp(trustIncomingId: boolean) {
   app.post("/zod", (req, res) => {
     res.json(z.object({ grams: z.number() }).parse(req.body));
   });
-  const upload = multer({ limits: { fileSize: 10 } });
+  const upload = multer({ limits: { fileSize: 10, fieldSize: 10 } });
   app.post("/upload", upload.single("photo"), (_req, res) => {
     res.status(201).end();
   });
@@ -99,6 +99,16 @@ describe("errorHandler", () => {
       await fetch(`${url}/upload`, { method: "POST", body: form }),
       413,
       "PAYLOAD_TOO_LARGE",
+    );
+  });
+
+  it("campo de texto por encima del límite de multer → 400 VALIDATION_ERROR", async () => {
+    const form = new FormData();
+    form.append("note", "x".repeat(11));
+    await expectEnvelope(
+      await fetch(`${url}/upload`, { method: "POST", body: form }),
+      400,
+      "VALIDATION_ERROR",
     );
   });
 

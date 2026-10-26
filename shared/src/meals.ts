@@ -21,7 +21,8 @@ export const MEAL_UPLOAD_FIELDS = [
 
 /**
  * Límites de multer para `POST /meals`, todo en memoria. `fileSize` es el de la foto (el mayor):
- * el del audio se controla después. Pasar cualquiera de estos límites es un 413.
+ * el del audio se controla después. Pasar cualquiera de estos límites es un 413, salvo `fieldSize`:
+ * una nota larga es 400 aunque no llegue a zod.
  */
 export const MEAL_UPLOAD_LIMITS = {
   fileSize: PHOTO_MAX_BYTES,
