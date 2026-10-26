@@ -185,7 +185,12 @@ GET /api/v1/meals/66f1a…
 }
 ```
 
-Mientras `status` es `processing`, la respuesta trae solo `id`, `status`, `capturedAt` y `photoUrl`. Si es `failed`, se incluye `error.code`.
+Mientras `status` es `processing`, la respuesta trae solo `id`, `status`, `capturedAt` y `photoUrl`. Si es `failed`, se incluye `error.code`. La API no manda un mensaje para el usuario: la app lo arma a partir del código.
+
+| `error.code` | Cuándo | Mensaje que muestra la app |
+|---|---|---|
+| `NOT_FOOD` | La IA dice que la foto no es comida. No se reintenta y no consume cupo | "No encontramos comida en esta foto. Probá con otra en la que se vea el plato." |
+| `ENQUEUE_FAILED` | No se pudo encolar el análisis (Redis caído). La comida y la media quedan para reprocesarla | "No pudimos analizar esta comida. Probá de nuevo en un rato." |
 
 ### Corregir una comida
 
@@ -227,7 +232,7 @@ Toda la API responde los errores con la misma forma. La app mapea `code` → men
   - El Backend usa el `X-Request-Id` recibido; si falta o no es un UUID, genera uno y loguea un warning.
 - Los errores nunca exponen stack traces ni detalles internos: un error no previsto responde `500 INTERNAL_ERROR` con un mensaje genérico. El detalle (con stack) queda solo en el log.
 - Los errores del Backend con sobre válido llegan al cliente sin modificar. Si el Backend no está alcanzable o no termina de responder dentro del timeout (`BACKEND_TIMEOUT_MS`, 10 s por defecto), el Front responde `503 SERVICE_UNAVAILABLE`; si responde algo que no es un sobre válido, `500 INTERNAL_ERROR`. El Front no reintenta: si vence el timeout de una escritura, el Backend pudo haberla completado.
-- Si la IA falla, el job reintenta con backoff y la comida queda en `processing`: nunca se pierde la media.
+- Si la IA falla (error de red, timeout o una respuesta que no pasa la validación), el job reintenta con backoff y la comida queda en `processing`: nunca se pierde la media. Que la foto no sea comida no es un fallo de la IA: la comida pasa a `failed` con `NOT_FOOD` sin reintento.
 
 El catálogo, `AppError` y el middleware de errores viven en `shared/` (paquete `@caloria/shared`) y los usan ambos servicios. El status se deriva del `code`: en el código se lanza `throw new AppError("MEAL_QUOTA_EXCEEDED")`, nunca se arma la respuesta a mano.
 

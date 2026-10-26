@@ -5,7 +5,11 @@ import { Queue } from "bullmq";
 import IORedis from "ioredis";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import mongoose from "mongoose";
-import { DEFAULT_WORKER_CONCURRENCY, loadWorkerConfig } from "../src/config/worker";
+import {
+  DEFAULT_OPENAI_VISION_MODEL,
+  DEFAULT_WORKER_CONCURRENCY,
+  loadWorkerConfig,
+} from "../src/config/worker";
 import {
   createMealAnalysisQueue,
   MEAL_ANALYSIS_JOB_OPTIONS,
@@ -32,6 +36,7 @@ const AUDIO = new Uint8Array([0, 0, 0, 0x20, 0x66, 0x74, 0x79, 0x70]);
 const workerEnv = {
   MONGO_URI: "mongodb://mongo:27017/caloria",
   REDIS_URL: "redis://redis:6379",
+  OPENAI_API_KEY: "sk-test",
   ...storageEnv,
 };
 
@@ -120,7 +125,16 @@ describe("back-service: config del worker", () => {
     });
   }
 
-  for (const name of ["MONGO_URI", "REDIS_URL", "S3_BUCKET"]) {
+  it("toma la clave de OpenAI y el modelo de visión, con default", () => {
+    assert.deepEqual(loadWorkerConfig(workerEnv).openai, {
+      apiKey: "sk-test",
+      visionModel: DEFAULT_OPENAI_VISION_MODEL,
+    });
+    const config = loadWorkerConfig({ ...workerEnv, OPENAI_VISION_MODEL: "gpt-6.1-sol" });
+    assert.equal(config.openai.visionModel, "gpt-6.1-sol");
+  });
+
+  for (const name of ["MONGO_URI", "REDIS_URL", "S3_BUCKET", "OPENAI_API_KEY"]) {
     it(`no arranca sin ${name}`, () => {
       assert.throws(() => loadWorkerConfig({ ...workerEnv, [name]: " " }), new RegExp(name));
     });
@@ -184,7 +198,7 @@ describe("back-service: worker de análisis", () => {
       assert.equal(analyzed.note, NOTE);
       assert.deepEqual(photo, PHOTO);
       assert.deepEqual(audio, AUDIO);
-      // Sin IA todavía (#18): la comida sigue en processing.
+      // Este analyze no hace nada: la comida sigue en processing.
       assert.equal((await MealModel.findById(meal.id).lean())?.status, "processing");
     });
 

@@ -1,7 +1,12 @@
 import { z } from "zod";
 import { loadPublicKey } from "@caloria/shared";
 
-export const FORBIDDEN_ENV = ["JWT_PRIVATE_KEY", "MONGO_URI", "REDIS_URL", "AI_API_KEY"] as const;
+export const FORBIDDEN_ENV = [
+  "JWT_PRIVATE_KEY",
+  "MONGO_URI",
+  "REDIS_URL",
+  "OPENAI_API_KEY",
+] as const;
 
 const missing = (name: string) => ({
   error: (issue: { input?: unknown }) =>
