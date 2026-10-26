@@ -81,3 +81,33 @@ Antes de implementar, contame tu plan con los archivos que vas a crear o modific
 Hacelo desde la branch de feat/rf-01-app-auth-base
 para no generar conflictos.
 ```
+
+## Sesión `a90b567c-5f5e-4ee6-ac4d-b68601bddcef` · 2026-10-26
+
+### 2026-10-26 11:18
+
+```text
+Este ticket es el endpoint `GET /api/v1/meals/:id`, que devuelve el estado y el resultado del análisis de una comida. Antes de empezar, leé la sección "Consultar el análisis" de `docs/api.md`, la collection `meals` en `docs/modelo-datos.md`, RF-05, RF-06 y RNF-04 en `docs/requerimientos.md` y la parte de autorización y privacidad de la media en `docs/seguridad.md`. Revisá también lo que ya existe en `back-service/` (modelos, services de media, middleware de auth) y en `front-service/`, para seguir la estructura y los patrones que ya usamos.
+
+Los criterios de aceptación son estos: devuelve el formato de `api.md` según el `status`; incluye una `photoUrl` firmada; y si la comida es de otro usuario o no existe, responde 404.
+
+El grueso del trabajo va en el Backend. La comida se busca filtrando por el id y por el `userId` del token en la misma consulta, de modo que una comida ajena y una inexistente terminen exactamente igual: 404 `NOT_FOUND` con el sobre de error estándar, mismo mensaje y sin ninguna diferencia que permita saber si el id existe. Un id que no tiene formato de ObjectId tampoco puede romper nada ni devolver un 500.
+
+La respuesta cambia según el estado, como dice `api.md`. Mientras está en `processing` trae solo `id`, `status`, `capturedAt` y `photoUrl`. En `ready` trae además el plato, los ingredientes, las kcal, los macros, la confianza y el comentario, todo con la forma de rangos del ejemplo. Los valores tienen que ser los del análisis con las correcciones del usuario aplicadas, como indica `modelo-datos.md`, para que esta pantalla coincida con lo que después suma el dashboard; revisá cómo quedó implementado el `PATCH /meals/:id`, si ya existe, y seguí la misma lógica. Si el tono del usuario está desactivado y no hay comentario, definí un criterio consistente (campo ausente o `null`) y aplicalo igual en todos lados. En `failed` se incluye `error.code`. El modelo de `meals` hoy no tiene dónde guardar ese código, así que proponeme cómo agregarlo y qué códigos tendría que escribir el Worker (por ejemplo, la foto que no parece comida de RF-05), y actualizá `docs/modelo-datos.md` y `docs/api.md` con lo que definamos.
+
+Armá la transformación del documento a la respuesta como una función aparte y tipada, porque la vamos a reutilizar en el historial (`GET /meals`). Esa función decide qué sale y qué no: nunca se exponen campos internos como `userId`, las claves del bucket, `promptVersion`, `model`, `attempts`, la transcripción ni el historial de `corrections`. El id sale como string y las fechas en ISO.
+
+La `photoUrl` se firma en cada request a través del service de media, con una vida de 15 minutos como máximo (RNF-04), y nunca se guarda una URL firmada en la base. Si el service de media todavía no tiene un método para firmar lecturas, sumalo detrás de la misma interfaz, sin acoplarlo a un proveedor, porque el storage todavía es una decisión abierta. Como la app va a consultar este endpoint repetidamente mientras la comida se procesa, la respuesta tiene que llevar headers que eviten que se cachee, así nunca se usa una URL vencida. Es un endpoint de lectura, así que tiene que responder en menos de un segundo (RNF-01).
+
+En el Front Service, agregá la ruta como protegida, con un esquema zod para el parámetro `id`, y reenviala al Backend igual que las demás.
+
+Sumá tests que cubran: la forma de la respuesta en cada uno de los tres estados; una comida en `ready` con correcciones, verificando que salen los valores corregidos; que no aparezca ningún campo interno; que una comida de otro usuario y un id inexistente devuelvan exactamente la misma respuesta 404; un id mal formado; que la `photoUrl` sea firmada y con la expiración correcta; y la request sin token. Todo en TypeScript estricto, con lint y typecheck en verde.
+
+Antes de implementar, contame tu plan con los archivos que vas a crear o modificar y las decisiones que tomaste, incluyendo la del campo para el error, y esperá mi OK. Trabajá en la rama `feat/rf-05-get-meal`. Si hay cambios en las cosas documentadas, actualiza tambien esos md.
+```
+
+### 2026-10-26 11:45
+
+```text
+arma el pr pero sin ponerte de co autor
+```

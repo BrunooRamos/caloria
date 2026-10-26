@@ -1,4 +1,6 @@
 import { Schema, model, type Types } from "mongoose";
+import { MEAL_ERROR_CODES } from "@caloria/shared";
+import type { MealErrorCode } from "@caloria/shared";
 
 export const MEAL_STATUSES = ["processing", "ready", "failed"] as const;
 export type MealStatus = (typeof MEAL_STATUSES)[number];
@@ -43,7 +45,7 @@ export interface Meal {
   corrections: Correction[];
   comment?: { tone: string; text: string };
   attempts: number;
-  error?: { code: string };
+  error?: { code: MealErrorCode };
 }
 
 const rangeSchema = new Schema<Range>(
@@ -118,7 +120,10 @@ const mealSchema = new Schema<Meal>(
     },
     comment: new Schema({ tone: String, text: String }, { _id: false }),
     attempts: { type: Number, required: true, default: 0 },
-    error: new Schema({ code: { type: String, required: true } }, { _id: false }),
+    error: new Schema(
+      { code: { type: String, enum: MEAL_ERROR_CODES, required: true } },
+      { _id: false },
+    ),
   },
   { collection: "meals" },
 );
