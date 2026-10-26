@@ -5,7 +5,7 @@ import express from "express";
 import type { Request, Response } from "express";
 import multer from "multer";
 import request from "supertest";
-import { errorHandler, requestContext } from "@caloria/shared";
+import { errorHandler, MEAL_UPLOAD_LIMITS, requestContext } from "@caloria/shared";
 import { createApp } from "../src/app";
 import { createBackendClient } from "../src/clients/backend";
 import { apiRouter } from "../src/routes";
@@ -219,6 +219,13 @@ describe("front-service: POST /meals", () => {
 
   it("nota de más de 500 caracteres → 400 VALIDATION_ERROR", async () => {
     const res = await post().attach("photo", jpeg(), "plato.jpg").field("note", "a".repeat(501));
+    expectEnvelope(res, 400, "VALIDATION_ERROR");
+    assertNotForwarded();
+  });
+
+  it("nota por encima del fieldSize de multer → 400 VALIDATION_ERROR, no 413", async () => {
+    const note = "a".repeat(MEAL_UPLOAD_LIMITS.fieldSize + 1);
+    const res = await post().attach("photo", jpeg(), "plato.jpg").field("note", note);
     expectEnvelope(res, 400, "VALIDATION_ERROR");
     assertNotForwarded();
   });

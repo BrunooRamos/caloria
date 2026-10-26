@@ -42,4 +42,10 @@ npm run typecheck      # tsc --noEmit en app, front-service y back-service
 npm run format         # Prettier (format:check para verificar sin escribir)
 ```
 
+La config de nginx se prueba con Docker (`nginx -t` y un smoke test de los límites de `POST /meals`, igual que en CI):
+
+```sh
+npm run nginx:smoke
+```
+
 Cada paquete también tiene sus propios `lint`, `typecheck`, `format` y `format:check` (requieren haber instalado la raíz y el paquete).

@@ -4,6 +4,7 @@
   "description": "Configuración compartida de calidad de código (ESLint + Prettier) para app, front-service y back-service",
   "scripts": {
     "keys:generate": "node scripts/generate-jwt-keys.mjs",
+    "nginx:smoke": "bash scripts/nginx-smoke.sh",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
