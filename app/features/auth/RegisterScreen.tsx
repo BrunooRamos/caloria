@@ -39,53 +39,57 @@ export default function RegisterScreen() {
       <View style={styles.spacer} />
 
       <View style={styles.form}>
-        <Input
-          {...form.field("email")}
-          label="Email"
-          placeholder="tu@email.com"
-          keyboardType="email-address"
-          inputMode="email"
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoComplete="email"
-          textContentType="username"
-          returnKeyType="next"
-          submitBehavior="submit"
-          onSubmitEditing={() => passwordRef.current?.focus()}
-        />
-        <Input
-          {...form.field("password")}
-          ref={passwordRef}
-          label="Contraseña"
-          {...passwordPlaceholders}
-          secureTextEntry
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoComplete="new-password"
-          textContentType="newPassword"
-          passwordRules={`minlength: ${PASSWORD_MIN_CHARS}; maxlength: ${PASSWORD_MAX_BYTES};`}
-          returnKeyType="next"
-          submitBehavior="submit"
-          onSubmitEditing={() => confirmPasswordRef.current?.focus()}
-        />
-        <Input
-          {...form.field("confirmPassword")}
-          ref={confirmPasswordRef}
-          label="Repetí la contraseña"
-          {...passwordPlaceholders}
-          secureTextEntry
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoComplete="new-password"
-          textContentType="newPassword"
-          returnKeyType="go"
-          onSubmitEditing={form.submit}
-        />
-        <FormError message={form.formError} />
-        <Button title="Continuar" loading={form.submitting} onPress={form.submit} />
-        <Link href="/login" dismissTo asChild>
-          <Button variant="ghost" title="Ya tengo cuenta" />
-        </Link>
+        <View style={styles.fields}>
+          <Input
+            {...form.field("email")}
+            label="Email"
+            placeholder="tu@email.com"
+            keyboardType="email-address"
+            inputMode="email"
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="email"
+            textContentType="username"
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => passwordRef.current?.focus()}
+          />
+          <Input
+            {...form.field("password")}
+            ref={passwordRef}
+            label="Contraseña"
+            {...passwordPlaceholders}
+            secureTextEntry
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="new-password"
+            textContentType="newPassword"
+            passwordRules={`minlength: ${PASSWORD_MIN_CHARS}; maxlength: ${PASSWORD_MAX_BYTES};`}
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => confirmPasswordRef.current?.focus()}
+          />
+          <Input
+            {...form.field("confirmPassword")}
+            ref={confirmPasswordRef}
+            label="Repetí la contraseña"
+            {...passwordPlaceholders}
+            secureTextEntry
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="new-password"
+            textContentType="newPassword"
+            returnKeyType="go"
+            onSubmitEditing={form.submit}
+          />
+          <FormError message={form.formError} />
+        </View>
+        <View style={styles.actions}>
+          <Button title="Continuar" loading={form.submitting} onPress={form.submit} />
+          <Link href="/login" dismissTo asChild>
+            <Button variant="ghost" title="Ya tengo cuenta" />
+          </Link>
+        </View>
       </View>
     </Screen>
   );
@@ -95,5 +99,8 @@ const styles = StyleSheet.create({
   header: { alignItems: "center", gap: spacing.xs },
   spacer: { flexGrow: 1, minHeight: spacing.xl, maxHeight: spacing.xxxl },
   centered: { textAlign: "center" },
-  form: { gap: spacing.md },
+  // Los botones van separados de los campos para que no queden pegados al último input.
+  form: { gap: spacing.xxl },
+  fields: { gap: spacing.md },
+  actions: { gap: spacing.md },
 });

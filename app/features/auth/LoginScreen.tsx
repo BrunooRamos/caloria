@@ -34,38 +34,42 @@ export default function LoginScreen() {
       <View style={styles.spacer} />
 
       <View style={styles.form}>
-        <Input
-          {...form.field("email")}
-          label="Email"
-          placeholder="tu@email.com"
-          keyboardType="email-address"
-          inputMode="email"
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoComplete="email"
-          textContentType="username"
-          returnKeyType="next"
-          submitBehavior="submit"
-          onSubmitEditing={() => passwordRef.current?.focus()}
-        />
-        <Input
-          {...form.field("password")}
-          ref={passwordRef}
-          label="Contraseña"
-          {...passwordPlaceholders}
-          secureTextEntry
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoComplete="current-password"
-          textContentType="password"
-          returnKeyType="go"
-          onSubmitEditing={form.submit}
-        />
-        <FormError message={form.formError} />
-        <Button title="Ingresar" loading={form.submitting} onPress={form.submit} />
-        <Link href="/register" asChild>
-          <Button variant="ghost" title="Crear una cuenta" />
-        </Link>
+        <View style={styles.fields}>
+          <Input
+            {...form.field("email")}
+            label="Email"
+            placeholder="tu@email.com"
+            keyboardType="email-address"
+            inputMode="email"
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="email"
+            textContentType="username"
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => passwordRef.current?.focus()}
+          />
+          <Input
+            {...form.field("password")}
+            ref={passwordRef}
+            label="Contraseña"
+            {...passwordPlaceholders}
+            secureTextEntry
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="current-password"
+            textContentType="password"
+            returnKeyType="go"
+            onSubmitEditing={form.submit}
+          />
+          <FormError message={form.formError} />
+        </View>
+        <View style={styles.actions}>
+          <Button title="Ingresar" loading={form.submitting} onPress={form.submit} />
+          <Link href="/register" asChild>
+            <Button variant="ghost" title="Crear una cuenta" />
+          </Link>
+        </View>
       </View>
     </Screen>
   );
@@ -75,5 +79,7 @@ const styles = StyleSheet.create({
   header: { alignItems: "center", gap: spacing.xs },
   spacer: { flexGrow: 1, minHeight: spacing.xl, maxHeight: spacing.xxxl },
   centered: { textAlign: "center" },
-  form: { gap: spacing.md },
+  form: { gap: spacing.xxl },
+  fields: { gap: spacing.md },
+  actions: { gap: spacing.md },
 });

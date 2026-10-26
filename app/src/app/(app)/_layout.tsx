@@ -22,6 +22,11 @@ export default function AppLayout() {
       <Stack.Protected guard={!pendingGoals}>
         <Stack.Screen name="index" options={{ title: "CalorIA" }} />
         <Stack.Screen name="profile" options={{ title: "Perfil" }} />
+        <Stack.Screen
+          name="capture"
+          options={{ headerShown: false, animation: "slide_from_bottom" }}
+        />
+        <Stack.Screen name="meals/[id]" options={{ title: "Tu comida" }} />
       </Stack.Protected>
     </Stack>
   );
@@ -29,6 +34,6 @@ export default function AppLayout() {
 
 const styles = StyleSheet.create({
   header: { backgroundColor: colors.background },
-  headerTitle: { ...fonts.medium, fontSize: typography.h3.fontSize, color: colors.ink },
+  headerTitle: { ...fonts.medium, fontSize: typography.h3.fontSize, color: colors.primary },
   content: { backgroundColor: colors.background },
 });

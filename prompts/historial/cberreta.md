@@ -106,8 +106,36 @@ Sumá tests que cubran: la forma de la respuesta en cada uno de los tres estados
 Antes de implementar, contame tu plan con los archivos que vas a crear o modificar y las decisiones que tomaste, incluyendo la del campo para el error, y esperá mi OK. Trabajá en la rama `feat/rf-05-get-meal`. Si hay cambios en las cosas documentadas, actualiza tambien esos md.
 ```
 
-### 2026-10-26 11:45
+### 2026-10-26 11:58
 
 ```text
-arma el pr pero sin ponerte de co autor
+Este ticket es la pantalla para registrar una comida en la app Expo (`app/`). Antes de empezar, leé RF-03 y RNF-06 en `docs/requerimientos.md`, el endpoint `POST /meals` en `docs/api.md` y la skill `caloria-design` completa. Revisá también lo que ya existe: el cliente HTTP en `services/`, el mapeo de `error.code` a mensajes, los componentes base, la home del grupo con sesión y si ya hay una pantalla de resultado de la comida. Fijate además en `app/package.json` qué librerías de cámara e imágenes ya están instaladas.
+
+Los criterios de aceptación son estos: sacar la foto con la cámara o elegirla de la galería; comprimir la imagen para que el lado mayor no pase de 1600 px antes de subirla; poder registrar una comida en 3 interacciones o menos desde la pantalla principal; y enviar el `POST /meals` y navegar al resultado.
+
+El criterio de las 3 interacciones es el que más condiciona el diseño, así que quiero que lo pienses antes de elegir librerías. El camino principal sería tocar el botón de cámara en la home, sacar la foto y confirmar el envío. Tené en cuenta que algunas opciones, como la cámara nativa del image picker, agregan su propio paso de confirmación en iOS, que también cuenta como interacción. Elegí entre `expo-camera` y `expo-image-picker` (o una combinación, por ejemplo cámara propia con un acceso a la galería dentro de la misma vista) justificando la decisión por ese conteo, y documentá en el PR el recorrido exacto con cuántas interacciones tiene tanto el camino de cámara como el de galería.
+
+El botón para registrar va en la home como botón flotante, con la sombra `float` de la skill. La vista previa de la foto antes de enviar usa los componentes base: el botón principal envía y uno secundario permite sacar otra. La vista de cámara es oscura por naturaleza y la skill solo define un tema claro, así que si necesitás colores para los controles sobre la cámara, proponé los tokens nuevos y agregalos al theme en vez de hardcodearlos.
+
+Pedí los permisos de cámara y galería recién cuando hacen falta, con textos en español en la configuración de `app.json` para iOS. Si la persona los niega, mostrá una pantalla que explique para qué se usan y que ofrezca ir a la configuración del sistema, sin dejarla trabada.
+
+Antes de subir, comprimí la imagen con `expo-image-manipulator`: redimensioná solo si el lado mayor pasa de 1600 px, respetando la orientación, y exportá a JPEG con una calidad razonable. Esto convierte de paso las fotos HEIC. Si después de comprimir la imagen sigue pasando de 8 MB, mostrá el error sin intentar subirla. Separá el cálculo del tamaño de destino en una función pura, así se puede testear.
+
+El envío usa el cliente HTTP que ya tenemos, como `multipart/form-data` con el campo `photo`, sin fijar el `Content-Type` a mano para no romper el boundary. Asegurate de que el reintento automático por `TOKEN_EXPIRED` funcione también con este body. Mientras sube, mostrá un indicador de progreso y no permitas doble envío. Si falla, la foto no se pierde: la persona puede reintentar sin sacarla de nuevo. Los errores se muestran con el mapeo que ya existe; `MEAL_QUOTA_EXCEEDED` necesita un mensaje claro y tranquilo, y por ahora no lleva a ninguna pantalla de planes.
+
+Cuando el Backend responde 202 con el `mealId`, navegá a la pantalla de resultado reemplazando la de captura, para que volver atrás no lleve de nuevo a la cámara. Si la pantalla de resultado todavía no existe, armá una mínima que muestre la foto y el estado "analizando"; el polling y el resultado completo van en otro ticket.
+
+El audio y la nota de RF-04 también van en otro ticket, pero dejá la vista previa preparada para sumarlos después como opcionales, sin agregar pasos al camino principal.
+
+Revisá si el Front Service ya reenvía `POST /meals` con multipart. Si no lo hace, no lo implementes en este ticket: avisame, porque va a necesitar reenvío en streaming y lo hacemos aparte.
+
+Sumá tests unitarios de la función de redimensionado y del armado del `FormData`. Todo en TypeScript estricto, con lint y typecheck en verde. La cámara no funciona en el simulador de iOS, así que el flujo completo hay que probarlo en un dispositivo real de cada plataforma.
+
+Antes de implementar, contame tu plan con los archivos que vas a crear o modificar, la librería que elegiste con el conteo de interacciones y cualquier token nuevo que necesites, y esperá mi OK. Trabajá en la rama `feat/rf-03-capture-meal`.
+```
+
+### 2026-10-26 13:02
+
+```text
+[Image #3] me gustaria aca alejar un poco el boton de ingresar y el crear una cuenta porque queda demasiado pegado a los inputs. lo mismo en crear la pantalla de crear una cuenta
 ```
