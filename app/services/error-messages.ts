@@ -45,3 +45,20 @@ export function errorMessage(error: unknown, overrides: ErrorMessageOverrides = 
   const message = overrides[error.code] ?? MESSAGES[error.code] ?? GENERIC_ERROR_MESSAGE;
   return typeof message === "function" ? message(error) : message;
 }
+
+/** `error.code` de una comida en `failed` */
+const MEAL_FAILURE_MESSAGES = {
+  NOT_FOOD: "No encontramos comida en esta foto. Probá con otra en la que se vea el plato.",
+  ENQUEUE_FAILED: "No pudimos analizar esta comida. Probá de nuevo en un rato.",
+  ANALYSIS_FAILED: "No pudimos analizar esta comida. Probá de nuevo en un rato.",
+} as const;
+
+export const GENERIC_MEAL_FAILURE_MESSAGE =
+  "No pudimos analizar esta comida. Probá de nuevo en un rato.";
+
+/** Mensaje para una comida que terminó en `failed`; un código desconocido usa el genérico. */
+export function mealFailureMessage(code: string): string {
+  return Object.prototype.hasOwnProperty.call(MEAL_FAILURE_MESSAGES, code)
+    ? MEAL_FAILURE_MESSAGES[code as keyof typeof MEAL_FAILURE_MESSAGES]
+    : GENERIC_MEAL_FAILURE_MESSAGE;
+}

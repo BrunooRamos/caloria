@@ -2,7 +2,7 @@ import * as ImagePicker from "expo-image-picker";
 import { act, fireEvent, renderRouter, screen } from "expo-router/testing-library";
 import type * as React from "react";
 import type * as ReactNative from "react-native";
-import { Linking } from "react-native";
+import { BackHandler, Linking } from "react-native";
 import { PHOTO_MAX_BYTES } from "@/features/meals/prepare-photo";
 import { TOO_LARGE_MESSAGE } from "@/features/meals/PreviewStep";
 import { createHttpClient } from "@/services/http-client";
@@ -101,6 +101,12 @@ jest.mock("expo-file-system", () => ({
 
 const MEAL_ID = "66f1a0000000000000000099";
 const accepted = () => json(202, { mealId: MEAL_ID, status: "processing" });
+const analyzing = {
+  id: MEAL_ID,
+  status: "processing",
+  capturedAt: "2026-10-26T13:05:00.000Z",
+  photoUrl: "https://media.test/photo.jpg",
+};
 
 let calls: Call[];
 const mealPosts = () => calls.filter((call) => call.path === "/meals" && call.method === "POST");
@@ -110,6 +116,8 @@ function start(meals: Handler = accepted) {
   const fake = fakeFetch((call) => {
     if (call.path === "/auth/refresh") return json(200, { ...NEW_TOKENS });
     if (call.path === "/meals" && call.method === "POST") return meals(call);
+    // El resultado consulta el análisis: sigue en processing.
+    if (call.path === `/meals/${MEAL_ID}`) return json(200, analyzing);
     return apiError(404, "NOT_FOUND");
   });
   calls = fake.calls;
@@ -234,6 +242,52 @@ describe("registrar una comida", () => {
     await press("Sacar otra");
     expect(await screen.findByRole("button", { name: "Sacar foto" })).toBeOnTheScreen();
     expect(router.getPathname()).toBe("/capture");
+  });
+});
+
+describe("volver desde la vista previa", () => {
+  it("la flecha sale de la captura y vuelve a la pantalla principal", async () => {
+    const router = await start();
+    await takePhoto();
+
+    await press("Volver al inicio");
+    expect(await screen.findByRole("button", { name: "Registrar comida" })).toBeOnTheScreen();
+    expect(router.getPathname()).toBe("/");
+  });
+
+  it("el atrás de Android también vuelve al inicio, salvo mientras sube la foto", async () => {
+    // Como React Native: el último listener registrado responde primero, hasta que uno lo maneja.
+    type BackListener = Parameters<typeof BackHandler.addEventListener>[1];
+    const listeners: BackListener[] = [];
+    const spy = jest
+      .spyOn(BackHandler, "addEventListener")
+      .mockImplementation((_event, listener) => {
+        listeners.push(listener);
+        return { remove: () => listeners.splice(listeners.indexOf(listener), 1) };
+      });
+    const pressBack = () =>
+      act(() => {
+        [...listeners].reverse().some((listener) => listener({} as never));
+      });
+
+    const response = deferred<Response>();
+    const router = await start(() => response.promise);
+    await takePhoto();
+
+    const firstPress = fireEvent.press(screen.getByRole("button", { name: "Enviar" }));
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+    await pressBack();
+    expect(screen.getByText("Subiendo foto…")).toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "Volver al inicio" })).toBeDisabled();
+
+    await act(async () => {
+      response.resolve(apiError(503, "SERVICE_UNAVAILABLE"));
+      await firstPress;
+    });
+    await pressBack();
+    expect(await screen.findByRole("button", { name: "Registrar comida" })).toBeOnTheScreen();
+    expect(router.getPathname()).toBe("/");
+    spy.mockRestore();
   });
 });
 

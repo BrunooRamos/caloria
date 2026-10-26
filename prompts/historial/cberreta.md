@@ -139,3 +139,25 @@ Antes de implementar, contame tu plan con los archivos que vas a crear o modific
 ```text
 [Image #3] me gustaria aca alejar un poco el boton de ingresar y el crear una cuenta porque queda demasiado pegado a los inputs. lo mismo en crear la pantalla de crear una cuenta
 ```
+
+### 2026-10-26 14:37
+
+```text
+Seguimos con la pantalla de resultado de una comida. En el ticket anterior quedó una versión mínima que muestra la foto y el estado "analizando" después de registrar; ahora hay que completarla para que muestre el análisis cuando esté listo. Trabajá en una rama nueva, `feat/rf-05-meal-result`, creada a partir de `feat/rf-03-capture-meal`, porque todavía no está mergeada y necesitamos lo que tiene.
+
+Lo que tiene que pasar es esto: mientras la comida está en `processing`, la pantalla muestra que se está analizando, con un indicador de progreso, y consulta `GET /meals/:id` cada tanto hasta que cambie el estado. Cuando llega a `ready`, muestra el plato, los ingredientes, las kcal y los macros como rangos, y la confianza como alta, media o baja. Si termina en `failed`, muestra un estado de error. El contrato de la respuesta está en la sección "Consultar el análisis" de `docs/api.md` y las reglas en RF-05 de `docs/requerimientos.md`; para todo lo visual, la skill `caloria-design`.
+
+Con el polling quiero que tengas cuidado, porque es fácil que quede consultando de más. Arrancá con un intervalo corto y que se vaya espaciando, que corte apenas llega `ready` o `failed`, y que se pause cuando la pantalla pierde el foco o la app pasa a segundo plano, y se reanude al volver. Si ya hay una librería de fetching instalada, como React Query, usala; si no, un hook propio alcanza. El análisis debería tardar menos de 15 segundos en la mayoría de los casos (RNF-01). Si pasa bastante más que eso, no lo des por fallido: cambiá el mensaje a algo como que está tardando más de lo normal y seguí consultando con menos frecuencia, porque el Worker puede estar reintentando.
+
+Mientras se analiza, mostrá la foto que se acaba de sacar (si viene de la captura, usá la imagen local, así aparece al instante) y un skeleton de lo que va a venir, con el pulso suave que pide la skill y respetando la preferencia de reducir movimiento. Tené en cuenta que la `photoUrl` del servidor vence a los 15 minutos: si la imagen falla al cargar, pedí la comida de nuevo para obtener una URL fresca.
+
+Para el resultado, el número que más importa es el total de kcal, así que va grande, en `display` y color `primary`. Debajo, el nombre del plato, los tres macros con sus etiquetas y la lista de ingredientes con gramos y kcal de cada uno. Todos los rangos se escriben igual (`620–780 kcal`, `38–46 g`), así que armá una sola función de formato y usala en todos lados; decidí qué pasa si `min` y `max` son iguales y cómo se redondea. Si la respuesta trae un comentario, mostralo de forma discreta; todavía no hay que hacer nada con los tonos, eso es RF-11.
+
+La confianza llega como un número entre 0 y 1, pero en ningún documento dice dónde termina "alta" y empieza "media". Proponé los umbrales, dejalos en un solo lugar fácil de ajustar y anotalos en `docs/requerimientos.md`. Para mostrarla está el `ConfidenceBadge` de la skill, siempre con la palabra y no solo con el color.
+
+El estado de error usa los mensajes del mapeo de `error.code` que ya tenemos, sumando los códigos que defina el Worker para un análisis fallido, como la foto que no parece comida. El tono tiene que ser tranquilo y ofrecer una salida clara, por ejemplo volver a sacar la foto. No debería sentirse como una alarma.
+
+Las correcciones (RF-06) vienen después, pero dejá pensado dónde va a ir el acceso para editar, así no hay que rearmar la pantalla.
+
+Me gustaría que haya tests de la función de formato de rangos, del mapeo de confianza y del hook de polling con timers falsos, que cubran que se corta al terminar y se pausa en segundo plano. Antes de arrancar, contame cómo lo pensás encarar, en especial lo del polling y los umbrales de confianza, y esperá mi OK. Al final, pasame un resumen y cómo pruebo los tres estados a mano.
+```

@@ -1,11 +1,12 @@
 import { router } from "expo-router";
-import { useRef, useState } from "react";
-import { Image, StyleSheet, View } from "react-native";
-import { Button, FormError, Screen, Text } from "@/components";
+import { ChevronLeft } from "lucide-react-native";
+import { useEffect, useRef, useState } from "react";
+import { BackHandler, Image, StyleSheet, View } from "react-native";
+import { Button, FormError, IconButton, Screen, Text } from "@/components";
 import { errorMessage } from "@/services/error-messages";
 import type { ErrorMessageOverrides } from "@/services/error-messages";
 import { createMeal } from "@/services/meals";
-import { colors, radius, spacing } from "@/theme";
+import { colors, radius, sizes, spacing } from "@/theme";
 import { buildMealForm } from "./meal-form";
 import { exceedsMaxBytes } from "./prepare-photo";
 import type { PreparedPhoto } from "./prepare-photo";
@@ -20,14 +21,20 @@ const UPLOAD_ERRORS: ErrorMessageOverrides = {
 export interface PreviewStepProps {
   photo: PreparedPhoto;
   onRetake(): void;
+  onClose(): void;
 }
 
-export function PreviewStep({ photo, onRetake }: PreviewStepProps) {
+export function PreviewStep({ photo, onRetake, onClose }: PreviewStepProps) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // El estado tarda un render en deshabilitar el botón: el ref frena un segundo toque inmediato.
   const inFlight = useRef(false);
   const tooLarge = exceedsMaxBytes(photo);
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => inFlight.current);
+    return () => subscription.remove();
+  }, []);
 
   async function send() {
     if (inFlight.current || tooLarge) return;
@@ -49,6 +56,14 @@ export function PreviewStep({ photo, onRetake }: PreviewStepProps) {
   return (
     <Screen>
       <View style={styles.content}>
+        <View style={styles.back}>
+          <IconButton
+            icon={ChevronLeft}
+            label="Volver al inicio"
+            disabled={sending}
+            onPress={onClose}
+          />
+        </View>
         <Text variant="h1" accessibilityRole="header">
           ¿Analizamos esta foto?
         </Text>
@@ -85,6 +100,7 @@ export function PreviewStep({ photo, onRetake }: PreviewStepProps) {
 
 const styles = StyleSheet.create({
   content: { flex: 1, gap: spacing.md, paddingBottom: spacing.xl },
+  back: { alignSelf: "flex-start", marginLeft: -(sizes.touchTarget - sizes.icon) / 2 },
   photo: { flex: 1, borderRadius: radius.lg, backgroundColor: colors.surfaceAlt },
   actions: { gap: spacing.sm },
   centered: { textAlign: "center" },

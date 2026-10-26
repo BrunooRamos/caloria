@@ -200,6 +200,7 @@ La forma depende del `status`:
 - Nunca salen campos internos: `userId`, keys del bucket, `promptVersion`, `model`, `attempts`, `transcript`, `note` ni `corrections`. El id sale como string y las fechas en ISO.
 - `photoUrl` es una URL GET firmada de vida corta (15 min, RNF-04). Se firma en cada request y nunca se guarda en la base.
 - La respuesta lleva `Cache-Control: no-store`: la app consulta en loop mientras la comida está en `processing` y nunca tiene que usar una `photoUrl` vencida.
+- Ritmo de la app (`app/features/meals/polling.ts`): consulta enseguida y se espacia de 1 s a 5 s (×1,5); pasados 30 s avisa que tarda más y consulta cada 15 s; a los 10 min deja de consultar sola. Nunca superpone pedidos, se pausa con la app en segundo plano o la pantalla sin foco, y corta con `ready`, `failed` o un 404. Si la imagen no carga (la `photoUrl` venció), vuelve a pedir la comida.
 - La comida se busca por id **y** dueño en la misma consulta: una comida de otro usuario y un id inexistente responden el mismo 404 `NOT_FOUND`, con el mismo mensaje.
 - Un `id` que no es un ObjectId (24 caracteres hex) → 400 `VALIDATION_ERROR`, en el Front y en el Backend.
 

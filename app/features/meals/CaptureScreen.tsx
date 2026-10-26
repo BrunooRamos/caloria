@@ -41,7 +41,11 @@ export default function CaptureScreen() {
     }
   }
 
-  if (photo) return <PreviewStep photo={photo} onRetake={() => setPhoto(null)} />;
+  if (photo) {
+    return (
+      <PreviewStep photo={photo} onRetake={() => setPhoto(null)} onClose={() => router.back()} />
+    );
+  }
   return (
     <CameraStep
       busy={preparing}
