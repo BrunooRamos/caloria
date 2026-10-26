@@ -74,6 +74,33 @@ describe("back-service: media", () => {
     }
   });
 
+  it("si el bucket deja de mandar a mitad del cuerpo, la descarga falla al vencer el tope", async () => {
+    // Manda los headers y parte del cuerpo, y se queda colgado: el timeout cubre también la lectura.
+    const sockets: Socket[] = [];
+    const server = createServer((socket) => {
+      sockets.push(socket);
+      socket.once("data", () =>
+        socket.write(
+          "HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\nContent-Length: 1000\r\n\r\nabc",
+        ),
+      );
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const { port } = server.address() as AddressInfo;
+    try {
+      const slow = createMediaService(
+        loadStorageConfig({ ...storageEnv, S3_ENDPOINT: `http://127.0.0.1:${port}` }),
+        { downloadTimeoutMs: 300 },
+      );
+      const started = Date.now();
+      await assert.rejects(slow.download(KEY));
+      assert.ok(Date.now() - started < 2_000, `tardó ${Date.now() - started} ms`);
+    } finally {
+      sockets.forEach((socket) => socket.destroy());
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+
   it("el tope de subida queda por debajo del timeout del Front hacia el Back (10 s)", () => {
     assert.ok(UPLOAD_TIMEOUT_MS < 10_000);
   });

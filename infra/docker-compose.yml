@@ -64,6 +64,7 @@ services:
     environment:
       MONGO_URI: mongodb://mongo:27017/caloria
       REDIS_URL: redis://redis:6379
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
       <<: *storage-env
     networks:
       - interna

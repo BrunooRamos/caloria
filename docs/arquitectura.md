@@ -62,7 +62,7 @@ Firewall **default deny**: todo cerrado salvo estas reglas.
 2. Entra por HTTPS 443 a nginx (TLS, rate limit, tamaño) → Front Service por 3000.
 3. El Front verifica el JWT, valida el multipart y reenvía al Backend por 4000.
 4. El Backend verifica cupo del plan, sube la media al bucket privado, crea el documento en `meals` con `status: "processing"`, encola el job y responde **202 Accepted** con el `mealId`.
-5. El Worker toma el job: transcribe el audio, busca platos similares del usuario (con sus correcciones) y llama a la IA de visión con foto + transcripción + historial.
+5. El Worker toma el job (hasta `WORKER_CONCURRENCY` en paralelo), lee la comida de Mongo y baja la foto y el audio del bucket. Si la comida ya no existe o no está en `processing`, descarta el job; si falla Mongo o el bucket, BullMQ reintenta con backoff. Después transcribe el audio, busca platos similares del usuario (con sus correcciones) y llama a la IA de visión con foto + transcripción + historial.
 6. Guarda en `meals` el análisis en rangos, la confianza y el comentario (`status: "ready"`), actualiza la racha y dispara el push "análisis listo".
 7. La app hace `GET /meals/:id` y muestra el rango. Si el usuario corrige, un `PATCH /meals/:id` persiste la corrección, que alimenta el próximo análisis.
 

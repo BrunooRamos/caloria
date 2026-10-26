@@ -22,7 +22,7 @@ describe(
     const userId = randomUUID();
     const photo = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]);
 
-    it("sube, sirve con URL firmada y borra", async () => {
+    it("sube, descarga, sirve con URL firmada y borra", async () => {
       const key = await media.upload({
         userId,
         mealId: randomUUID(),
@@ -36,9 +36,11 @@ describe(
       assert.equal(res.status, 200);
       assert.equal(res.headers.get("content-type"), "image/jpeg");
       assert.deepEqual(new Uint8Array(await res.arrayBuffer()), photo);
+      assert.deepEqual(await media.download(key), photo);
 
       await media.remove(key);
       assert.equal((await fetch(await media.signedUrl(key))).status, 404);
+      await assert.rejects(media.download(key), { name: "NoSuchKey" });
       await media.remove(key); // idempotente
     });
 
