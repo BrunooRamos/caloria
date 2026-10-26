@@ -48,6 +48,66 @@ export interface CreateMealResponse {
   status: "processing";
 }
 
+/** `:id` de las rutas de comidas: un ObjectId en hex. Otro formato es un 400 y no llega a Mongo. */
+export const mealIdParamsSchema = z.object({ id: z.string().regex(/^[0-9a-f]{24}$/i) }).strict();
+
+/** `error.code` de una comida en `failed`. La API no manda mensaje: la app lo arma con el código. */
+export const MEAL_ERROR_CODES = [
+  // El Back no pudo encolar el análisis (Redis caído). La comida y la media quedan para reprocesarla.
+  "ENQUEUE_FAILED",
+  // La IA dice que la foto no es comida. Sin reintento y no consume cupo.
+  "NOT_FOOD",
+  // El Worker agotó los reintentos del análisis (RNF-02).
+  "ANALYSIS_FAILED",
+] as const;
+export type MealErrorCode = (typeof MEAL_ERROR_CODES)[number];
+
+// RF-05: todo rango cumple min ≤ max y no tiene negativos.
+export const rangeSchema = z
+  .object({ min: z.number().nonnegative(), max: z.number().nonnegative() })
+  .refine(({ min, max }) => min <= max, { message: "min > max" });
+export type Range = z.infer<typeof rangeSchema>;
+
+/**
+ * Lo que el usuario puede corregir, con la forma del análisis. Cada clave es un campo del
+ * body de `PATCH /meals/:id` y una corrección guarda su valor completo (`items`, la lista entera).
+ */
+export const correctableFieldsSchema = z.object({
+  dish: z.string().trim().min(1),
+  items: z.array(
+    z.object({ name: z.string().trim().min(1), grams: rangeSchema, kcal: rangeSchema }),
+  ),
+  kcal: rangeSchema,
+  macros: z.object({ protein: rangeSchema, carbs: rangeSchema, fat: rangeSchema }),
+});
+export type CorrectableFields = z.infer<typeof correctableFieldsSchema>;
+
+interface MealResponseBase {
+  id: string;
+  capturedAt: string;
+  /** URL GET firmada de la foto, de vida corta (RNF-04): se firma en cada request. */
+  photoUrl: string;
+}
+
+export interface ProcessingMealResponse extends MealResponseBase {
+  status: "processing";
+}
+
+/** Valores del análisis con las correcciones aplicadas. Sin comentario, `comment` no viene. */
+export interface ReadyMealResponse extends MealResponseBase, CorrectableFields {
+  status: "ready";
+  confidence: number;
+  comment?: { tone: string; text: string };
+}
+
+export interface FailedMealResponse extends MealResponseBase {
+  status: "failed";
+  error: { code: MealErrorCode };
+}
+
+/** `GET /meals/:id` y cada comida del historial. */
+export type MealResponse = ProcessingMealResponse | ReadyMealResponse | FailedMealResponse;
+
 interface Ftyp {
   major: string;
   compatible: string[];

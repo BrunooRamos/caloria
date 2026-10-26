@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { ZodType } from "zod";
-import { loginSchema, refreshSchema, registerSchema } from "@caloria/shared";
+import { loginSchema, mealIdParamsSchema, refreshSchema, registerSchema } from "@caloria/shared";
 import { withoutOperatorKeys } from "./safe-keys";
 import { updateMeRequestSchema } from "./users";
 
@@ -31,4 +31,5 @@ export const schemas = {
   deleteMe: route({}),
   // El body es multipart: lo valida validateMealUpload después de multer.
   createMeal: route({}),
+  getMeal: route({ params: mealIdParamsSchema }),
 } satisfies Record<string, RouteSchema>;

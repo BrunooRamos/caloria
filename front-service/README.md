@@ -30,7 +30,8 @@ npm run dev
 
 ## Cómo reenvía
 
-- Las rutas están en una tabla (`src/routes`): register, login y refresh son públicas; logout y `/users/me` piden JWT.
+- Las rutas están en una tabla (`src/routes`): register, login y refresh son públicas; logout, `/users/me` y `GET /meals/:id` piden JWT. `POST /meals` va aparte porque es multipart.
+- Los params de la ruta (`:id`) se validan con zod y se reenvían ya validados, con `encodeURIComponent`.
 - Con JWT, primero se verifica el token (sin token o inválido → 401 `UNAUTHORIZED`, vencido → 401 `TOKEN_EXPIRED`) y después se valida la entrada.
 - Al Backend van el mismo método, ruta y query, el body ya validado, el `Authorization` original (el Backend lo re-verifica) y el `X-Request-Id` que generó el Front.
 - De la respuesta pasan status, body, `Content-Type`, `Retry-After` y `Cache-Control`.

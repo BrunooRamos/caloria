@@ -45,7 +45,7 @@
 
 ## Privacidad de la media
 
-- Fotos y audios en **bucket privado**; la app los ve con **URLs firmadas de vida corta**.
+- Fotos y audios en **bucket privado**; la app los ve con **URLs firmadas de vida corta** (15 min). Se firman en cada lectura, nunca se guardan en la base y la respuesta va con `Cache-Control: no-store`.
 - Solo se comparten con el proveedor de IA necesario para el análisis.
 - `DELETE /users/me` borra cuenta, documentos (`users`, `meals`, `weekly_summaries`, `gamification`) y media: derecho al olvido de punta a punta.
 - Los logs no incluyen fotos, audios, transcripciones ni tokens.

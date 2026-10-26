@@ -56,15 +56,33 @@ analysis?: {
   promptVersion: string       // `version` del frontmatter de prompts/analisis-comida.md
   model: string               // el modelo que devolvió OpenAI
 }
-corrections: { field: string; from: unknown; to: unknown; at: Date }[]
-comment?: { tone: string; text: string }
+corrections: {
+  field: "dish" | "items" | "kcal" | "macros"
+  from: unknown               // valor anterior completo del campo
+  to: unknown                 // valor nuevo completo, con la forma del análisis
+  at: Date
+}[]
+comment?: { tone: string; text: string }   // ausente con el tono "off"
 attempts: number              // reintentos del job de análisis
-error?: { code: string }      // con status "failed": "ENQUEUE_FAILED" (no se pudo encolar; reprocesable) o "NOT_FOOD" (la foto no es comida; no consume cupo)
+error?: { code: "ENQUEUE_FAILED" | "NOT_FOOD" | "ANALYSIS_FAILED" }   // solo con status "failed"
 ```
 
-La media vive en `users/{userId}/meals/{mealId}/photo.{jpg|png|heic}` y `…/audio.m4a`.
+La media vive en `users/{userId}/meals/{mealId}/photo.{jpg|png|heic}` y `…/audio.m4a`. Nunca se guarda una URL firmada: se firma en cada lectura.
 
-Los valores que se muestran y que suman en el dashboard son los del análisis **con las correcciones aplicadas**. `corrections` guarda el historial de cambios.
+Los valores que se muestran y que suman en el dashboard son los del análisis **con las correcciones aplicadas**:
+
+- `analysis` queda como lo devolvió la IA, con el `promptVersion` y el `model` que lo produjeron. El PATCH no lo modifica.
+- Cada corrección guarda un campo entero (`items` es la lista completa de ingredientes, `macros` los tres rangos).
+- Los valores finales salen de aplicar `corrections` en orden sobre `analysis`, y la última de cada campo gana. Lo hace `applyCorrections` (`back-service/src/services/meal-corrections.ts`), que usan `GET /meals/:id`, el historial, el dashboard y el PATCH. Una corrección que no pasa la validación se ignora.
+- RF-07 compara lo que dijo la IA (`analysis`) con lo que corrigió el usuario (`corrections`).
+
+`error.code` lo escribe quien pasa la comida a `failed`, y el catálogo vive en `shared` (`MEAL_ERROR_CODES`):
+
+| Código | Quién | Cuándo |
+|---|---|---|
+| `ENQUEUE_FAILED` | Backend | No se pudo encolar el análisis (Redis caído). Reprocesable |
+| `NOT_FOOD` | Worker | La IA dice que la foto no es comida. Sin reintento y no consume cupo |
+| `ANALYSIS_FAILED` | Worker | Se agotaron los reintentos del análisis (RNF-02). Reservado: lo escribe #35 |
 
 ## `weekly_summaries`
 

@@ -1,15 +1,23 @@
 import { Types } from "mongoose";
 import { AppError, serializeError } from "@caloria/shared";
-import type { CreateMealResponse, Logger, ValidMealUpload } from "@caloria/shared";
+import type {
+  CreateMealResponse,
+  Logger,
+  MealErrorCode,
+  MealResponse,
+  ValidMealUpload,
+} from "@caloria/shared";
 import type { MealAnalysisQueue } from "../jobs/meal-analysis";
 import { MealModel } from "../models/Meal";
 import type { MealMedia } from "../models/Meal";
 import { UserModel } from "../models/User";
 import type { User } from "../models/User";
 import { localDateIn } from "./local-date";
+import { MEAL_RESPONSE_FIELDS, toMealResponse } from "./meal-response";
+import type { MealResponseSource } from "./meal-response";
 import type { MediaKind, MediaService } from "./media";
 
-export const ENQUEUE_FAILED = "ENQUEUE_FAILED";
+export const ENQUEUE_FAILED = "ENQUEUE_FAILED" satisfies MealErrorCode;
 
 export interface CreateMealContext {
   requestId: string;
@@ -22,6 +30,7 @@ export interface MealService {
     upload: ValidMealUpload,
     context: CreateMealContext,
   ): Promise<CreateMealResponse>;
+  get(userId: string, mealId: string): Promise<MealResponse>;
 }
 
 export interface MealServiceDeps {
@@ -132,6 +141,14 @@ export function createMealService({
       }
 
       return { mealId: id, status: "processing" };
+    },
+
+    async get(userId, mealId) {
+      const meal = await MealModel.findOne({ _id: mealId, userId }, MEAL_RESPONSE_FIELDS).lean<
+        MealResponseSource & { media: Pick<MealMedia, "photoKey"> }
+      >();
+      if (!meal) throw new AppError("NOT_FOUND");
+      return toMealResponse(meal, await media.signedUrl(meal.media.photoKey));
     },
   };
 }

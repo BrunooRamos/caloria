@@ -4,8 +4,10 @@ import {
   AUDIO_MAX_BYTES,
   detectAudioType,
   detectPhotoType,
+  mealIdParamsSchema,
   NOTE_MAX_CHARS,
   PHOTO_MAX_BYTES,
+  rangeSchema,
   validateMealUpload,
 } from "../src";
 
@@ -109,6 +111,46 @@ describe("meals: validateMealUpload", () => {
           (err: Error) => expected.test(err.name),
         );
       }
+    });
+  }
+});
+
+describe("meals: id de la ruta", () => {
+  it("acepta un ObjectId en hex", () => {
+    assert.deepEqual(mealIdParamsSchema.parse({ id: "66f1a0000000000000000099" }), {
+      id: "66f1a0000000000000000099",
+    });
+  });
+
+  for (const id of [
+    "123",
+    "66f1a000000000000000009z",
+    "aaaaaaaaaaaa",
+    "66f1a0000000000000000099 ",
+  ]) {
+    it(`rechaza ${JSON.stringify(id)}`, () => {
+      assert.equal(mealIdParamsSchema.safeParse({ id }).success, false);
+    });
+  }
+
+  it("rechaza params de más", () => {
+    const params = { id: "66f1a0000000000000000099", extra: "1" };
+    assert.equal(mealIdParamsSchema.safeParse(params).success, false);
+  });
+});
+
+describe("meals: rangos", () => {
+  it("acepta min ≤ max", () => {
+    assert.deepEqual(rangeSchema.parse({ min: 10, max: 10 }), { min: 10, max: 10 });
+  });
+
+  for (const [name, range] of [
+    ["min > max", { min: 20, max: 10 }],
+    ["negativos", { min: -1, max: 10 }],
+    ["sin max", { min: 1 }],
+  ] as const) {
+    it(`rechaza ${name}`, () => {
+      assert.equal(rangeSchema.safeParse(range).success, false);
     });
   }
 });

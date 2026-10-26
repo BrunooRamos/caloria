@@ -21,6 +21,7 @@ export const API_ROUTES: readonly ApiRoute[] = [
   { method: "get", path: "/users/me", access: "jwt", schema: schemas.getMe },
   { method: "patch", path: "/users/me", access: "jwt", schema: schemas.updateMe },
   { method: "delete", path: "/users/me", access: "jwt", schema: schemas.deleteMe },
+  { method: "get", path: "/meals/:id", access: "jwt", schema: schemas.getMeal },
 ];
 
 export function apiRouter(backend: BackendClient, publicKey: KeyObject): Router {

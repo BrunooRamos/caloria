@@ -185,12 +185,23 @@ GET /api/v1/meals/66f1a…
 }
 ```
 
-Mientras `status` es `processing`, la respuesta trae solo `id`, `status`, `capturedAt` y `photoUrl`. Si es `failed`, se incluye `error.code`. La API no manda un mensaje para el usuario: la app lo arma a partir del código.
+La forma depende del `status`:
 
-| `error.code` | Cuándo | Mensaje que muestra la app |
+- `processing`: solo `id`, `status`, `capturedAt` y `photoUrl`.
+- `ready`: además `dish`, `items`, `kcal`, `macros`, `confidence` y `comment`, como en el ejemplo. Los valores son los del análisis **con las correcciones aplicadas** (ver [modelo de datos](modelo-datos.md#meals)), los mismos que suma el dashboard. Si no hay comentario (tono `off`), `comment` no viene: nunca es `null`.
+- `failed`: además `error.code`, sin análisis. La API no manda un mensaje para el usuario: la app lo arma a partir del código.
+
+| `error.code` | Quién lo escribe y cuándo | Mensaje que muestra la app |
 |---|---|---|
-| `NOT_FOOD` | La IA dice que la foto no es comida. No se reintenta y no consume cupo | "No encontramos comida en esta foto. Probá con otra en la que se vea el plato." |
-| `ENQUEUE_FAILED` | No se pudo encolar el análisis (Redis caído). La comida y la media quedan para reprocesarla | "No pudimos analizar esta comida. Probá de nuevo en un rato." |
+| `NOT_FOOD` | Worker: la IA dice que la foto no es comida. No se reintenta y no consume cupo | "No encontramos comida en esta foto. Probá con otra en la que se vea el plato." |
+| `ENQUEUE_FAILED` | Backend: no se pudo encolar el análisis (Redis caído). La comida y la media quedan para reprocesarla | "No pudimos analizar esta comida. Probá de nuevo en un rato." |
+| `ANALYSIS_FAILED` | Worker: se agotaron los reintentos del análisis (RNF-02). Reservado: lo escribe #35 | "No pudimos analizar esta comida. Probá de nuevo en un rato." |
+
+- Nunca salen campos internos: `userId`, keys del bucket, `promptVersion`, `model`, `attempts`, `transcript`, `note` ni `corrections`. El id sale como string y las fechas en ISO.
+- `photoUrl` es una URL GET firmada de vida corta (15 min, RNF-04). Se firma en cada request y nunca se guarda en la base.
+- La respuesta lleva `Cache-Control: no-store`: la app consulta en loop mientras la comida está en `processing` y nunca tiene que usar una `photoUrl` vencida.
+- La comida se busca por id **y** dueño en la misma consulta: una comida de otro usuario y un id inexistente responden el mismo 404 `NOT_FOUND`, con el mismo mensaje.
+- Un `id` que no es un ObjectId (24 caracteres hex) → 400 `VALIDATION_ERROR`, en el Front y en el Backend.
 
 ### Corregir una comida
 
@@ -201,7 +212,10 @@ Content-Type: application/json
 { "dish": "Milanesa napolitana con puré", "kcal": { "min": 800, "max": 900 } }
 ```
 
-Cada campo cambiado se registra en `corrections` con su valor anterior y nuevo (ver [modelo de datos](modelo-datos.md)).
+Cada campo cambiado se registra en `corrections` con su valor anterior y nuevo (ver [modelo de datos](modelo-datos.md#meals)).
+
+- Se pueden corregir `dish`, `items`, `kcal` y `macros`, con la misma forma que el análisis. Cada campo va completo: `items` es la lista entera de ingredientes y `macros` lleva los tres rangos.
+- `analysis` no se modifica: la corrección se agrega a `corrections` y los valores finales salen de aplicarlas en orden (`applyCorrections`, la misma función que usa `GET /meals/:id`).
 
 ## Códigos HTTP
 

@@ -1,5 +1,10 @@
 import type { RequestHandler } from "express";
-import { AppError, AUDIO_MAX_SECONDS, validateMealUpload } from "@caloria/shared";
+import {
+  AppError,
+  AUDIO_MAX_SECONDS,
+  mealIdParamsSchema,
+  validateMealUpload,
+} from "@caloria/shared";
 import { userIdOf } from "../middleware/auth";
 import { mp4DurationSeconds } from "../services/audio-duration";
 import type { MealService } from "../services/meals";
@@ -9,7 +14,7 @@ const AUDIO_DURATION_TOLERANCE_SECONDS = 0.5;
 
 type MulterFiles = Partial<Record<"photo" | "audio", Express.Multer.File[]>>;
 
-export function mealsController(meals: MealService): Record<"create", RequestHandler> {
+export function mealsController(meals: MealService): Record<"create" | "get", RequestHandler> {
   return {
     async create(req, res) {
       const start = performance.now();
@@ -38,6 +43,12 @@ export function mealsController(meals: MealService): Record<"create", RequestHan
         durationMs: Math.round(performance.now() - start),
       });
       res.status(202).json(result);
+    },
+
+    async get(req, res) {
+      res.set("Cache-Control", "no-store");
+      const { id } = mealIdParamsSchema.parse(req.params);
+      res.json(await meals.get(userIdOf(res), id));
     },
   };
 }

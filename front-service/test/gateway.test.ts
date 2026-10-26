@@ -442,6 +442,59 @@ describe("front-service: gateway de /api/v1", () => {
     });
   });
 
+  describe("GET /meals/:id", () => {
+    const MEAL_ID = "66f1a0000000000000000099";
+    const meal = {
+      id: MEAL_ID,
+      status: "processing",
+      capturedAt: "2026-10-06T13:05:00.000Z",
+      photoUrl: "http://localhost:9000/caloria-media/x?X-Amz-Expires=900",
+    };
+
+    it("reenvía al Backend con el id en la ruta y devuelve su respuesta sin caché", async () => {
+      back.respondWith((_req, res) => void res.set("Cache-Control", "no-store").json(meal));
+      const res = await call("get", `/meals/${MEAL_ID}`, valid);
+      assert.equal(res.status, 200);
+      assert.deepEqual(res.body, meal);
+      assert.equal(res.headers["cache-control"], "no-store");
+      assert.equal(back.received.length, 1);
+      assert.equal(back.received[0].method, "GET");
+      assert.equal(back.received[0].path, `/api/v1/meals/${MEAL_ID}`);
+      assert.equal(back.received[0].authorization, `Bearer ${valid}`);
+    });
+
+    it("el 404 del Backend llega sin modificar", async () => {
+      back.respondWith(
+        (req, res) =>
+          void res.status(404).json({
+            error: { code: "NOT_FOUND", message: "Recurso inexistente", requestId: req.requestId },
+          }),
+      );
+      const res = await call("get", `/meals/${MEAL_ID}`, valid);
+      expectEnvelope(res, 404, "NOT_FOUND");
+      assert.equal((res.body as Envelope).error.message, "Recurso inexistente");
+    });
+
+    const invalidIds: [string, string][] = [
+      ["muy corto", "123"],
+      ["con caracteres que no son hex", "66f1a000000000000000009z"],
+      ["de 12 caracteres", "aaaaaaaaaaaa"],
+      ["con un operador", encodeURIComponent('{"$gt":""}')],
+      ["con un punto", "66f1a000000000000000.099"],
+    ];
+    for (const [caso, id] of invalidIds) {
+      it(`id ${caso} → 400 VALIDATION_ERROR sin llegar al Backend`, async () => {
+        expectEnvelope(await call("get", `/meals/${id}`, valid), 400, "VALIDATION_ERROR");
+        assertNotForwarded();
+      });
+    }
+
+    it("con query string → 400 VALIDATION_ERROR sin llegar al Backend", async () => {
+      expectEnvelope(await call("get", `/meals/${MEAL_ID}?x=1`, valid), 400, "VALIDATION_ERROR");
+      assertNotForwarded();
+    });
+  });
+
   describe("X-Request-Id", () => {
     it("el Front genera el suyo, ignora el del cliente y lo propaga al Backend y a sus logs", async () => {
       const clientId = "22222222-2222-4222-8222-222222222222";

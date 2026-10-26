@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import type { ResponseInputContent } from "openai/resources/responses/responses";
 import { z } from "zod";
+import { correctableFieldsSchema } from "@caloria/shared";
 import type { AnalysisPrompt } from "../config/analysis-prompt";
 import type { MealAnalysis } from "../models/Meal";
 import type { VisionImage } from "./vision-image";
@@ -48,15 +49,7 @@ export class InvalidVisionResponseError extends Error {
   }
 }
 
-const range = z
-  .object({ min: z.number().nonnegative(), max: z.number().nonnegative() })
-  .refine(({ min, max }) => min <= max, { message: "min > max" });
-
-const foodAnalysisSchema = z.object({
-  dish: z.string().trim().min(1),
-  items: z.array(z.object({ name: z.string().trim().min(1), grams: range, kcal: range })),
-  kcal: range,
-  macros: z.object({ protein: range, carbs: range, fat: range }),
+const foodAnalysisSchema = correctableFieldsSchema.extend({
   confidence: z.number().min(0).max(1),
 });
 

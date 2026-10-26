@@ -1,3 +1,4 @@
+import type { MealErrorCode } from "@caloria/shared";
 import { MealModel } from "../models/Meal";
 import { toVisionImage } from "../services/vision-image";
 import { InvalidVisionResponseError } from "../services/vision";
@@ -5,7 +6,7 @@ import type { VisionService } from "../services/vision";
 import type { AnalyzeMeal } from "./meal-analysis-processor";
 
 /** `error.code` de una meal cuya foto no es comida. Termina sin reintento y no consume cupo. */
-export const NOT_FOOD = "NOT_FOOD";
+export const NOT_FOOD = "NOT_FOOD" satisfies MealErrorCode;
 
 export interface AnalyzeMealDeps {
   vision: VisionService;
