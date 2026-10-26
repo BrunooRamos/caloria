@@ -27,7 +27,8 @@
       "expo-secure-store",
       "expo-splash-screen",
       "expo-localization",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-status-bar"
     ]
   }
 }

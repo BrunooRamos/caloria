@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
-import type { TextInput } from "react-native";
+import type { TextInputInstance } from "react-native";
 import { Button, DateField, FormError, Input, OptionGroup, Screen, Text } from "@/components";
 import { useForm } from "@/features/auth/useForm";
 import { validateForm } from "@/features/auth/validation";
@@ -37,7 +37,7 @@ interface ProfileContentProps {
 }
 
 function ProfileContent({ me, save }: ProfileContentProps) {
-  const weightRef = useRef<TextInput>(null);
+  const weightRef = useRef<TextInputInstance>(null);
   const [saved, setSaved] = useState(false);
   const form = useForm({
     schema: profileSchema,
