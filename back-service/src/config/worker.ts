@@ -1,21 +1,29 @@
 import { loadStorageConfig } from "./storage";
 
 export const DEFAULT_WORKER_CONCURRENCY = 2;
+// El más eficiente de la familia vigente (GPT-6), con entrada de imagen y structured outputs.
+export const DEFAULT_OPENAI_VISION_MODEL = "gpt-6-luna";
 
 /**
- * Config del Worker. Aparte de `loadConfig` para que la clave privada de JWT no le llegue.
- * Lanza si falta algo obligatorio: el worker no arranca.
+ * Config del Worker. Aparte de `loadConfig` para que la clave privada de JWT no le llegue
+ * y la de OpenAI no le llegue al Back. Lanza si falta algo obligatorio: el worker no arranca.
  */
 export function loadWorkerConfig(env = process.env) {
   const mongoUri = env.MONGO_URI?.trim();
   if (!mongoUri) throw new Error("Falta la variable de entorno MONGO_URI");
   const redisUrl = env.REDIS_URL?.trim();
   if (!redisUrl) throw new Error("Falta la variable de entorno REDIS_URL");
+  const openaiApiKey = env.OPENAI_API_KEY?.trim();
+  if (!openaiApiKey) throw new Error("Falta la variable de entorno OPENAI_API_KEY");
   return {
     mongoUri,
     redisUrl,
     concurrency: parseConcurrency(env.WORKER_CONCURRENCY),
     storage: loadStorageConfig(env),
+    openai: {
+      apiKey: openaiApiKey,
+      visionModel: env.OPENAI_VISION_MODEL?.trim() || DEFAULT_OPENAI_VISION_MODEL,
+    },
   };
 }
 

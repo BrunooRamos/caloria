@@ -15,7 +15,7 @@ Se validan con zod al arrancar (`src/config`): si falta o sobra algo, el servici
 | `BACKEND_TIMEOUT_MS` |             | `10000` | Timeout de cada llamada al Backend (100 a 60000). Al vencer → 503 `SERVICE_UNAVAILABLE`           |
 | `LOG_LEVEL`          |             | `info`  | Lo lee el logger de `@caloria/shared`                                                             |
 
-Si el entorno trae `JWT_PRIVATE_KEY`, `MONGO_URI`, `REDIS_URL` o `AI_API_KEY`, el servicio no arranca: el Front nunca tiene que recibirlos.
+Si el entorno trae `JWT_PRIVATE_KEY`, `MONGO_URI`, `REDIS_URL` o `OPENAI_API_KEY`, el servicio no arranca: el Front nunca tiene que recibirlos.
 
 ## Correr local
 

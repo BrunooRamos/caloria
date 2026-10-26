@@ -11,7 +11,7 @@ export interface MealAnalysisInput {
   audio?: Uint8Array;
 }
 
-/** Analiza la comida y la deja en su estado final. Llega desde afuera (la IA es el #18). */
+/** Analiza la comida y la deja en su estado final. Llega desde afuera (`createAnalyzeMeal`). */
 export type AnalyzeMeal = (input: MealAnalysisInput, log: Logger) => Promise<void>;
 
 /** Qué pasó con el job, para el log: `missing` y `skipped` terminan sin error y sin reintento. */

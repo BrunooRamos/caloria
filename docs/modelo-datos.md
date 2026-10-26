@@ -53,13 +53,13 @@ analysis?: {
   kcal: Range
   macros: { protein: Range; carbs: Range; fat: Range }
   confidence: number          // 0 a 1
-  promptVersion: string
-  model: string
+  promptVersion: string       // `version` del frontmatter de prompts/analisis-comida.md
+  model: string               // el modelo que devolvió OpenAI
 }
 corrections: { field: string; from: unknown; to: unknown; at: Date }[]
 comment?: { tone: string; text: string }
 attempts: number              // reintentos del job de análisis
-error?: { code: string }      // con status "failed", ej. "ENQUEUE_FAILED" (no se pudo encolar; reprocesable)
+error?: { code: string }      // con status "failed": "ENQUEUE_FAILED" (no se pudo encolar; reprocesable) o "NOT_FOOD" (la foto no es comida; no consume cupo)
 ```
 
 La media vive en `users/{userId}/meals/{mealId}/photo.{jpg|png|heic}` y `…/audio.m4a`.

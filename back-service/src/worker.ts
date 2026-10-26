@@ -1,26 +1,35 @@
 import mongoose from "mongoose";
 import { createLogger, serializeError } from "@caloria/shared";
+import { loadAnalysisPrompt } from "./config/analysis-prompt";
 import { loadWorkerConfig } from "./config/worker";
 import { connectMongo } from "./config/db";
+import { createAnalyzeMeal } from "./jobs/analyze-meal";
 import { MEAL_ANALYSIS_QUEUE } from "./jobs/meal-analysis";
 import { createMealAnalysisProcessor } from "./jobs/meal-analysis-processor";
-import type { AnalyzeMeal } from "./jobs/meal-analysis-processor";
 import { createMealAnalysisWorker } from "./jobs/meal-analysis-worker";
 import { createMediaService } from "./services/media";
+import { createOpenAiVision } from "./services/vision";
 
 const logger = createLogger({ service: "worker" });
 
-// Todavía no analiza: la comida queda en processing hasta que llegue la IA (#18).
-const analyze: AnalyzeMeal = async () => {};
-
 async function main() {
   const config = loadWorkerConfig();
+  // Se lee una sola vez: sin archivo o sin versión, el worker no arranca.
+  const prompt = loadAnalysisPrompt();
   await connectMongo(config.mongoUri);
 
+  const vision = createOpenAiVision({
+    apiKey: config.openai.apiKey,
+    model: config.openai.visionModel,
+    prompt,
+  });
   const worker = createMealAnalysisWorker({
     redisUrl: config.redisUrl,
     concurrency: config.concurrency,
-    processor: createMealAnalysisProcessor({ media: createMediaService(config.storage), analyze }),
+    processor: createMealAnalysisProcessor({
+      media: createMediaService(config.storage),
+      analyze: createAnalyzeMeal({ vision }),
+    }),
     logger,
   });
 
@@ -46,6 +55,8 @@ async function main() {
   await worker.ready();
   logger.info(`worker consumiendo la cola ${MEAL_ANALYSIS_QUEUE}`, {
     concurrency: config.concurrency,
+    model: config.openai.visionModel,
+    promptVersion: prompt.version,
   });
 }
 

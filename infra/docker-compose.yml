@@ -1,5 +1,6 @@
 # Mongo, Redis y MinIO nunca están en la red dmz; el Front solo llega al Back por la red front-back.
 # Las credenciales de MinIO solo llegan a Back y Worker (usuario de servicio) y a minio/minio-init (root).
+# La clave de OpenAI solo llega al Worker, que es el único con salida a internet (red worker-egress).
 
 x-storage-env: &storage-env
   S3_ENDPOINT: http://minio:9000
@@ -65,9 +66,12 @@ services:
       MONGO_URI: mongodb://mongo:27017/caloria
       REDIS_URL: redis://redis:6379
       WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?Falta OPENAI_API_KEY}
+      OPENAI_VISION_MODEL: ${OPENAI_VISION_MODEL:-}
       <<: *storage-env
     networks:
       - interna
+      - worker-egress
     depends_on:
       mongo:
         condition: service_started
@@ -124,3 +128,5 @@ networks:
     internal: true
   interna:
     internal: true
+  # Salida a internet (API de OpenAI) solo para el Worker; Mongo, Redis y MinIO no están acá.
+  worker-egress: {}

@@ -64,377 +64,44 @@ No te metas con la IA (#18), ni con el estado failed ni el campo attempts (#35),
 Comentarios cortitos en español como en el resto del repo, y si algo de lo documentado cambia, actualizá el README del back y docs/arquitectura.md. Al final corré lint, typecheck y los tests y contame cómo salieron. No commitees, que lo quiero revisar primero.
 ```
 
-## Sesión `eb3014a2-3c9e-4295-9622-b0e71fba2d50` · 2026-10-26
+## Sesión `55533f30-15b5-4712-928f-925978da1199` · 2026-10-25
 
-### 2026-10-26 11:13
-
-```text
-
-
-<pasted_content id="6479">
-Logs for your project will appear below. Press Ctrl+C to exit.
-TypeScript: The tsconfig.json#include property has been updated
-iOS  ERROR  Project is incompatible with this version of Expo Go
-
-• The installed version of Expo Go is for SDK 58.0.0.
-• The project you opened uses SDK 57.
-
-How to fix this error:
-
-Either upgrade this project to SDK 58.0.0, or launch it in an iOS simulator. It is not possible to install an older version of Expo Go for iOS devices, only the latest version is supported.
-
-[Learn how to upgrade to SDK 58.](https://docs.expo.dev/workflow/upgrading-expo-sdk-walkthrough/)
-
-[https://expo.dev/go?sdkVersion=57&platform=ios&device=false](Learn how to install Expo Go for SDK 57 in an iOS Simulator.)
-</pasted_content id="6479">
-
-
-Como haga upgrade del sdk de expo?
-```
-
-### 2026-10-26 11:15
+### 2026-10-25 21:49
 
 ```text
+Estoy en la rama del issue #18, el del prompt de análisis y la llamada a la IA de visión (mirá qué pide con gh issue view 18). El worker del #17 ya está mergeado acá. Lee la meal, baja la foto y el audio, y le pasa todo a un analyze que se inyecta en worker.ts y que hoy no hace nada. Lo que hay que hacer es que ese analyze analice de verdad. El esquema de analysis en models/Meal.ts y el estado failed con error.code ya existen. Usalos y no cambies la forma del documento sin avisarme.
 
+Vamos con OpenAI. En docs/requerimientos.md el proveedor figura como pregunta abierta (la 11): marcala como resuelta, igual que la 12.
 
-<pasted_content id="6479">
-martin@192 app % npx expo install --fix
-The following packages should be updated for best compatibility with the installed expo version:
-  @react-native-community/datetimepicker@9.1.0 - expected version: 9.2.1
-  expo-constants@57.0.22 - expected version: ~58.0.13
-  expo-linking@57.0.13 - expected version: ~58.0.14
-  expo-localization@57.0.2 - expected version: ~58.0.5
-  expo-router@57.0.27 - expected version: ~58.0.26
-  expo-secure-store@57.0.4 - expected version: ~58.0.2
-  expo-splash-screen@57.0.10 - expected version: ~58.0.11
-  expo-status-bar@57.0.1 - expected version: ~58.0.4
-  react@19.2.3 - expected version: 19.3.0
-  react-dom@19.2.3 - expected version: 19.3.0
-  react-native@0.86.3 - expected version: 0.88.0
-  react-native-reanimated@4.5.1 - expected version: 4.7.1
-  react-native-safe-area-context@5.7.0 - expected version: ~5.10.1
-  react-native-screens@4.26.2 - expected version: ~4.30.0
-  react-native-svg@15.15.4 - expected version: 15.16.0
-  react-native-worklets@0.10.1 - expected version: 0.13.0
-  @types/jest@29.5.14 - expected version: 30.0.0
-  @types/react@19.2.18 - expected version: ~19.3.0
-  jest@29.7.0 - expected version: ~30.5.2
-  jest-expo@57.0.6 - expected version: ~58.0.12
-Your project may not work correctly until you install the expected versions of the packages.
-› Installing 20 SDK 58.0.0 compatible native modules using npm
-> npm install
-npm error code ERESOLVE
-npm error ERESOLVE could not resolve
-npm error
-npm error While resolving: app@1.0.0
-npm error Found: @react-native-community/datetimepicker@9.1.0
-npm error node_modules/@react-native-community/datetimepicker
-npm error   @react-native-community/datetimepicker@"9.2.1" from the root project
-npm error
-npm error Could not resolve dependency:
-npm error @react-native-community/datetimepicker@"9.2.1" from the root project
-npm error
-npm error Conflicting peer dependency: react-native@0.88.0
-npm error node_modules/react-native
-npm error   peer react-native@"^0.85.0" from react-native-windows@0.85.0
-npm error   node_modules/react-native-windows
-npm error     peerOptional react-native-windows@"*" from @react-native-community/datetimepicker@9.2.1
-npm error     node_modules/@react-native-community/datetimepicker
-npm error       @react-native-community/datetimepicker@"9.2.1" from the root project
-npm error
-npm error Fix the upstream dependency conflict, or retry
-npm error this command with --force or --legacy-peer-deps
-npm error to accept an incorrect (and potentially broken) dependency resolution.
-npm error
-npm error
-npm error For a full report see:
-npm error /Users/martin/.npm/_logs/2026-10-26T14_15_24_706Z-eresolve-report.txt
-npm error A complete log of this run can be found in: /Users/martin/.npm/_logs/2026-10-26T14_15_24_706Z-debug-0.log
-Error: npm install exited with non-zero code: 1
-Error: npm install exited with non-zero code: 1
-    at ChildProcess.completionListener (/Users/martin/orca/caloria/app/node_modules/@expo/spawn-async/build/spawnAsync.js:113:23)
-    at Object.onceWrapper (node:events:623:26)
-    at ChildProcess.emit (node:events:508:28)
-    at ChildProcess._handle.onexit (node:internal/child_process:294:12)
-    ...
-    at spawnAsync (/Users/martin/orca/caloria/app/node_modules/@expo/spawn-async/build/spawnAsync.js:9:23)
-    at NpmPackageManager.runAsync (/Users/martin/orca/caloria/app/node_modules/@expo/package-manager/build/node/BasePackageManager.js:75:42)
-    at /Users/martin/orca/caloria/app/node_modules/@expo/package-manager/build/node/NpmPackageManager.js:68:143
-    at /Users/martin/orca/caloria/app/node_modules/@expo/package-manager/build/utils/spawn.js:20:34
-</pasted_content id="6479">
+1. El prompt. Creá prompts/analisis-comida.md con autor, versión y fecha en un frontmatter. El prompt de sistema va en el cuerpo. El worker lo lee una sola vez al arrancar, y de ese frontmatter sale el promptVersion que se guarda en la meal. Si falta el archivo o no tiene versión, que el worker no arranque. Hoy el Dockerfile del back no copia prompts/: sumalo, que el contexto del build ya es la raíz del repo. Tiene que pedir plato, ingredientes con gramos y kcal en rangos, kcal total, macros (proteína, carbos y grasas) en rangos y confidence entre 0 y 1. También tiene que poder decir que la foto no es comida. Ni la nota ni la transcripción van todavía, eso es del #23. Igual dejá armado el mensaje para que después se puedan sumar sin reescribirlo.
 
-```
+2. El service de IA. Ponelo en services/, detrás de una interfaz chica que reciba la foto y devuelva el análisis o "no es comida". Así los tests usan un fake y nunca le pegan a OpenAI. Usá structured outputs con JSON schema, pero no te fíes de eso: la respuesta se valida igual con zod. Los rangos tienen que tener min ≤ max y no ser negativos, y confidence tiene que estar entre 0 y 1. Ponele timeout a la llamada, como el upload y el download del MediaService.
 
-### 2026-10-26 11:18
+3. Las claves. OPENAI_API_KEY y el modelo (OPENAI_VISION_MODEL, con un default que sea un modelo de visión vigente; fijate en la doc de OpenAI) van solo en loadWorkerConfig. Nada de loadConfig del back. Si falta la clave, el worker no arranca. En el compose la clave va únicamente en el servicio worker. Reemplazá el AI_API_KEY genérico del .env.example. Ojo con la red: erna, que es internal: true, yasí no sale a internet. Sumale una red con salida solo a él, sin abrirle nada más a
+Mongo ni a Redis.
 
-```text
+4. HEIC. shared acepta JPEG, Pacepta HEIC. Fijate si hay unaforma prolija de convertirla a JPEG en el worker. Si para eso hace falta una dependencia
+nativa pesada (sharp con libhe, no la metas: frená y contamelas opciones.
 
+5. El resultado, en el analyze que se inyecta en el processor:
+   - Si zod rechaza la respues error y que reintente BullMQcon las opciones que ya tiene la cola. La meal sigue en processing.
+   - Si es comida, guardá analodel y pasala a ready.
+   - Si no es comida, pasala a failed con error.code "NOT_FOOD" y sin reintento. El
+mensaje que ve el usuario lo ade, así que documentalo endocs/api.md.
+   - En los dos casos, el updacessing", así un job repetido no pisa nada.
+   - El cupo todavía no está intes, pero dejá escrito endocs/requerimientos.md (RF-14) que el conteo tiene que excluir las failed, así NOT_FOOD
+no consume cupo.
 
-<pasted_content id="6479">
-> app@1.0.0 typecheck
-> tsc --noEmit
+6. Logs. Usá el logger del jobPor llamada quiero ver modelo,promptVersion, cuánto tardó, los tokens que consumió y el resultado (ready o NOT_FOOD).
+Si zod rechaza, logueá solo lofoto, la respuesta cruda y lanota no van al log.
 
-__tests__/auth-screens.test.tsx:179:19 - error TS2339: Property 'getPathname' does not exist on type 'Promise<RenderRouterResult>'.
+Tests: processor con mongodb-memory-server y un fake de la IA, cubriendo el caso feliz
+(queda ready con promptVersionnválida (min > max o confidence1.5: tira error y queda en processing), no es comida (queda failed con NOT_FOOD) y una
+meal que cambió de estado en e también la carga del prompt(sin versión no arranca) y loadWorkerConfig sin OPENAI_API_KEY. Ninguno le pega a OpenAI
+de verdad.
 
-179     expect(router.getPathname()).toBe("/onboarding");
-                      ~~~~~~~~~~~
+No te metas con los reintentosiled después de agotarlos ni elcampo attempts (#35), ni con la transcripción y la nota (#23), ni con el compounding
+(#30), ni con el comentario ni
 
-  __tests__/auth-screens.test.tsx:179:19
-    179     expect(router.getPathname()).toBe("/onboarding");
-                          ~~~~~~~~~~~
-    Did you forget to use 'await'?
-
-__tests__/auth-screens.test.tsx:194:19 - error TS2339: Property 'getPathname' does not exist on type 'Promise<RenderRouterResult>'.
-
-194     expect(router.getPathname()).toBe("/register");
-                      ~~~~~~~~~~~
-
-  __tests__/auth-screens.test.tsx:194:19
-    194     expect(router.getPathname()).toBe("/register");
-                          ~~~~~~~~~~~
-    Did you forget to use 'await'?
-
-__tests__/navigation.test.tsx:77:10 - error TS2339: Property 'getRouterState' does not exist on type 'Promise<RenderRouterResult>'.
-
-77   router.getRouterState()?.routes[0]?.state?.routes.map((route) => route.name);
-            ~~~~~~~~~~~~~~
-
-  __tests__/navigation.test.tsx:77:10
-    77   router.getRouterState()?.routes[0]?.state?.routes.map((route) => route.name);
-                ~~~~~~~~~~~~~~
-    Did you forget to use 'await'?
-
-__tests__/navigation.test.tsx:77:58 - error TS7006: Parameter 'route' implicitly has an 'any' type.
-
-77   router.getRouterState()?.routes[0]?.state?.routes.map((route) => route.name);
-                                                            ~~~~~
-
-__tests__/navigation.test.tsx:101:19 - error TS2339: Property 'getPathname' does not exist on type 'Promise<RenderRouterResult>'.
-
-101     expect(router.getPathname()).toBe("/");
-                      ~~~~~~~~~~~
-
-  __tests__/navigation.test.tsx:101:19
-    101     expect(router.getPathname()).toBe("/");
-                          ~~~~~~~~~~~
-    Did you forget to use 'await'?
-
-__tests__/navigation.test.tsx:114:19 - error TS2339: Property 'getPathname' does not exist on type 'Promise<RenderRouterResult>'.
-
-114     expect(router.getPathname()).toBe("/login");
-                      ~~~~~~~~~~~
-
-  __tests__/navigation.test.tsx:114:19
-    114     expect(router.getPathname()).toBe("/login");
-                          ~~~~~~~~~~~
-    Did you forget to use 'await'?
-
-__tests__/navigation.test.tsx:129:19 - error TS2339: Property 'getPathname' does not exist on type 'Promise<RenderRouterResult>'.
-
-129     expect(router.getPathname()).toBe("/login");
-                      ~~~~~~~~~~~
-
-  __tests__/navigation.test.tsx:129:19
-    129     expect(router.getPathname()).toBe("/login");
-                          ~~~~~~~~~~~
-    Did you forget to use 'await'?
-
-__tests__/navigation.test.tsx:142:19 - error TS2339: Property 'getPathname' does not exist on type 'Promise<RenderRouterResult>'.
-
-142     expect(router.getPathname()).toBe("/");
-                      ~~~~~~~~~~~
-
-  __tests__/navigation.test.tsx:142:19
-    142     expect(router.getPathname()).toBe("/");
-                          ~~~~~~~~~~~
-    Did you forget to use 'await'?
-
-__tests__/navigation.test.tsx:162:19 - error TS2339: Property 'getPathname' does not exist on type 'Promise<RenderRouterResult>'.
-
-162     expect(router.getPathname()).toBe("/login");
-                      ~~~~~~~~~~~
-
-  __tests__/navigation.test.tsx:162:19
-    162     expect(router.getPathname()).toBe("/login");
-                          ~~~~~~~~~~~
-    Did you forget to use 'await'?
-
-__tests__/navigation.test.tsx:181:19 - error TS2339: Property 'getPathname' does not exist on type 'Promise<RenderRouterResult>'.
-
-181     expect(router.getPathname()).toBe("/");
-                      ~~~~~~~~~~~
-
-  __tests__/navigation.test.tsx:181:19
-    181     expect(router.getPathname()).toBe("/");
-                          ~~~~~~~~~~~
-    Did you forget to use 'await'?
-
-__tests__/navigation.test.tsx:193:19 - error TS2339: Property 'getPathname' does not exist on type 'Promise<RenderRouterResult>'.
-
-193     expect(router.getPathname()).toBe("/register");
-                      ~~~~~~~~~~~
-
-  __tests__/navigation.test.tsx:193:19
-    193     expect(router.getPathname()).toBe("/register");
-                          ~~~~~~~~~~~
-    Did you forget to use 'await'?
-
-__tests__/navigation.test.tsx:196:19 - error TS2339: Property 'getPathname' does not exist on type 'Promise<RenderRouterResult>'.
-
-196     expect(router.getPathname()).toBe("/login");
-                      ~~~~~~~~~~~
-
-  __tests__/navigation.test.tsx:196:19
-    196     expect(router.getPathname()).toBe("/login");
-                          ~~~~~~~~~~~
-    Did you forget to use 'await'?
-
-__tests__/navigation.test.tsx:208:19 - error TS2339: Property 'getPathname' does not exist on type 'Promise<RenderRouterResult>'.
-
-208     expect(router.getPathname()).toBe("/login");
-                      ~~~~~~~~~~~
-
-  __tests__/navigation.test.tsx:208:19
-    208     expect(router.getPathname()).toBe("/login");
-                          ~~~~~~~~~~~
-    Did you forget to use 'await'?
-
-__tests__/navigation.test.tsx:221:19 - error TS2339: Property 'getPathname' does not exist on type 'Promise<RenderRouterResult>'.
-
-221     expect(router.getPathname()).toBe("/profile");
-                      ~~~~~~~~~~~
-
-  __tests__/navigation.test.tsx:221:19
-    221     expect(router.getPathname()).toBe("/profile");
-                          ~~~~~~~~~~~
-    Did you forget to use 'await'?
-
-__tests__/navigation.test.tsx:228:19 - error TS2339: Property 'getPathname' does not exist on type 'Promise<RenderRouterResult>'.
-
-228     expect(router.getPathname()).toBe("/profile");
-                      ~~~~~~~~~~~
-
-  __tests__/navigation.test.tsx:228:19
-    228     expect(router.getPathname()).toBe("/profile");
-                          ~~~~~~~~~~~
-    Did you forget to use 'await'?
-
-__tests__/navigation.test.tsx:246:19 - error TS2339: Property 'getPathname' does not exist on type 'Promise<RenderRouterResult>'.
-
-246     expect(router.getPathname()).toBe("/login");
-                      ~~~~~~~~~~~
-
-  __tests__/navigation.test.tsx:246:19
-    246     expect(router.getPathname()).toBe("/login");
-                          ~~~~~~~~~~~
-    Did you forget to use 'await'?
-
-__tests__/navigation.test.tsx:269:19 - error TS2339: Property 'getPathname' does not exist on type 'Promise<RenderRouterResult>'.
-
-269     expect(router.getPathname()).toBe("/login");
-                      ~~~~~~~~~~~
-
-  __tests__/navigation.test.tsx:269:19
-    269     expect(router.getPathname()).toBe("/login");
-                          ~~~~~~~~~~~
-    Did you forget to use 'await'?
-
-__tests__/profile-screens.test.tsx:225:19 - error TS2339: Property 'getPathname' does not exist on type 'Promise<RenderRouterResult>'.
-
-225     expect(router.getPathname()).toBe("/goals");
-                      ~~~~~~~~~~~
-
-  __tests__/profile-screens.test.tsx:225:19
-    225     expect(router.getPathname()).toBe("/goals");
-                          ~~~~~~~~~~~
-    Did you forget to use 'await'?
-
-__tests__/profile-screens.test.tsx:278:19 - error TS2339: Property 'getPathname' does not exist on type 'Promise<RenderRouterResult>'.
-
-278     expect(router.getPathname()).toBe("/register");
-                      ~~~~~~~~~~~
-
-  __tests__/profile-screens.test.tsx:278:19
-    278     expect(router.getPathname()).toBe("/register");
-                          ~~~~~~~~~~~
-    Did you forget to use 'await'?
-
-components/Input.tsx:63:11 - error TS2322: Type 'Ref<TextInputType> | undefined' is not assignable to type 'Ref<_TextInputInstance> | undefined'.
-  Type '(instance: TextInputType | null) => void | (() => VoidOrUndefinedOnly)' is not assignable to type 'Ref<_TextInputInstance> | undefined'.
-    Type '(instance: TextInputType | null) => void | (() => VoidOrUndefinedOnly)' is not assignable to type '(instance: _TextInputInstance | null) => void | (() => VoidOrUndefinedOnly)'.
-      Types of parameters 'instance' and 'instance' are incompatible.
-        Type '_TextInputInstance | null' is not assignable to type 'TextInputType | null'.
-          Type '_TextInputInstance' is not assignable to type 'TextInputType'.
-            Type '_TextInputInstance' is not assignable to type 'InternalTextInput'.
-              Type '_TextInputInstance' provides no match for the signature '(props: Omit<TextInputProps, "ref"> & { ref?: Ref<_TextInputInstance> | undefined; }): ReactNode'.
-
-63           ref={ref}
-             ~~~
-
-  node_modules/react-native/types_generated/Libraries/Components/TextInput/TextInput.flow.d.ts:994:3
-    994   ref?: React.Ref<TextInputInstance> | undefined;
-          ~~~
-    The expected type comes from property 'ref' which is declared here on type 'IntrinsicAttributes & Omit<TextInputProps, "ref"> & { ref?: Ref<_TextInputInstance> | undefined; }'
-
-features/auth/LoginScreen.tsx:49:55 - error TS2339: Property 'focus' does not exist on type 'TextInputType'.
-
-49           onSubmitEditing={() => passwordRef.current?.focus()}
-                                                         ~~~~~
-
-features/auth/RegisterScreen.tsx:54:55 - error TS2339: Property 'focus' does not exist ontype 'TextInputType'.
-
-54           onSubmitEditing={() => passwordRef.current?.focus()}
-                                                         ~~~~~
-
-features/auth/RegisterScreen.tsx:69:62 - error TS2339: Property 'focus' does not exist ontype 'TextInputType'.
-
-69           onSubmitEditing={() => confirmPasswordRef.current?.focus()}
-                                                                ~~~~~
-
-features/onboarding/MeasuresStep.tsx:41:51 - error TS2339: Property 'focus' does not exist on type 'TextInputType'.
-
-41         onSubmitEditing={() => weightRef.current?.focus()}
-                                                     ~~~~~
-
-features/profile/ProfileScreen.tsx:110:55 - error TS2339: Property 'focus' does not existon type 'TextInputType'.
-
-110             onSubmitEditing={() => weightRef.current?.focus()}
-                                                          ~~~~~
-
-
-Found 25 errors in 8 files.
-
-Errors  Files
-     2  __tests__/auth-screens.test.tsx:179
-    15  __tests__/navigation.test.tsx:77
-     2  __tests__/profile-screens.test.tsx:225
-     1  components/Input.tsx:63
-     1  features/auth/LoginScreen.tsx:49
-     2  features/auth/RegisterScreen.tsx:54
-     1  features/onboarding/MeasuresStep.tsx:41
-     1  features/profile/ProfileScreen.tsx:110
-</pasted_content id="6479">
-
-```
-
-## Sesión `eb65d411-15ce-4492-9bd8-4efaba402b67` · 2026-10-26
-
-### 2026-10-26 11:23
-
-```text
-Como levanto el proyecto completo, con la app novil tambien
-```
-
-### 2026-10-26 11:28
-
-```text
-Pero como levanto todo el backend?
-```
-
-## Sesión `eb3014a2-3c9e-4295-9622-b0e71fba2d50` · 2026-10-26
-
-### 2026-10-26 11:33
-
-```text
-dale
+Comentarios cortitos en españoo. Actualizádocs/arquitectura.md, docs/modelo-datos.md (el código NOT_FOOD), docs/api.md y el README del back. Fijate que el CI no ueva. Al final corré lint,typecheck y los tests y contame cómo salieron. No commitees, que lo quiero revisar primero.
 ```
