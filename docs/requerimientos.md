@@ -56,7 +56,7 @@ Endpoints: `GET /users/me`, `PATCH /users/me`.
 #### RF-05 — Análisis en rangos
 
 - [ ] El análisis devuelve plato, ingredientes (con gramos y kcal en rangos), kcal total y macros (proteína, carbohidratos, grasas), todos como rangos `{ min, max }`.
-- [ ] Incluye `confidence` entre 0 y 1; la app la muestra como alta / media / baja.
+- [ ] Incluye `confidence` entre 0 y 1; la app la muestra como alta / media / baja: alta desde 0,75, media desde 0,5 y baja por debajo (`CONFIDENCE_THRESHOLDS` en `app/features/meals/confidence.ts`).
 - [ ] `min ≤ max` en todos los rangos; la respuesta de la IA se valida con zod y, si no cumple, el job se reintenta.
 - [ ] Se guarda la versión del prompt (`promptVersion`) y el modelo usado.
 - [ ] Si la foto no parece comida, el análisis vuelve `failed` con un mensaje claro y no consume cupo.

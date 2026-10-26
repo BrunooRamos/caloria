@@ -43,6 +43,11 @@ export const sizes = {
 export const opacity = {
   pressed: 0.85,
   disabled: 0.4,
+  skeleton: 0.5,
+} as const;
+
+export const motion = {
+  skeletonPulse: 900,
 } as const;
 
 export const shadow = {

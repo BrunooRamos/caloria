@@ -12,6 +12,7 @@ export default function AppLayout() {
         headerStyle: styles.header,
         headerTitleStyle: styles.headerTitle,
         headerTintColor: colors.primary,
+        headerBackButtonDisplayMode: "minimal",
         headerShadowVisible: false,
         contentStyle: styles.content,
       }}

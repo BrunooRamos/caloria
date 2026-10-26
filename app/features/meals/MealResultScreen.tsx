@@ -1,39 +1,54 @@
-import { useLocalSearchParams } from "expo-router";
-import { ActivityIndicator, Image, StyleSheet, View } from "react-native";
-import { Card, Screen, Text } from "@/components";
-import { colors, radius, spacing } from "@/theme";
+import { useIsFocused, useLocalSearchParams } from "expo-router";
+import { useRef } from "react";
+import { StyleSheet, View } from "react-native";
+import { Screen } from "@/components";
+import { spacing } from "@/theme";
+import { AnalyzingState } from "./result/AnalyzingState";
+import { FailedState, NotFoundState } from "./result/FailedState";
+import { MealPhoto } from "./result/MealPhoto";
+import { ReadyState } from "./result/ReadyState";
+import { useMealPolling } from "./useMealPolling";
 
-/**
- * Resultado de una comida, por ahora mínimo: la foto recién subida y el estado "analizando".
- * El polling de `GET /meals/:id` y el análisis completo van en otro ticket.
- */
+/** Si la imagen sigue fallando con URLs nuevas, no se insiste más. */
+const MAX_PHOTO_RENEWALS = 3;
+
+/** Resultado de una comida: consulta el análisis hasta que está listo o falla (RF-05). */
 export default function MealResultScreen() {
-  const { photoUri } = useLocalSearchParams<{ id: string; photoUri?: string }>();
+  const { id, photoUri } = useLocalSearchParams<{ id: string; photoUri?: string }>();
+  const focused = useIsFocused();
+  const polling = useMealPolling(id, { enabled: focused });
+  const renewed = useRef(new Set<string>());
+  const { meal } = polling;
   // Solo la foto local que dejó la captura; un link no puede hacer cargar una URL cualquiera.
   const localPhoto = photoUri?.startsWith("file:") ? photoUri : undefined;
 
+  // La photoUrl vence a los 15 min: si no carga, se pide la comida de nuevo (una vez por URL).
+  function renewPhotoUrl(failedUrl: string) {
+    if (renewed.current.has(failedUrl) || renewed.current.size >= MAX_PHOTO_RENEWALS) return;
+    renewed.current.add(failedUrl);
+    polling.refresh();
+  }
+
+  let content;
+  if (polling.notFound) content = <NotFoundState />;
+  else if (meal?.status === "ready") content = <ReadyState meal={meal} />;
+  else if (meal?.status === "failed") content = <FailedState code={meal.error.code} />;
+  else {
+    content = (
+      <AnalyzingState
+        slow={polling.slow}
+        stalled={polling.stalled}
+        connectionIssue={polling.connectionIssue}
+        onRetry={polling.refresh}
+      />
+    );
+  }
+
   return (
-    <Screen edges={["bottom", "left", "right"]}>
+    <Screen scroll edges={["bottom", "left", "right"]}>
       <View style={styles.content}>
-        {localPhoto ? (
-          <Image
-            source={{ uri: localPhoto }}
-            resizeMode="cover"
-            accessibilityLabel="Foto de tu comida"
-            style={styles.photo}
-          />
-        ) : (
-          <View style={styles.photo} />
-        )}
-        <Card accessibilityLiveRegion="polite">
-          <View style={styles.status}>
-            <ActivityIndicator color={colors.primary} />
-            <Text variant="h3">Analizando tu comida…</Text>
-          </View>
-          <Text variant="small" color="inkMuted">
-            Estimamos las calorías y los macros a partir de la foto. Tarda unos segundos.
-          </Text>
-        </Card>
+        <MealPhoto localUri={localPhoto} remoteUrl={meal?.photoUrl} onRemoteError={renewPhotoUrl} />
+        {content}
       </View>
     </Screen>
   );
@@ -41,6 +56,4 @@ export default function MealResultScreen() {
 
 const styles = StyleSheet.create({
   content: { gap: spacing.xl },
-  photo: { aspectRatio: 4 / 3, borderRadius: radius.lg, backgroundColor: colors.surfaceAlt },
-  status: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
 });

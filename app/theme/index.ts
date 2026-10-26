@@ -2,4 +2,4 @@ export { colors } from "./colors";
 export type { ColorToken } from "./colors";
 export { fonts, maxFontSizeMultiplier, typography } from "./typography";
 export type { TextVariant } from "./typography";
-export { borderWidth, opacity, radius, shadow, sizes, spacing } from "./layout";
+export { borderWidth, motion, opacity, radius, shadow, sizes, spacing } from "./layout";
