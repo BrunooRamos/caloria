@@ -1,0 +1,55 @@
+back-service/src/routes/index.ts
+  s_adcc4ed0aafbf1::t_8f818fd8498a81 4,10,18,22,41-42
+  s_adcc4ed0aafbf1::t_4bbe3f9d11d9a6 43
+docs/api.md
+  s_adcc4ed0aafbf1::t_46bb31a37b8d51 26,221-250
+  s_adcc4ed0aafbf1::t_8eb59d98eff8cd 251
+front-service/src/schemas/index.ts
+  s_adcc4ed0aafbf1::t_ddda3d4ed6588b 3-9,41
+shared/src/dashboard.ts
+  s_adcc4ed0aafbf1::t_c19f4bf1add477 1-18
+shared/src/index.ts
+  s_adcc4ed0aafbf1::t_27364d1a5e7cd2 71-72
+back-service/src/services/dashboard.ts
+  s_adcc4ed0aafbf1::t_a650ecb292ed9f 1-164
+prompts/historial/pazdiaz15.md
+  h_5b36141b16afea 189-191,193,203-208
+  s_adcc4ed0aafbf1::t_198fe4b6fc63bb 153-188,192,194-202
+back-service/test/dashboard.test.ts
+  s_adcc4ed0aafbf1::t_dabce865a50beb 320-321,338-360,365-369
+  s_adcc4ed0aafbf1::t_15d6bfaf740e6a 38,312-315
+  s_adcc4ed0aafbf1::t_1ad0fb6ad31bea 1-37,39-311,316-319,322-337,361-364,370-372
+docs/modelo-datos.md
+  s_adcc4ed0aafbf1::t_46bb31a37b8d51 76-77
+front-service/test/gateway.test.ts
+  s_adcc4ed0aafbf1::t_9c0b4575439397 498-545
+shared/test/dashboard.test.ts
+  s_adcc4ed0aafbf1::t_078e979ff4faf9 1-35
+front-service/src/routes/index.ts
+  s_adcc4ed0aafbf1::t_ddda3d4ed6588b 25
+back-service/src/index.ts
+  s_adcc4ed0aafbf1::t_8f818fd8498a81 10,28
+back-service/src/controllers/dashboard.ts
+  s_adcc4ed0aafbf1::t_0ab5c0da428b99 1-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "66eb3d55db7988af577088ca63e82699ea72325a",
+  "prompts": {},
+  "humans": {
+    "h_5b36141b16afea": {
+      "author": "pazdiaz15 <mpdiaz@correo.um.edu.uy>"
+    }
+  },
+  "sessions": {
+    "s_adcc4ed0aafbf1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cdda44ee-b16f-4029-8870-cbfee6632cf9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "pazdiaz15 <mpdiaz@correo.um.edu.uy>"
+    }
+  }
+}
