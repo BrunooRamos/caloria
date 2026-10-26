@@ -25,6 +25,7 @@ export const borderWidth = {
   default: 1,
   focus: 2,
   error: 1.5,
+  shutter: 4,
 } as const;
 
 export const sizes = {
@@ -35,6 +36,8 @@ export const sizes = {
   iconStroke: 2,
   iconStrokeLight: 1.75,
   logo: { width: 160 },
+  fab: 64,
+  shutter: 72,
 } as const;
 
 export const opacity = {

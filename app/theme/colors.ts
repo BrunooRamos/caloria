@@ -20,6 +20,10 @@ export const colors = {
   warningSoft: "#F3E7D3",
   danger: "#A8452E",
   dangerSoft: "#F6E3DD",
+
+  cameraBackground: "#000000",
+  onCamera: "#FFFFFF",
+  cameraControl: "rgba(0, 0, 0, 0.45)",
 } as const;
 
 export type ColorToken = keyof typeof colors;

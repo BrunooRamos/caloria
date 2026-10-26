@@ -17,7 +17,10 @@ describe("errorMessage", () => {
     ["VALIDATION_ERROR", "Revisá los datos e intentá de nuevo."],
     ["UNAUTHORIZED", "Tu sesión terminó. Ingresá de nuevo."],
     ["TOKEN_EXPIRED", "Tu sesión terminó. Ingresá de nuevo."],
-    ["MEAL_QUOTA_EXCEEDED", "Ya usaste todos los análisis de este mes."],
+    [
+      "MEAL_QUOTA_EXCEEDED",
+      "Llegaste al límite de análisis de este mes. Se renueva el 1.° del mes que viene.",
+    ],
     ["PREMIUM_REQUIRED", "Esto es parte del plan premium."],
     ["NOT_FOUND", "No encontramos lo que buscabas."],
     ["EMAIL_TAKEN", "Ya hay una cuenta con este email."],

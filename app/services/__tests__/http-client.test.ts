@@ -1,3 +1,4 @@
+import { buildMealForm } from "@/features/meals/meal-form";
 import { ApiError } from "../api-error";
 import { createHttpClient } from "../http-client";
 import type { AuthTokens } from "../token-storage";
@@ -167,6 +168,20 @@ describe("refresh de tokens", () => {
     expect(calls[2].headers.Authorization).toBe("Bearer access-new");
     expect(storage.current()).toEqual(NEW_TOKENS);
     expect(onSessionExpired).not.toHaveBeenCalled();
+  });
+
+  it("con TOKEN_EXPIRED reintenta el multipart de la comida con el mismo FormData", async () => {
+    const { client, calls, pathsCalled } = setup(rotatingBackend());
+    const form = buildMealForm({
+      photo: { uri: "file:///foto.jpg", width: 1600, height: 1200, bytes: 1000 },
+    });
+
+    await expect(client.post("/meals", form)).resolves.toEqual({ path: "/meals" });
+
+    expect(pathsCalled()).toEqual(["/meals", "/auth/refresh", "/meals"]);
+    expect(calls[2].body).toBe(form);
+    expect(calls[2].headers["Content-Type"]).toBeUndefined();
+    expect(calls[2].headers.Authorization).toBe("Bearer access-new");
   });
 
   it("si el servidor rechaza el refresh, limpia la sesión y avisa para volver al login", async () => {
