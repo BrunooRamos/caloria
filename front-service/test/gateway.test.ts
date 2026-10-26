@@ -495,6 +495,54 @@ describe("front-service: gateway de /api/v1", () => {
     });
   });
 
+  describe("GET /dashboard/daily", () => {
+    const dashboard = {
+      date: "2026-10-26",
+      consumed: {
+        kcal: { min: 1450, max: 1820, mid: 1635 },
+        protein: { min: 80, max: 102, mid: 91 },
+        carbs: { min: 150, max: 190, mid: 170 },
+        fat: { min: 45, max: 60, mid: 53 },
+      },
+      targets: { kcal: 2100, proteinG: 120, carbsG: 240, fatG: 70 },
+      meals: { ready: 3, processing: 1, failed: 0 },
+    };
+
+    it("reenvía la fecha validada y devuelve la respuesta del Backend sin caché", async () => {
+      back.respondWith((_req, res) => void res.set("Cache-Control", "no-store").json(dashboard));
+      const res = await call("get", "/dashboard/daily?date=2026-10-26", valid);
+      assert.equal(res.status, 200);
+      assert.deepEqual(res.body, dashboard);
+      assert.equal(res.headers["cache-control"], "no-store");
+      assert.equal(back.received.length, 1);
+      assert.equal(back.received[0].path, "/api/v1/dashboard/daily");
+      assert.deepEqual(back.received[0].query, { date: "2026-10-26" });
+      assert.equal(back.received[0].authorization, `Bearer ${valid}`);
+    });
+
+    it("sin date → llega al Backend sin query (él decide qué día es hoy)", async () => {
+      back.respondWith((_req, res) => void res.json(dashboard));
+      const res = await call("get", "/dashboard/daily", valid);
+      assert.equal(res.status, 200);
+      assert.deepEqual(back.received[0].query, {});
+    });
+
+    for (const [caso, query] of [
+      ["con otro formato", "date=26-10-2026"],
+      ["un día que no existe", "date=2026-02-30"],
+      ["vacía", "date="],
+      ["repetida", "date=2026-10-26&date=2026-10-27"],
+      ["con un operador", "date[$gt]="],
+      ["con el usuario en la query", "date=2026-10-26&userId=66f1a0000000000000000002"],
+    ] as const) {
+      it(`fecha inválida (${caso}) → 400 VALIDATION_ERROR sin llegar al Backend`, async () => {
+        const res = await call("get", `/dashboard/daily?${query}`, valid);
+        expectEnvelope(res, 400, "VALIDATION_ERROR");
+        assertNotForwarded();
+      });
+    }
+  });
+
   describe("X-Request-Id", () => {
     it("el Front genera el suyo, ignora el del cliente y lo propaga al Backend y a sus logs", async () => {
       const clientId = "22222222-2222-4222-8222-222222222222";

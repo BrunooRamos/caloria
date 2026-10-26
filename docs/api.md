@@ -23,7 +23,7 @@ REST + JSON, versionada en `/api/v1`. El Front Service expone los mismos endpoin
 | GET | `/meals/:id` | JWT | Análisis en rangos, confianza y comentario | 200 | RF-05, RF-11 |
 | PATCH | `/meals/:id` | JWT | Corrección del usuario; persiste para compounding | 200 | RF-06, RF-07 |
 | DELETE | `/meals/:id` | JWT | Elimina la comida y su media | 204 | RF-08 |
-| GET | `/dashboard/daily?date=` | JWT | Consumido vs. meta y racha | 200 | RF-09, RF-10 |
+| GET | `/dashboard/daily?date=` | JWT | Consumido vs. meta del día (la racha llega con RF-10) | 200 | RF-09, RF-10 |
 | GET | `/summaries/weekly/:week` | JWT | Wrapped de la semana (`2026-W38`) | 200 | RF-12 |
 | GET | `/billing/plan` | JWT | Plan vigente y análisis restantes del mes | 200 | RF-14, RF-16 |
 | POST | `/billing/subscribe` | JWT | Alta premium (pago sandbox) | 200 | RF-16 |
@@ -217,6 +217,37 @@ Cada campo cambiado se registra en `corrections` con su valor anterior y nuevo (
 
 - Se pueden corregir `dish`, `items`, `kcal` y `macros`, con la misma forma que el análisis. Cada campo va completo: `items` es la lista entera de ingredientes y `macros` lleva los tres rangos.
 - `analysis` no se modifica: la corrección se agrega a `corrections` y los valores finales salen de aplicarlas en orden (`applyCorrections`, la misma función que usa `GET /meals/:id`).
+
+### Dashboard diario
+
+```http
+GET /api/v1/dashboard/daily?date=2026-10-26
+Authorization: Bearer <accessToken>
+```
+```json
+{
+  "date": "2026-10-26",
+  "consumed": {
+    "kcal":    { "min": 1450, "max": 1820, "mid": 1635 },
+    "protein": { "min": 80,   "max": 102,  "mid": 91 },
+    "carbs":   { "min": 150,  "max": 190,  "mid": 170 },
+    "fat":     { "min": 45,   "max": 60,   "mid": 53 }
+  },
+  "targets": { "kcal": 2100, "proteinG": 120, "carbsG": 240, "fatG": 70 },
+  "meals": { "ready": 3, "processing": 1, "failed": 0 }
+}
+```
+
+- `date` es opcional, `YYYY-MM-DD` y un día real del calendario. Sin `date` se usa el día de hoy en la zona del perfil (`profile.timezone`), y la respuesta dice cuál fue. Otro formato, un día que no existe (`2026-02-30`), `date` vacía o repetida, o cualquier otro campo en la query → 400 `VALIDATION_ERROR`, en el Front y en el Backend.
+- El usuario sale siempre del token. Las comidas se filtran por `localDate` (el día del usuario), no por `capturedAt`.
+- `consumed` suma solo las comidas `ready` del día, con las correcciones aplicadas (los mismos valores que `GET /meals/:id`). `min` es la suma de los mínimos, `max` la de los máximos y `mid` su punto medio. Se redondea a enteros recién en la respuesta: `mid` sale de las sumas sin redondear.
+- `meals` cuenta las comidas del día por status. Las `processing` y `failed` no suman en `consumed`; con `failed` > 0 la app puede avisar que hay alguna para reintentar.
+- `targets` es `users.targets` tal cual está guardada (con las mismas claves que `GET /users/me`); no se recalcula acá.
+- Un día sin comidas no es un error: 200 con `consumed` en cero y `meals` en cero.
+- Solo números: la respuesta no dice si lo consumido está por encima o por debajo de la meta (RNF-10). Cómo se muestra lo decide la app.
+- Una sola agregación sobre el índice `{ userId, localDate }`; con `date`, la meta se busca en paralelo (RNF-01, < 1 s).
+- La respuesta lleva `Cache-Control: no-store`: la app lo vuelve a pedir al volver a la pantalla.
+- La racha (RF-10) todavía no viene: se agrega cuando exista la collection `gamification`.
 
 ## Códigos HTTP
 

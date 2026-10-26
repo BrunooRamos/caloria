@@ -150,3 +150,59 @@ Para los tests: multipart válido con y sin audio da 202 con el body correcto; e
 
 Cuando termines, pasame qué archivos tocaste, si tomaste alguna decisión distinta a lo que puse acá y cómo dieron los tests.
 ```
+
+## Sesión `cdda44ee-b16f-4029-8870-cbfee6632cf9` · 2026-10-26
+
+### 2026-10-26 16:48
+
+```text
+Tengo que implementar el ticket del GET /dashboard/daily, que devuelve lo consumido contra la meta del día.
+
+Para el contexto, fijate en docs/requerimientos.md (la parte de RF-09), en docs/api.md y en el modelo de datos de meals y users. Reutilizá lo que ya tenemos: auth, validación con zod, el sobre de error y el índice de meals por userId y localDate que agregamos en el ticket del POST /meals.
+
+Los criterios de aceptación son estos: suma las kcal y los macros de las comidas en estado ready del día, como rango y como punto medio; devuelve la meta y la cantidad de comidas que siguen en processing; y responde en menos de un segundo.
+
+Algunas cosas que pensé y quiero que se respeten:
+
+El día viene por query como ?date=YYYY-MM-DD y es opcional: si no viene, se usa el día de hoy en la zona horaria del usuario. Validá el formato con zod en el Front y en el Backend; si no es una fecha válida, 400. Un día sin comidas no es un error: devolvé todo en cero, no un 404. El usuario sale siempre del token, nunca de la query.
+
+Para filtrar usá el localDate de las comidas, no el capturedAt, así coincide con el día del usuario.
+
+La suma de los rangos es así: el mínimo del día es la suma de los mínimos, el máximo es la suma de los máximos, y el punto medio es el promedio de esos dos. Lo mismo para proteína, carbohidratos y grasas. Redondeá a enteros en la respuesta, no antes de sumar.
+
+Ojo con las correcciones: si el usuario corrigió una comida, hay que sumar el valor corregido y no el original de la IA. 
+
+La meta sale de users.targets tal cual está guardada, no se recalcula acá. Además de las comidas en processing, devolvé también cuántas quedaron en failed, así la app puede avisar que hay alguna para reintentar.
+
+En docs/api.md el dashboard figura también con la racha. Si ya existe la collection gamification con la racha, incluila; si no, dejá un TODO y no la inventes en este ticket.
+
+No agregues mensajes ni campos que juzguen, tipo "te pasaste" o "excedido". El endpoint devuelve números; cómo se muestran es cosa de la app, y por el RNF-10 tiene que ser neutral.
+
+Para que responda rápido, hacé la suma con una sola agregación de Mongo que use el índice, y buscá la meta del usuario en paralelo. Nada de traer todas las comidas y sumarlas en JavaScript.
+
+La respuesta pensé que tenga más o menos esta forma, ajustala si algo no cierra con lo que ya hay:
+
+{
+  "date": "2026-10-26",
+  "consumed": {
+    "kcal":    { "min": 1450, "max": 1820, "mid": 1635 },
+    "proteinG": { "min": 80,   "max": 102,  "mid": 91 },
+    "carbsG":   { "min": 150,  "max": 190,  "mid": 170 },
+    "fatG":     { "min": 45,   "max": 60,   "mid": 53 }
+  },
+  "targets": { "kcal": 2100, "proteinG": 120, "carbsG": 240, "fatG": 70 },
+  "meals": { "ready": 3, "processing": 1, "failed": 0 }
+}
+
+Actualizá docs/api.md con la forma final de la respuesta.
+
+Para los tests: día con varias comidas ready da la suma correcta de mínimos, máximos y punto medio; las comidas en processing y failed no se suman pero se cuentan; una comida corregida suma el valor corregido; sin date usa el día de hoy en la zona horaria del usuario (probalo con una hora en que UTC ya está en el día siguiente); día sin comidas da ceros; fecha inválida da 400; las comidas de otro usuario no se mezclan; y sin token da 401.
+
+Cuando termines, pasame qué archivos tocaste, si tomaste alguna decisión distinta a lo que puse acá y cómo dieron los tests.
+```
+
+### 2026-10-26 17:06
+
+```text
+Al correr los tests del back-service, falló test/analyze-meal.test.ts. 
+```

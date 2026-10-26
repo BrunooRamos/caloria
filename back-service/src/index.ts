@@ -7,6 +7,7 @@ import { MealModel } from "./models/Meal";
 import { UserModel } from "./models/User";
 import { apiRouter } from "./routes";
 import { createAuthService } from "./services/auth";
+import { createDashboardService } from "./services/dashboard";
 import { createMealService } from "./services/meals";
 import { createMediaService } from "./services/media";
 import { createUserService } from "./services/users";
@@ -24,6 +25,7 @@ async function main() {
     auth,
     users: createUserService(),
     meals,
+    dashboard: createDashboardService(),
     publicKey: config.jwtPublicKey,
   });
   createApp({ logger, api, mongoStatus }).listen(config.port, () => {
