@@ -153,6 +153,13 @@ note:  "milanesa con puré"
 { "mealId": "66f1a…", "status": "processing" }
 ```
 
+- Front y Backend validan lo mismo (el Backend no confía en la DMZ), en memoria y sin escribir a disco. El JWT se verifica antes de leer el multipart.
+- `photo` es obligatoria: JPEG, PNG o HEIC de hasta 8 MB. `audio` es opcional: M4A de hasta 4 MB y 60 s. `note` es opcional, de hasta 500 caracteres. El tipo se detecta por el contenido del archivo, no por la extensión ni el `Content-Type` del cliente.
+- Falta la foto, tipo no permitido, nota larga, un campo de más o un archivo en un campo que no es `photo`/`audio` → 400 `VALIDATION_ERROR`. Un archivo por encima del límite → 413 `PAYLOAD_TOO_LARGE`.
+- El Backend lee la duración del audio del propio archivo (`moov/mvhd`); si no la puede leer o pasa de 60 s → 400.
+- Orden en el Backend: genera el `mealId`, sube la media a `users/{userId}/meals/{mealId}/photo.{jpg|png|heic}` (y `audio.m4a`), crea la comida con `status: "processing"` y `localDate` (el día en la zona del perfil al llegar el pedido) y encola el job `{ mealId, requestId }` con `jobId = mealId`. Responde 202 sin esperar al Worker: con el Worker apagado el job queda en espera.
+- Si falla la subida → 503 `SERVICE_UNAVAILABLE` y no queda nada. Si falla crear la comida → 500 `INTERNAL_ERROR` y se borra la media subida. Si falla encolar (Redis caído) → 503 `SERVICE_UNAVAILABLE`; la comida y la media quedan, con `status: "failed"` y `error.code: "ENQUEUE_FAILED"` para reprocesarla.
+
 ### Consultar el análisis
 
 ```http

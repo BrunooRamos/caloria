@@ -221,15 +221,30 @@ describe("back-service: configuración", () => {
   const pem = privateKey.export({ type: "pkcs8", format: "pem" }).toString();
 
   it("no arranca sin JWT_PRIVATE_KEY", () => {
-    assert.throws(() => loadConfig({ MONGO_URI: "mongodb://x" }), /JWT_PRIVATE_KEY/);
+    assert.throws(
+      () => loadConfig({ MONGO_URI: "mongodb://x", REDIS_URL: "redis://x:6379" }),
+      /JWT_PRIVATE_KEY/,
+    );
   });
 
   it("no arranca sin MONGO_URI", () => {
     assert.throws(() => loadConfig({ JWT_PRIVATE_KEY: pem }), /MONGO_URI/);
   });
 
+  it("no arranca sin REDIS_URL", () => {
+    assert.throws(
+      () => loadConfig({ MONGO_URI: "mongodb://x", JWT_PRIVATE_KEY: pem, ...storageEnv }),
+      /REDIS_URL/,
+    );
+  });
+
   it("lee la clave privada del entorno", () => {
-    const config = loadConfig({ MONGO_URI: "mongodb://x", JWT_PRIVATE_KEY: pem, ...storageEnv });
+    const config = loadConfig({
+      MONGO_URI: "mongodb://x",
+      REDIS_URL: "redis://x:6379",
+      JWT_PRIVATE_KEY: pem,
+      ...storageEnv,
+    });
     assert.equal(config.jwtPrivateKey.type, "private");
   });
 });

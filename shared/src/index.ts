@@ -35,6 +35,28 @@ export type {
   RegisterInput,
   UpdateMeInput,
 } from "./auth/schemas";
+export {
+  AUDIO_MAX_BYTES,
+  AUDIO_MAX_SECONDS,
+  AUDIO_TYPES,
+  createMealFieldsSchema,
+  detectAudioType,
+  detectPhotoType,
+  MEAL_UPLOAD_FIELDS,
+  MEAL_UPLOAD_LIMITS,
+  NOTE_MAX_CHARS,
+  PHOTO_MAX_BYTES,
+  PHOTO_TYPES,
+  validateMealUpload,
+} from "./meals";
+export type {
+  AudioType,
+  CreateMealResponse,
+  MealUploadInput,
+  PhotoType,
+  UploadedFile,
+  ValidMealUpload,
+} from "./meals";
 export { ACCESS_TOKEN_TTL_SECONDS, JWT_ALGORITHM, verifyAccessToken } from "./auth/jwt";
 export type { AccessTokenClaims, PlanTier } from "./auth/jwt";
 export { loadPrivateKey, loadPublicKey } from "./auth/keys";

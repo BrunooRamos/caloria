@@ -3,7 +3,9 @@ import { Router } from "express";
 import type { BackendClient } from "../clients/backend";
 import { forward } from "../controllers/forward";
 import type { ForwardTarget } from "../controllers/forward";
+import { createMeal } from "../controllers/meals";
 import { requireAuth } from "../middleware/auth";
+import { mealUpload } from "../middleware/meal-upload";
 import { schemas } from "../schemas";
 
 export interface ApiRoute extends ForwardTarget {
@@ -29,5 +31,7 @@ export function apiRouter(backend: BackendClient, publicKey: KeyObject): Router 
       route.access === "jwt" ? [authenticated, forward(backend, route)] : [forward(backend, route)];
     router[route.method](route.path, ...handlers);
   }
+  // Multipart: el JWT se verifica antes de leer el body.
+  router.post("/meals", authenticated, mealUpload, createMeal(backend, schemas.createMeal));
   return router;
 }

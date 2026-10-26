@@ -23,6 +23,8 @@ export interface BackendRequest {
   requestId: string;
   query?: Record<string, unknown>;
   body?: unknown;
+  /** Multipart: fetch arma el Content-Type con el boundary. Excluyente con `body`. */
+  form?: FormData;
   headers?: Record<string, string>;
 }
 
@@ -72,7 +74,7 @@ export function createBackendClient({
   dispatcher,
 }: BackendClientOptions): BackendClient {
   return {
-    async request<T>({ method, path, requestId, query, body, headers }: BackendRequest) {
+    async request<T>({ method, path, requestId, query, body, form, headers }: BackendRequest) {
       const url = new URL(path, baseUrl);
       for (const [key, value] of Object.entries(query ?? {})) {
         for (const item of [value].flat()) {
@@ -87,7 +89,7 @@ export function createBackendClient({
       const init: RequestInit & { dispatcher?: Dispatcher } = {
         method,
         headers: outgoing,
-        body: body === undefined ? undefined : JSON.stringify(body),
+        body: form ?? (body === undefined ? undefined : JSON.stringify(body)),
         redirect: "manual",
         signal: AbortSignal.timeout(timeoutMs),
         dispatcher,

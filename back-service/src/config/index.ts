@@ -6,10 +6,13 @@ import { loadStorageConfig } from "./storage";
 export function loadConfig(env = process.env) {
   const mongoUri = env.MONGO_URI?.trim();
   if (!mongoUri) throw new Error("Falta la variable de entorno MONGO_URI");
+  const redisUrl = env.REDIS_URL?.trim();
+  if (!redisUrl) throw new Error("Falta la variable de entorno REDIS_URL");
   const jwtPrivateKey = loadPrivateKey("JWT_PRIVATE_KEY", env);
   return {
     port: Number(env.PORT) || 4000,
     mongoUri,
+    redisUrl,
     jwtPrivateKey,
     jwtPublicKey: createPublicKey(jwtPrivateKey),
     storage: loadStorageConfig(env),
