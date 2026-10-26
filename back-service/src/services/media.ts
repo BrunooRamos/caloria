@@ -18,6 +18,9 @@ export const MAX_SIGNED_URL_TTL_SECONDS = 15 * 60;
 // sigue intentando y puede terminar creando la comida igual.
 export const UPLOAD_TIMEOUT_MS = 6_000;
 
+// Tope total de una descarga (la usa el Worker), lectura del cuerpo incluida.
+export const DOWNLOAD_TIMEOUT_MS = 15_000;
+
 export type MediaKind = "photo" | "audio";
 
 const EXTENSIONS: Record<MediaKind, Record<string, string>> = {
@@ -36,6 +39,8 @@ export interface UploadInput {
 export interface MediaService {
   /** Sube el archivo a `users/{userId}/meals/{mealId}/{kind}.{ext}` y devuelve esa key. */
   upload(input: UploadInput): Promise<string>;
+  /** Descarga el objeto completo; lanza si no existe o vence DOWNLOAD_TIMEOUT_MS. */
+  download(key: string): Promise<Uint8Array>;
   /** Idempotente: borrar una key inexistente no falla. */
   remove(key: string): Promise<void>;
   /** Borra toda la media del usuario (`DELETE /users/me`). */
@@ -48,11 +53,15 @@ const userPrefix = (userId: string) => `users/${userId}/`;
 
 export interface MediaServiceOptions {
   uploadTimeoutMs?: number;
+  downloadTimeoutMs?: number;
 }
 
 export function createMediaService(
   config: StorageConfig,
-  { uploadTimeoutMs = UPLOAD_TIMEOUT_MS }: MediaServiceOptions = {},
+  {
+    uploadTimeoutMs = UPLOAD_TIMEOUT_MS,
+    downloadTimeoutMs = DOWNLOAD_TIMEOUT_MS,
+  }: MediaServiceOptions = {},
 ): MediaService {
   const options = {
     region: config.region,
@@ -75,6 +84,15 @@ export function createMediaService(
         { abortSignal: AbortSignal.timeout(uploadTimeoutMs) },
       );
       return Key;
+    },
+
+    async download(Key) {
+      // La señal sigue viva mientras se lee el cuerpo: si vence a mitad, la lectura también falla.
+      const { Body } = await client.send(new GetObjectCommand({ Bucket, Key }), {
+        abortSignal: AbortSignal.timeout(downloadTimeoutMs),
+      });
+      if (!Body) throw new Error(`El objeto ${Key} vino sin cuerpo`);
+      return Body.transformToByteArray();
     },
 
     async remove(Key) {
