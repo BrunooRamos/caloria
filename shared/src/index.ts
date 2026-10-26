@@ -68,6 +68,8 @@ export type {
   UploadedFile,
   ValidMealUpload,
 } from "./meals";
+export { dailyDashboardQuerySchema } from "./dashboard";
+export type { DailyDashboardQuery, DailyDashboardResponse, DailyRange } from "./dashboard";
 export { ACCESS_TOKEN_TTL_SECONDS, JWT_ALGORITHM, verifyAccessToken } from "./auth/jwt";
 export type { AccessTokenClaims, PlanTier } from "./auth/jwt";
 export { loadPrivateKey, loadPublicKey } from "./auth/keys";
