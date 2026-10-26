@@ -42,7 +42,8 @@ Firewall **default deny**: todo cerrado salvo estas reglas.
 | Front Service → Backend | HTTPS · 4000 (mTLS) | Permitida: **único cruce DMZ → red segura** |
 | Backend / Worker → MongoDB | Mongo wire · 27017 | Permitida (interna) |
 | Backend / Worker → Redis | RESP · 6379 | Permitida (interna) |
-| Worker / Backend → IA, Expo Push, storage | HTTPS · 443 egreso | Permitida (allowlist de dominios) |
+| Worker → IA, Expo Push | HTTPS · 443 egreso | Permitida (allowlist de dominios). En `docker compose`, solo el Worker está en una red con salida (`worker-egress`); Mongo, Redis y MinIO quedan en la red `interna` (`internal: true`) |
+| Worker / Backend → storage | HTTPS · 443 | Permitida |
 | Internet → Front o Backend directo | 3000 · 4000 | Denegada |
 | Front Service → MongoDB / Redis | 27017 · 6379 | Denegada |
 | SSH al servidor | 22 | Solo desde IPs del equipo |
@@ -62,8 +63,8 @@ Firewall **default deny**: todo cerrado salvo estas reglas.
 2. Entra por HTTPS 443 a nginx (TLS, rate limit, tamaño) → Front Service por 3000.
 3. El Front verifica el JWT, valida el multipart y reenvía al Backend por 4000.
 4. El Backend verifica cupo del plan, sube la media al bucket privado, crea el documento en `meals` con `status: "processing"`, encola el job y responde **202 Accepted** con el `mealId`.
-5. El Worker toma el job (hasta `WORKER_CONCURRENCY` en paralelo), lee la comida de Mongo y baja la foto y el audio del bucket. Si la comida ya no existe o no está en `processing`, descarta el job; si falla Mongo o el bucket, BullMQ reintenta con backoff. Después transcribe el audio, busca platos similares del usuario (con sus correcciones) y llama a la IA de visión con foto + transcripción + historial.
-6. Guarda en `meals` el análisis en rangos, la confianza y el comentario (`status: "ready"`), actualiza la racha y dispara el push "análisis listo".
+5. El Worker toma el job (hasta `WORKER_CONCURRENCY` en paralelo), lee la comida de Mongo y baja la foto y el audio del bucket. Si la comida ya no existe o no está en `processing`, descarta el job; si falla Mongo o el bucket, BullMQ reintenta con backoff. Después transcribe el audio, busca platos similares del usuario (con sus correcciones) y llama a la IA de visión (OpenAI, `services/vision.ts`) con foto + transcripción + historial. Las fotos HEIC se pasan a JPEG antes, porque la API no las acepta. El prompt de sistema es `prompts/analisis-comida.md`, que el Worker lee una vez al arrancar.
+6. Valida la respuesta con zod (rangos con `min ≤ max` y sin negativos, `confidence` entre 0 y 1); si no cumple, lanza y BullMQ reintenta. Si es comida, guarda en `meals` el análisis en rangos, la confianza, `promptVersion` y `model` y el comentario (`status: "ready"`), actualiza la racha y dispara el push "análisis listo". Si no es comida, la deja `failed` con `error.code: "NOT_FOOD"`, sin reintento. En los dos casos, solo si sigue en `processing`.
 7. La app hace `GET /meals/:id` y muestra el rango. Si el usuario corrige, un `PATCH /meals/:id` persiste la corrección, que alimenta el próximo análisis.
 
 ## Organización del repo
@@ -87,4 +88,4 @@ Firewall **default deny**: todo cerrado salvo estas reglas.
 | MongoDB | A definir | Backups programados |
 | Storage | MinIO en `docker compose` (local); bucket gestionado compatible con S3 en prod (DO Spaces previsto) | Acceso solo con credenciales de Backend y Worker. Las URLs se firman con `S3_PUBLIC_ENDPOINT`, el host que alcanza la app |
 
-Dependencias externas: API de IA (visión · speech-to-text · texto) y Expo Push, cada una encapsulada en un service propio.
+Dependencias externas: API de IA de OpenAI (visión · speech-to-text · texto) y Expo Push, cada una encapsulada en un service propio. La clave (`OPENAI_API_KEY`) solo la recibe el Worker.

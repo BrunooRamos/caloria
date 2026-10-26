@@ -63,3 +63,45 @@ No te metas con la IA (#18), ni con el estado failed ni el campo attempts (#35),
 
 Comentarios cortitos en español como en el resto del repo, y si algo de lo documentado cambia, actualizá el README del back y docs/arquitectura.md. Al final corré lint, typecheck y los tests y contame cómo salieron. No commitees, que lo quiero revisar primero.
 ```
+
+## Sesión `55533f30-15b5-4712-928f-925978da1199` · 2026-10-25
+
+### 2026-10-25 21:49
+
+```text
+Estoy en la rama del issue #18, el del prompt de análisis y la llamada a la IA de visión (mirá qué pide con gh issue view 18). El worker del #17 ya está mergeado acá. Lee la meal, baja la foto y el audio, y le pasa todo a un analyze que se inyecta en worker.ts y que hoy no hace nada. Lo que hay que hacer es que ese analyze analice de verdad. El esquema de analysis en models/Meal.ts y el estado failed con error.code ya existen. Usalos y no cambies la forma del documento sin avisarme.
+
+Vamos con OpenAI. En docs/requerimientos.md el proveedor figura como pregunta abierta (la 11): marcala como resuelta, igual que la 12.
+
+1. El prompt. Creá prompts/analisis-comida.md con autor, versión y fecha en un frontmatter. El prompt de sistema va en el cuerpo. El worker lo lee una sola vez al arrancar, y de ese frontmatter sale el promptVersion que se guarda en la meal. Si falta el archivo o no tiene versión, que el worker no arranque. Hoy el Dockerfile del back no copia prompts/: sumalo, que el contexto del build ya es la raíz del repo. Tiene que pedir plato, ingredientes con gramos y kcal en rangos, kcal total, macros (proteína, carbos y grasas) en rangos y confidence entre 0 y 1. También tiene que poder decir que la foto no es comida. Ni la nota ni la transcripción van todavía, eso es del #23. Igual dejá armado el mensaje para que después se puedan sumar sin reescribirlo.
+
+2. El service de IA. Ponelo en services/, detrás de una interfaz chica que reciba la foto y devuelva el análisis o "no es comida". Así los tests usan un fake y nunca le pegan a OpenAI. Usá structured outputs con JSON schema, pero no te fíes de eso: la respuesta se valida igual con zod. Los rangos tienen que tener min ≤ max y no ser negativos, y confidence tiene que estar entre 0 y 1. Ponele timeout a la llamada, como el upload y el download del MediaService.
+
+3. Las claves. OPENAI_API_KEY y el modelo (OPENAI_VISION_MODEL, con un default que sea un modelo de visión vigente; fijate en la doc de OpenAI) van solo en loadWorkerConfig. Nada de loadConfig del back. Si falta la clave, el worker no arranca. En el compose la clave va únicamente en el servicio worker. Reemplazá el AI_API_KEY genérico del .env.example. Ojo con la red: erna, que es internal: true, yasí no sale a internet. Sumale una red con salida solo a él, sin abrirle nada más a
+Mongo ni a Redis.
+
+4. HEIC. shared acepta JPEG, Pacepta HEIC. Fijate si hay unaforma prolija de convertirla a JPEG en el worker. Si para eso hace falta una dependencia
+nativa pesada (sharp con libhe, no la metas: frená y contamelas opciones.
+
+5. El resultado, en el analyze que se inyecta en el processor:
+   - Si zod rechaza la respues error y que reintente BullMQcon las opciones que ya tiene la cola. La meal sigue en processing.
+   - Si es comida, guardá analodel y pasala a ready.
+   - Si no es comida, pasala a failed con error.code "NOT_FOOD" y sin reintento. El
+mensaje que ve el usuario lo ade, así que documentalo endocs/api.md.
+   - En los dos casos, el updacessing", así un job repetido no pisa nada.
+   - El cupo todavía no está intes, pero dejá escrito endocs/requerimientos.md (RF-14) que el conteo tiene que excluir las failed, así NOT_FOOD
+no consume cupo.
+
+6. Logs. Usá el logger del jobPor llamada quiero ver modelo,promptVersion, cuánto tardó, los tokens que consumió y el resultado (ready o NOT_FOOD).
+Si zod rechaza, logueá solo lofoto, la respuesta cruda y lanota no van al log.
+
+Tests: processor con mongodb-memory-server y un fake de la IA, cubriendo el caso feliz
+(queda ready con promptVersionnválida (min > max o confidence1.5: tira error y queda en processing), no es comida (queda failed con NOT_FOOD) y una
+meal que cambió de estado en e también la carga del prompt(sin versión no arranca) y loadWorkerConfig sin OPENAI_API_KEY. Ninguno le pega a OpenAI
+de verdad.
+
+No te metas con los reintentosiled después de agotarlos ni elcampo attempts (#35), ni con la transcripción y la nota (#23), ni con el compounding
+(#30), ni con el comentario ni
+
+Comentarios cortitos en españoo. Actualizádocs/arquitectura.md, docs/modelo-datos.md (el código NOT_FOOD), docs/api.md y el README del back. Fijate que el CI no ueva. Al final corré lint,typecheck y los tests y contame cómo salieron. No commitees, que lo quiero revisar primero.
+```

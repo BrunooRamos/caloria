@@ -136,7 +136,7 @@ Endpoints: `GET /meals?date=&cursor=`, `GET /meals/:id`, `DELETE /meals/:id`.
 
 - [ ] Plan free: N análisis por mes calendario. Premium: análisis ilimitados y Wrapped completo.
 - [ ] El contador se reinicia el día 1 de cada mes.
-- [ ] Un análisis que termina en `failed` no consume cupo.
+- [ ] Un análisis que termina en `failed` no consume cupo: el conteo del mes excluye las comidas `failed`. Así una foto que no es comida (`error.code: "NOT_FOOD"`, #18) no gasta un análisis.
 - [ ] La app muestra los análisis restantes del mes.
 
 #### RF-15 — Feature gating en la API
@@ -182,5 +182,5 @@ Endpoints: `GET /billing/plan`, `POST /billing/subscribe`.
 8. **Preferencias de notificaciones:** dónde se guardan (se propone `users.notifications`).
 9. **mTLS entre Front y Backend:** la presentación lo plantea, pero el `docker-compose` actual usa HTTP. Decidir si se implementa o queda para producción.
 10. **Dominio y hosting:** el RFC dice "si conseguimos un dominio barato" y la presentación usa `api.caloria.app` y DigitalOcean. El despliegue está marcado como "a definir".
-11. **Proveedor de IA:** qué modelos de visión, transcripción y texto se usan.
+11. ~~**Proveedor de IA:** qué modelos de visión, transcripción y texto se usan.~~ Resuelto en #18: OpenAI. Visión con la Responses API y structured outputs, modelo en `OPENAI_VISION_MODEL` (por defecto `gpt-6-luna`). Los modelos de transcripción y texto se eligen en sus issues.
 12. ~~**Storage:** qué bucket se usa (S3, DigitalOcean Spaces, MinIO en local).~~ Resuelto en #14: MinIO en local y bucket compatible con S3 en prod (DO Spaces previsto); el código usa el SDK de S3.

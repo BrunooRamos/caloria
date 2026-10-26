@@ -6,4 +6,6 @@
 app
 docs
 infra
-prompts
+# De prompts/ solo entran los que usa el Worker.
+prompts/*
+!prompts/analisis-comida.md
