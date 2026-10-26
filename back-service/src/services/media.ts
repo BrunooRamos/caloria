@@ -13,6 +13,11 @@ import type { StorageConfig } from "../config/storage";
 // RNF-04: la app ve la media solo con URLs firmadas de vida corta.
 export const MAX_SIGNED_URL_TTL_SECONDS = 15 * 60;
 
+// Tope total de una subida, reintentos del SDK incluidos. Tiene que quedar por debajo del timeout
+// del Front hacia el Back (BACKEND_TIMEOUT_MS, 10 s): si no, el Front responde 503 mientras el Back
+// sigue intentando y puede terminar creando la comida igual.
+export const UPLOAD_TIMEOUT_MS = 6_000;
+
 export type MediaKind = "photo" | "audio";
 
 const EXTENSIONS: Record<MediaKind, Record<string, string>> = {
@@ -41,7 +46,14 @@ export interface MediaService {
 
 const userPrefix = (userId: string) => `users/${userId}/`;
 
-export function createMediaService(config: StorageConfig): MediaService {
+export interface MediaServiceOptions {
+  uploadTimeoutMs?: number;
+}
+
+export function createMediaService(
+  config: StorageConfig,
+  { uploadTimeoutMs = UPLOAD_TIMEOUT_MS }: MediaServiceOptions = {},
+): MediaService {
   const options = {
     region: config.region,
     forcePathStyle: true,
@@ -60,6 +72,7 @@ export function createMediaService(config: StorageConfig): MediaService {
       const Key = `${userPrefix(userId)}meals/${mealId}/${kind}.${ext}`;
       await client.send(
         new PutObjectCommand({ Bucket, Key, Body: body, ContentType: contentType }),
+        { abortSignal: AbortSignal.timeout(uploadTimeoutMs) },
       );
       return Key;
     },

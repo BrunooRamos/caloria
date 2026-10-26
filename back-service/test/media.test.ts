@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
+import { createServer } from "node:net";
+import type { AddressInfo, Socket } from "node:net";
 import { describe, it } from "node:test";
 import { loadStorageConfig } from "../src/config/storage";
-import { createMediaService, MAX_SIGNED_URL_TTL_SECONDS } from "../src/services/media";
+import {
+  createMediaService,
+  MAX_SIGNED_URL_TTL_SECONDS,
+  UPLOAD_TIMEOUT_MS,
+} from "../src/services/media";
 import { storageEnv } from "./helpers";
 
 const media = createMediaService(loadStorageConfig(storageEnv));
@@ -38,6 +44,38 @@ describe("back-service: media", () => {
     await assert.rejects(upload("photo", "audio/mp4"), { code: "VALIDATION_ERROR" });
     await assert.rejects(upload("audio", "image/jpeg"), { code: "VALIDATION_ERROR" });
     await assert.rejects(upload("photo", "constructor"), { code: "VALIDATION_ERROR" });
+  });
+
+  it("si el bucket no responde, la subida falla al vencer el tope (no se queda reintentando)", async () => {
+    // Acepta la conexión y nunca contesta: el peor caso, sin error de red que corte antes.
+    const sockets: Socket[] = [];
+    const server = createServer((socket) => sockets.push(socket));
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const { port } = server.address() as AddressInfo;
+    try {
+      const slow = createMediaService(
+        loadStorageConfig({ ...storageEnv, S3_ENDPOINT: `http://127.0.0.1:${port}` }),
+        { uploadTimeoutMs: 300 },
+      );
+      const started = Date.now();
+      await assert.rejects(
+        slow.upload({
+          userId: "u1",
+          mealId: "m1",
+          kind: "photo",
+          body: new Uint8Array([1]),
+          contentType: "image/jpeg",
+        }),
+      );
+      assert.ok(Date.now() - started < 2_000, `tardó ${Date.now() - started} ms`);
+    } finally {
+      sockets.forEach((socket) => socket.destroy());
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+
+  it("el tope de subida queda por debajo del timeout del Front hacia el Back (10 s)", () => {
+    assert.ok(UPLOAD_TIMEOUT_MS < 10_000);
   });
 
   for (const name of Object.keys(storageEnv)) {
