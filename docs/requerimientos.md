@@ -47,8 +47,8 @@ Endpoints: `GET /users/me`, `PATCH /users/me`.
 
 #### RF-04 — Audio opcional
 
-- [ ] La app permite grabar hasta 60 s y corta sola al llegar al límite.
-- [ ] Se puede escuchar, regrabar o descartar el audio antes de enviar.
+- [x] La app permite grabar hasta 60 s y corta sola al llegar al límite.
+- [x] Se puede escuchar, regrabar o descartar el audio antes de enviar.
 - [ ] El Worker transcribe el audio y guarda el texto en `meals.transcript`.
 - [ ] La transcripción y la nota (`note`) se incluyen en el prompt del análisis.
 - [ ] Sin audio, el análisis funciona igual solo con la foto.

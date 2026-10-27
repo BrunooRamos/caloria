@@ -2,9 +2,12 @@ import * as ImagePicker from "expo-image-picker";
 import { act, fireEvent, renderRouter, screen } from "expo-router/testing-library";
 import type * as React from "react";
 import type * as ReactNative from "react-native";
-import { BackHandler, Linking } from "react-native";
+import { AccessibilityInfo, AppState, BackHandler, Linking } from "react-native";
+import type { AppStateStatus } from "react-native";
+import { LIMIT_MESSAGE } from "@/features/meals/AudioNoteRecorder";
 import { PHOTO_MAX_BYTES } from "@/features/meals/prepare-photo";
 import { TOO_LARGE_MESSAGE } from "@/features/meals/PreviewStep";
+import { AUDIO_MAX_SECONDS, TOO_SHORT_ERROR } from "@/features/meals/useAudioNote";
 import { createHttpClient } from "@/services/http-client";
 import type { HttpClient } from "@/services/http-client";
 import {
@@ -91,13 +94,92 @@ jest.mock("expo-image-manipulator", () => {
   const context = { resize: () => context, renderAsync: async () => image };
   return { SaveFormat: { JPEG: "jpeg" }, ImageManipulator: { manipulate: () => context } };
 });
+// `File` registra qué archivos se leyeron para el multipart.
+const mockFiles: string[] = [];
 jest.mock("expo-file-system", () => ({
   File: class {
+    constructor(uri: string) {
+      mockFiles.push(uri);
+    }
     get size() {
       return mockPhoto.bytes;
     }
   },
 }));
+
+// Grabador falso: mide el largo con el reloj (falso) de Jest y deja en `uri` un archivo por toma.
+// `finishNatively` simula el corte de `forDuration` del lado nativo.
+const mockAudio = {
+  permission: { granted: true, status: "granted", canAskAgain: true } as MockPermission,
+  takes: 0,
+  recorder: {
+    uri: null as string | null,
+    isRecording: false,
+    startedAt: 0,
+    listener: undefined as
+      ((status: { isFinished: boolean; hasError: boolean }) => void) | undefined,
+    prepareToRecordAsync: jest.fn(),
+    record: jest.fn(),
+    stop: jest.fn(),
+    getStatus() {
+      const { isRecording, startedAt } = mockAudio.recorder;
+      return { isRecording, durationMillis: isRecording ? Date.now() - startedAt : 0 };
+    },
+    finishNatively() {
+      mockAudio.recorder.isRecording = false;
+      mockAudio.recorder.listener?.({ isFinished: true, hasError: false });
+    },
+  },
+  player: {
+    source: null as { uri: string } | null,
+    playing: false,
+    notify: () => {},
+    play: jest.fn(),
+    pause: jest.fn(),
+    seekTo: jest.fn(),
+  },
+  setAudioModeAsync: jest.fn(),
+};
+jest.mock("expo-audio", () => {
+  const { useEffect, useReducer } = jest.requireActual<typeof React>("react");
+  const useTick = (interval?: number) => {
+    const [, tick] = useReducer((n: number) => n + 1, 0);
+    useEffect(() => {
+      if (!interval) return;
+      const id = setInterval(tick, interval);
+      return () => clearInterval(id);
+    }, [interval]);
+    return tick;
+  };
+  return {
+    AudioQuality: { HIGH: 96 },
+    IOSOutputFormat: { MPEG4AAC: "aac " },
+    requestRecordingPermissionsAsync: async () => mockAudio.permission,
+    setAudioModeAsync: (mode: object) => mockAudio.setAudioModeAsync(mode),
+    useAudioRecorder: (_options: unknown, listener: typeof mockAudio.recorder.listener) => {
+      mockAudio.recorder.listener = listener;
+      return mockAudio.recorder;
+    },
+    useAudioRecorderState: (recorder: typeof mockAudio.recorder, interval: number) => {
+      useTick(interval);
+      return recorder.getStatus();
+    },
+    useAudioPlayer: (source: { uri: string } | null) => {
+      mockAudio.player.source = source;
+      return mockAudio.player;
+    },
+    useAudioPlayerStatus: () => {
+      mockAudio.player.notify = useTick();
+      return {
+        playing: mockAudio.player.playing,
+        isLoaded: mockAudio.player.source !== null,
+        duration: 12,
+        currentTime: 0,
+        didJustFinish: false,
+      };
+    },
+  };
+});
 
 const MEAL_ID = "66f1a0000000000000000099";
 const accepted = () => json(202, { mealId: MEAL_ID, status: "processing" });
@@ -149,6 +231,32 @@ beforeEach(() => {
   });
   jest.mocked(ImagePicker.launchImageLibraryAsync).mockReset();
   mockPhoto.bytes = 900_000;
+  mockFiles.length = 0;
+
+  mockAudio.permission = { granted: true, status: "granted", canAskAgain: true };
+  mockAudio.takes = 0;
+  const { recorder, player } = mockAudio;
+  Object.assign(recorder, { uri: null, isRecording: false, startedAt: 0 });
+  recorder.prepareToRecordAsync.mockReset().mockResolvedValue(undefined);
+  recorder.record.mockReset().mockImplementation(() => {
+    recorder.isRecording = true;
+    recorder.startedAt = Date.now();
+    recorder.uri = `file:///cache/ExpoAudio/toma-${++mockAudio.takes}.m4a`;
+  });
+  recorder.stop.mockReset().mockImplementation(async () => {
+    recorder.isRecording = false;
+  });
+  player.playing = false;
+  player.play.mockReset().mockImplementation(() => {
+    player.playing = true;
+    player.notify();
+  });
+  player.pause.mockReset().mockImplementation(() => {
+    player.playing = false;
+    player.notify();
+  });
+  player.seekTo.mockReset().mockResolvedValue(undefined);
+  mockAudio.setAudioModeAsync.mockReset().mockResolvedValue(undefined);
 });
 
 describe("registrar una comida", () => {
@@ -364,5 +472,258 @@ describe("permiso de cámara", () => {
     await press("Volver");
     expect(await screen.findByRole("button", { name: "Registrar comida" })).toBeOnTheScreen();
     expect(router.getPathname()).toBe("/");
+  });
+});
+
+describe("audio de la preparación", () => {
+  const RECORD = `Grabar audio de hasta ${AUDIO_MAX_SECONDS} segundos`;
+  const advance = (ms: number) =>
+    act(async () => {
+      jest.advanceTimersByTime(ms);
+    });
+  const multipartFields = (call: Call) => [...(call.body as FormData).keys()];
+
+  /** Graba `seconds` y la corta con el botón. */
+  async function recordFor(seconds: number) {
+    await press(RECORD);
+    await screen.findByText("Grabando…");
+    await advance(seconds * 1000);
+    await press("Detener grabación");
+    await screen.findByText("Audio grabado");
+  }
+
+  it("graba, se escucha y se manda con la foto en el mismo POST", async () => {
+    const response = deferred<Response>();
+    await start(() => response.promise);
+    await takePhoto();
+
+    await press(RECORD);
+    expect(await screen.findByText("Grabando…")).toBeOnTheScreen();
+    expect(screen.getByText("Quedan 1:00")).toBeOnTheScreen();
+    expect(mockAudio.setAudioModeAsync).toHaveBeenCalledWith({
+      allowsRecording: true,
+      playsInSilentMode: true,
+    });
+    expect(mockAudio.recorder.record).toHaveBeenCalledWith({ forDuration: AUDIO_MAX_SECONDS });
+    // Mientras graba no se puede enviar ni cambiar la foto.
+    expect(screen.getByRole("button", { name: "Enviar" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Sacar otra" })).toBeDisabled();
+
+    await advance(12_000);
+    expect(screen.getByLabelText("Quedan 48 segundos")).toBeOnTheScreen();
+    await press("Detener grabación");
+    expect(await screen.findByText("Audio grabado")).toBeOnTheScreen();
+    expect(mockAudio.setAudioModeAsync).toHaveBeenLastCalledWith({
+      allowsRecording: false,
+      playsInSilentMode: true,
+    });
+
+    await press("Escuchar audio");
+    expect(mockAudio.player.play).toHaveBeenCalledTimes(1);
+    await press("Pausar audio");
+    await press("Escuchar audio");
+
+    const sending = fireEvent.press(screen.getByRole("button", { name: "Enviar" }));
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+    expect(screen.getByText("Subiendo foto y audio…")).toBeOnTheScreen();
+    // Al enviar se frena la reproducción.
+    expect(mockAudio.player.playing).toBe(false);
+
+    await act(async () => {
+      response.resolve(accepted());
+      await sending;
+    });
+    expect(await screen.findByText("Analizando tu comida…")).toBeOnTheScreen();
+    expect(mealPosts()).toHaveLength(1);
+    expect(multipartFields(mealPosts()[0])).toEqual(["photo", "audio"]);
+    // Los dos últimos `File` son los del multipart (antes, preparePhoto lee el peso de la foto).
+    expect(mockFiles.slice(-2)).toEqual([mockPhoto.uri, "file:///cache/ExpoAudio/toma-1.m4a"]);
+  });
+
+  it("corta sola a los 60 s y avisa el tiempo restante sin repetirse", async () => {
+    const announce = jest.spyOn(AccessibilityInfo, "announceForAccessibility");
+    await start();
+    await takePhoto();
+
+    await press(RECORD);
+    await screen.findByText("Grabando…");
+    // Por tramos, como los va viendo la pantalla: cada `act` es un render.
+    for (let second = 0; second < 59; second++) await advance(1_000);
+    expect(screen.getByText("Quedan 0:01")).toBeOnTheScreen();
+    expect(mockAudio.recorder.stop).not.toHaveBeenCalled();
+
+    await advance(1_000);
+    expect(await screen.findByText("Audio grabado")).toBeOnTheScreen();
+    expect(screen.getByText(LIMIT_MESSAGE)).toBeOnTheScreen();
+    expect(mockAudio.recorder.stop).toHaveBeenCalledTimes(1);
+    expect(announce.mock.calls.map(([message]) => message)).toEqual([
+      "Quedan 30 segundos",
+      "Quedan 10 segundos",
+      `Grabación terminada. ${LIMIT_MESSAGE}`,
+    ]);
+    announce.mockRestore();
+  });
+
+  it("si el corte nativo llega primero, queda grabado una sola vez", async () => {
+    await start();
+    await takePhoto();
+
+    await press(RECORD);
+    await screen.findByText("Grabando…");
+    await advance(AUDIO_MAX_SECONDS * 1000 - 1);
+    await act(async () => mockAudio.recorder.finishNatively());
+    expect(await screen.findByText(LIMIT_MESSAGE)).toBeOnTheScreen();
+
+    // El respaldo del timer ya no hace nada.
+    await advance(1_000);
+    expect(mockAudio.recorder.stop).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Audio grabado")).toBeOnTheScreen();
+  });
+
+  it("regrabar reemplaza la toma y descartar deja mandar solo la foto", async () => {
+    await start();
+    await takePhoto();
+    await recordFor(5);
+
+    await press("Escuchar audio");
+    await press("Regrabar audio");
+    expect(await screen.findByText("Grabando…")).toBeOnTheScreen();
+    expect(mockAudio.player.playing).toBe(false);
+    await advance(3_000);
+    await press("Detener grabación");
+    expect(await screen.findByText("Audio grabado")).toBeOnTheScreen();
+    expect(mockAudio.player.source).toEqual({ uri: "file:///cache/ExpoAudio/toma-2.m4a" });
+
+    await press("Descartar audio");
+    expect(await screen.findByText("Contá cómo la preparaste")).toBeOnTheScreen();
+    expect(mockAudio.player.source).toBeNull();
+
+    await press("Enviar");
+    expect(await screen.findByText("Analizando tu comida…")).toBeOnTheScreen();
+    expect(multipartFields(mealPosts()[0])).toEqual(["photo"]);
+  });
+
+  it("una toma de menos de un segundo no queda", async () => {
+    await start();
+    await takePhoto();
+
+    await press(RECORD);
+    await screen.findByText("Grabando…");
+    await advance(400);
+    await press("Detener grabación");
+    expect(await screen.findByText(TOO_SHORT_ERROR)).toBeOnTheScreen();
+    expect(screen.getByText("Contá cómo la preparaste")).toBeOnTheScreen();
+  });
+
+  it("si la app pasa a segundo plano mientras graba, corta y conserva lo grabado", async () => {
+    // Se reemplaza a mano: `mockRestore` sobre el jest.fn del preset le borra la implementación.
+    type AppStateListener = (state: AppStateStatus) => void;
+    const listeners: AppStateListener[] = [];
+    const addEventListener = AppState.addEventListener;
+    AppState.addEventListener = ((_event: string, listener: AppStateListener) => {
+      listeners.push(listener);
+      return { remove: () => listeners.splice(listeners.indexOf(listener), 1) };
+    }) as typeof AppState.addEventListener;
+    try {
+      await start();
+      await takePhoto();
+
+      await press(RECORD);
+      await screen.findByText("Grabando…");
+      await advance(8_000);
+      await act(async () => {
+        for (const listener of [...listeners]) listener("background");
+      });
+      expect(await screen.findByText("Audio grabado")).toBeOnTheScreen();
+      expect(mockAudio.recorder.stop).toHaveBeenCalledTimes(1);
+      expect(screen.queryByText(LIMIT_MESSAGE)).toBeNull();
+    } finally {
+      AppState.addEventListener = addEventListener;
+    }
+  });
+
+  it("salir de la pantalla mientras graba corta la grabación", async () => {
+    const router = await start();
+    await takePhoto();
+
+    await press(RECORD);
+    await screen.findByText("Grabando…");
+    await press("Volver al inicio");
+    expect(await screen.findByRole("button", { name: "Registrar comida" })).toBeOnTheScreen();
+    expect(router.getPathname()).toBe("/");
+    expect(mockAudio.recorder.stop).toHaveBeenCalledTimes(1);
+    expect(mockAudio.setAudioModeAsync).toHaveBeenLastCalledWith({
+      allowsRecording: false,
+      playsInSilentMode: true,
+    });
+  });
+
+  it("Sacar otra conserva el audio y frena la reproducción", async () => {
+    await start();
+    await takePhoto();
+    await recordFor(5);
+    await press("Escuchar audio");
+
+    await press("Sacar otra");
+    expect(mockAudio.player.playing).toBe(false);
+    await press("Sacar foto");
+    expect(await screen.findByText("Audio grabado")).toBeOnTheScreen();
+
+    await press("Enviar");
+    expect(await screen.findByText("Analizando tu comida…")).toBeOnTheScreen();
+    expect(multipartFields(mealPosts()[0])).toEqual(["photo", "audio"]);
+  });
+
+  it("con audio, un 400 no le echa la culpa solo a la foto", async () => {
+    await start(() => apiError(400, "VALIDATION_ERROR"));
+    await takePhoto();
+    await recordFor(5);
+
+    await press("Enviar");
+    expect(
+      await screen.findByText(
+        "No pudimos leer la foto o el audio. Probá regrabar el audio o enviá solo la foto.",
+      ),
+    ).toBeOnTheScreen();
+    expect(screen.getByText("Audio grabado")).toBeOnTheScreen();
+  });
+
+  it("sin audio, el 400 sigue hablando de la foto", async () => {
+    await start(() => apiError(400, "VALIDATION_ERROR"));
+    await takePhoto();
+
+    await press("Enviar");
+    expect(await screen.findByText("No pudimos leer esta foto. Probá con otra.")).toBeOnTheScreen();
+  });
+
+  it("con el micrófono negado avisa y se puede mandar solo la foto", async () => {
+    mockAudio.permission = { granted: false, status: "denied", canAskAgain: true };
+    await start();
+    await takePhoto();
+
+    await press(RECORD);
+    expect(
+      await screen.findByText(
+        "Sin acceso al micrófono no podemos grabar el audio. Igual podés enviar solo la foto.",
+      ),
+    ).toBeOnTheScreen();
+    expect(mockAudio.recorder.record).not.toHaveBeenCalled();
+
+    await press("Enviar");
+    expect(await screen.findByText("Analizando tu comida…")).toBeOnTheScreen();
+    expect(multipartFields(mealPosts()[0])).toEqual(["photo"]);
+  });
+
+  it("negado sin volver a preguntar, lleva a la configuración", async () => {
+    mockAudio.permission = { granted: false, status: "denied", canAskAgain: false };
+    const openSettings = jest.spyOn(Linking, "openSettings").mockClear().mockResolvedValue();
+    await start();
+    await takePhoto();
+
+    await press(RECORD);
+    await press("Abrir configuración");
+    expect(openSettings).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Enviar" })).toBeEnabled();
+    openSettings.mockRestore();
   });
 });

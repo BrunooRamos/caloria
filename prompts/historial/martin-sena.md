@@ -105,3 +105,37 @@ No te metas con los reintentosiled después de agotarlos ni elcampo attempts (#3
 
 Comentarios cortitos en españoo. Actualizádocs/arquitectura.md, docs/modelo-datos.md (el código NOT_FOOD), docs/api.md y el README del back. Fijate que el CI no ueva. Al final corré lint,typecheck y los tests y contame cómo salieron. No commitees, que lo quiero revisar primero.
 ```
+
+## Sesión `d05b1650-1216-4d03-8078-7723341012e8` · 2026-10-26
+
+### 2026-10-26 21:51
+
+```text
+Estoy en la rama del issue #22, el de grabar audio de hasta 60 segundos en la app (mirá qué pide con gh issue view 22 y RF-04 en docs/requerimientos.md). Todo lo del servidor ya está hecho: shared acepta el campo audio en el POST /meals (M4A de hasta 4 MB, AUDIO_MAX_BYTES y AUDIO_MAX_SECONDS en shared/src/meals.ts), el front lo reenvía, el back lee la duración del moov/mvhd y rechaza con 400 lo que pase de 60 s, y el worker ya lo baja del bucket. No toques back-service, front-service ni shared. Lo que falta es solo la app: grabar, escuchar, regrabar o descartar, y mandarlo en el mismo POST que la foto.
+
+Antes de escribir código leé app/AGENTS.md. Estamos en Expo SDK 58: buscá la API de grabación y reproducción en la doc versionada (docs.expo.dev/versions/v58.0.0/) y no la escribas de memoria. Usá expo-audio, instalado con npx expo install expo-audio.
+
+1. Permisos y config. Sumá el plugin de expo-audio en app.json con un texto de permiso de micrófono en el tono de los otros ("CalorIA usa el micrófono para que cuentes cómo preparaste tu comida…"). Ojo que hoy expo-camera y expo-image-picker tienen microphonePermission: false y recordAudioAndroid: false. Fijate que eso no borre el NSMicrophoneUsageDescription ni el RECORD_AUDIO que agrega expo-audio, y revisalo con npx expo config. La cámara sigue sin necesitar el micrófono. El audio es opcional, así que si niegan el permiso no se bloquea nada: se avisa y se puede seguir mandando solo la foto.
+
+2. El formato. El back solo acepta MP4/M4A con AAC (brands M4A, mp42, isom, 3gp4) y necesita el moov para leer la duración. Configurá la grabación para que salga eso en iOS y en Android, y elegí un bitrate que deje 60 s bastante por debajo de los 4 MB. Nada de AAC suelto ni de 3gp/amr.
+
+3. El límite. Que corte sola a_MAX_SECONDS de shared o unaconstante de la app con un comentario que lo referencie (fijate qué importa ya la app de shared). Mostrá el tiempo que a. El back tolera medio segundo de más, no más que eso. Si la app pasa a segundo plano o se sale de la pantalla          mientras graba, cortá la graba
+                                                                                         4. La UI. Va en el PreviewStepde enviar. Tiene que tener losestados sin audio → grabando → grabado. Con audio grabado se puede escuchar              (play/pausa), regrabar o descaacá la lógica a un hook enfeatures/meals (algo como useAudioNote) y la parte visual a un componente aparte.        Acordate de soltar el player y y de frenar la reproducción alenviar o al regrabar. Si iOS lo necesita, configurá el modo de audio para poder grabar y para que suene en modo silenciqueda deshabilitado, como yahace la foto. "Sacar otra" vuelve a la cámara: decidí si conserva el audio o lo descarta y contámelo.
+
+5. El envío. MealDraft pasa a  buildMealForm lo agrega como"audio" con File de expo-file-system, igual que la foto. Sin audio, el form queda
+exactamente como hoy. Revisá lRS, porque ahora unVALIDATION_ERROR o un PAYLOAD_TOO_LARGE pueden venir por el audio (por ejemplo, la
+duración) y hoy todos hablan dos para que no mientan. El texto de "Subiendo foto…" también.
+
+Para la UI seguí la skill caloria-design: colores, tamaños, espaciado y radios salen de
+theme/, y los íconos de lucideesto. Accesibilidad: labels enlos botones de grabar, play, regrabar y descartar, y que el tiempo restante se anuncie
+sin spamear al lector de panta
+
+Tests con jest-expo, mockeandockean expo-camera yexpo-image-picker en __tests__/capture-screen.test.tsx: buildMealForm con y sin audio,
+que corte sola a los 60 s (conel grabador mockeado), descartar y regrabar, que enviar con audio mande los dos archivos en el mismo POST, y que con el
+micrófono negado igual se pued
+
+No te metas con la transcripciel audio en el prompt (#23), nicon el campo note en la app, que no está en este issue. Tampoco con los builds de EAS
+(#49).
+
+Comentarios cortitos en españoo. Si cambia algo documentado,actualizá los docs (docs/api.md no debería cambiar), y marcá en RF-04 los checks que queden cumplidos. Al final corests de la app y contame cómosalieron. No commitees, que lo quiero revisar primero.
+```

@@ -33,7 +33,7 @@
         "expo-camera",
         {
           "cameraPermission": "CalorIA usa la cámara para sacarle una foto a tu comida y estimar sus calorías y macros.",
-          "microphonePermission": false,
+          "microphonePermission": "CalorIA usa el micrófono para que cuentes cómo preparaste tu comida y así estime mejor sus calorías y macros.",
           "recordAudioAndroid": false,
           "barcodeScannerEnabled": false
         }
@@ -43,7 +43,15 @@
         {
           "photosPermission": "CalorIA usa tus fotos para que elijas la de tu comida y estime sus calorías y macros.",
           "cameraPermission": "CalorIA usa la cámara para sacarle una foto a tu comida y estimar sus calorías y macros.",
-          "microphonePermission": false
+          "microphonePermission": "CalorIA usa el micrófono para que cuentes cómo preparaste tu comida y así estime mejor sus calorías y macros."
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "CalorIA usa el micrófono para que cuentes cómo preparaste tu comida y así estime mejor sus calorías y macros.",
+          "enableBackgroundPlayback": false,
+          "enableBackgroundRecording": false
         }
       ]
     ]

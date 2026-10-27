@@ -3,7 +3,8 @@ import { Pressable, StyleSheet } from "react-native";
 import type { PressableProps } from "react-native";
 import { colors, opacity, radius, sizes } from "@/theme";
 
-export type IconButtonVariant = "default" | "camera";
+/** `tinted`: fondo `sageSoft`, para la acción principal de un bloque. */
+export type IconButtonVariant = "default" | "camera" | "tinted";
 
 export interface IconButtonProps extends Omit<PressableProps, "children" | "style"> {
   icon: LucideIcon;
@@ -51,6 +52,7 @@ const styles = StyleSheet.create({
   },
   default: {},
   camera: { backgroundColor: colors.cameraControl },
+  tinted: { backgroundColor: colors.sageSoft },
   pressed: { opacity: opacity.pressed },
   disabled: { opacity: opacity.disabled },
 });

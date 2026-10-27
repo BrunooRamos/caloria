@@ -10,3 +10,9 @@ export function formatRange({ min, max }: Range, unit: string): string {
   const high = Math.round(max);
   return `${low === high ? low : `${low}–${high}`} ${unit}`;
 }
+
+/** Segundos como reloj: `0:42`, `1:00`. Redondea hacia arriba, como una cuenta regresiva. */
+export function formatClock(seconds: number): string {
+  const total = Math.max(0, Math.ceil(seconds));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}

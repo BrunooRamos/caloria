@@ -5,15 +5,19 @@ import { CameraStep } from "./CameraStep";
 import { preparePhoto } from "./prepare-photo";
 import type { PreparedPhoto } from "./prepare-photo";
 import { PreviewStep } from "./PreviewStep";
+import { useAudioNote } from "./useAudioNote";
 
 /**
  * Registrar una comida. Cámara y vista previa son estados de la misma pantalla, así
  * "Sacar otra" no navega y al enviar se reemplaza la captura entera por el resultado.
+ * El audio vive acá y no en la vista previa: cuenta la preparación, no la foto, así que
+ * sobrevive a "Sacar otra".
  */
 export default function CaptureScreen() {
   const [photo, setPhoto] = useState<PreparedPhoto | null>(null);
   const [preparing, setPreparing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const audio = useAudioNote();
 
   async function handlePhoto(uri: string) {
     setPreparing(true);
@@ -43,7 +47,15 @@ export default function CaptureScreen() {
 
   if (photo) {
     return (
-      <PreviewStep photo={photo} onRetake={() => setPhoto(null)} onClose={() => router.back()} />
+      <PreviewStep
+        photo={photo}
+        audio={audio}
+        onRetake={() => {
+          audio.stopPlayback();
+          setPhoto(null);
+        }}
+        onClose={() => router.back()}
+      />
     );
   }
   return (
