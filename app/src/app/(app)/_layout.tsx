@@ -28,6 +28,7 @@ export default function AppLayout() {
           options={{ headerShown: false, animation: "slide_from_bottom" }}
         />
         <Stack.Screen name="meals/[id]" options={{ title: "Tu comida" }} />
+        <Stack.Screen name="history" options={{ title: "Historial" }} />
       </Stack.Protected>
     </Stack>
   );
