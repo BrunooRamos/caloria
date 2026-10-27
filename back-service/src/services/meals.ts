@@ -1,6 +1,9 @@
+import { isDeepStrictEqual } from "node:util";
 import { Types } from "mongoose";
 import { AppError, serializeError } from "@caloria/shared";
 import type {
+  CorrectableField,
+  CorrectMealInput,
   CreateMealResponse,
   Logger,
   MealErrorCode,
@@ -13,11 +16,28 @@ import type { MealMedia } from "../models/Meal";
 import { UserModel } from "../models/User";
 import type { User } from "../models/User";
 import { localDateIn } from "./local-date";
+import { applyCorrections } from "./meal-corrections";
 import { MEAL_RESPONSE_FIELDS, toMealResponse } from "./meal-response";
 import type { MealResponseSource } from "./meal-response";
 import type { MediaKind, MediaService } from "./media";
 
 export const ENQUEUE_FAILED = "ENQUEUE_FAILED" satisfies MealErrorCode;
+
+const MAX_CORRECT_ATTEMPTS = 3;
+const CORRECTABLE_FIELDS = [
+  "dish",
+  "items",
+  "kcal",
+  "macros",
+] as const satisfies CorrectableField[];
+
+type StoredMeal = MealResponseSource & { media: Pick<MealMedia, "photoKey"> };
+
+export interface CorrectMealResult {
+  meal: MealResponse;
+  /** Campos que cambiaron y quedaron en `corrections`; vacío si no cambió nada. */
+  fields: CorrectableField[];
+}
 
 export interface CreateMealContext {
   requestId: string;
@@ -31,6 +51,7 @@ export interface MealService {
     context: CreateMealContext,
   ): Promise<CreateMealResponse>;
   get(userId: string, mealId: string): Promise<MealResponse>;
+  correct(userId: string, mealId: string, input: CorrectMealInput): Promise<CorrectMealResult>;
 }
 
 export interface MealServiceDeps {
@@ -144,11 +165,61 @@ export function createMealService({
     },
 
     async get(userId, mealId) {
-      const meal = await MealModel.findOne({ _id: mealId, userId }, MEAL_RESPONSE_FIELDS).lean<
-        MealResponseSource & { media: Pick<MealMedia, "photoKey"> }
-      >();
+      const meal = await MealModel.findOne(
+        { _id: mealId, userId },
+        MEAL_RESPONSE_FIELDS,
+      ).lean<StoredMeal>();
       if (!meal) throw new AppError("NOT_FOUND");
       return toMealResponse(meal, await media.signedUrl(meal.media.photoKey));
+    },
+
+    async correct(userId, mealId, input) {
+      for (let attempt = 0; attempt < MAX_CORRECT_ATTEMPTS; attempt++) {
+        const meal = await MealModel.findOne(
+          { _id: mealId, userId },
+          MEAL_RESPONSE_FIELDS,
+        ).lean<StoredMeal>();
+        if (!meal) throw new AppError("NOT_FOUND");
+        // En processing o failed no hay análisis que corregir.
+        if (meal.status !== "ready") throw new AppError("MEAL_NOT_READY");
+        if (!meal.analysis) throw new Error(`La comida ${mealId} está ready sin análisis`);
+
+        // El from es el valor que ve el usuario, con las correcciones anteriores aplicadas.
+        const current = applyCorrections(meal.analysis, meal.corrections);
+        const at = now();
+        const corrections = CORRECTABLE_FIELDS.flatMap((field) => {
+          const to = input[field];
+          if (to === undefined || isDeepStrictEqual(to, current[field])) return [];
+          return [{ field, from: current[field], to, at }];
+        });
+        if (corrections.length === 0) {
+          return {
+            meal: toMealResponse(meal, await media.signedUrl(meal.media.photoKey)),
+            fields: [],
+          };
+        }
+
+        // Optimista: si otro PATCH agregó correcciones desde que leímos, el from quedó viejo.
+        const updated = await MealModel.findOneAndUpdate(
+          {
+            _id: mealId,
+            userId,
+            status: "ready",
+            corrections: { $size: meal.corrections.length },
+          },
+          { $push: { corrections: { $each: corrections } } },
+          { new: true, projection: MEAL_RESPONSE_FIELDS },
+        ).lean<StoredMeal>();
+        if (updated) {
+          return {
+            meal: toMealResponse(updated, await media.signedUrl(updated.media.photoKey)),
+            fields: corrections.map(({ field }) => field),
+          };
+        }
+      }
+      throw new AppError("INTERNAL_ERROR", undefined, {
+        cause: new Error(`La comida cambió ${MAX_CORRECT_ATTEMPTS} veces durante el PATCH`),
+      });
     },
   };
 }

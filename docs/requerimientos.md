@@ -63,10 +63,10 @@ Endpoints: `GET /users/me`, `PATCH /users/me`.
 
 #### RF-06 — Correcciones persistentes
 
-- [ ] El usuario puede corregir el plato, agregar / quitar / editar ingredientes y ajustar kcal y macros.
-- [ ] Cada cambio se agrega a `meals.corrections` con campo, valor anterior, valor nuevo y fecha.
-- [ ] Después de corregir, el historial y el dashboard usan los valores corregidos.
-- [ ] Una comida de otro usuario devuelve 404.
+- [ ] El usuario puede corregir el plato, agregar / quitar / editar ingredientes y ajustar kcal y macros. (Servidor listo con `PATCH /meals/:id`; falta la pantalla, #25.)
+- [x] Cada cambio se agrega a `meals.corrections` con campo, valor anterior, valor nuevo y fecha.
+- [ ] Después de corregir, el historial y el dashboard usan los valores corregidos. (El dashboard y `GET /meals/:id` sí; falta el listado, RF-08.)
+- [x] Una comida de otro usuario devuelve 404.
 
 Endpoint: `PATCH /meals/:id`.
 

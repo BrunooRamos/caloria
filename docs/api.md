@@ -213,10 +213,20 @@ Content-Type: application/json
 { "dish": "Milanesa napolitana con puré", "kcal": { "min": 800, "max": 900 } }
 ```
 
-Cada campo cambiado se registra en `corrections` con su valor anterior y nuevo (ver [modelo de datos](modelo-datos.md#meals)).
+Responde 200 con la comida corregida, con la misma forma que `GET /meals/:id` en `ready` (los valores ya corregidos, `photoUrl` firmada y `Cache-Control: no-store`). El historial de `corrections` nunca sale.
 
-- Se pueden corregir `dish`, `items`, `kcal` y `macros`, con la misma forma que el análisis. Cada campo va completo: `items` es la lista entera de ingredientes y `macros` lleva los tres rangos.
-- `analysis` no se modifica: la corrección se agrega a `corrections` y los valores finales salen de aplicarlas en orden (`applyCorrections`, la misma función que usa `GET /meals/:id`).
+Cada campo que cambió se registra en `corrections` con su valor anterior y nuevo (ver [modelo de datos](modelo-datos.md#meals)).
+
+- Se pueden corregir `dish`, `items`, `kcal` y `macros`, con la misma forma que el análisis. Cada campo va completo: `items` es la lista entera de ingredientes (puede ser vacía) y `macros` lleva los tres rangos. Hace falta al menos uno.
+- Se valida en el Front y en el Backend con el mismo esquema (`correctMealSchema`, en `shared`). Body vacío, un campo desconocido (en la raíz, en un ingrediente o en `macros`), un rango con `min > max` o con negativos, o un id que no es un ObjectId → 400 `VALIDATION_ERROR`.
+- Topes: `dish` hasta 200 caracteres, cada `name` hasta 100 y hasta 50 ingredientes. `dish` y los nombres se guardan sin espacios al principio ni al final.
+- Se guarda lo que manda el usuario: no se recalcula el total desde los ingredientes ni al revés.
+- El valor anterior (`from`) es el que ve el usuario, con las correcciones previas aplicadas, no el del análisis. Un campo que viene igual al valor actual no se registra; si no cambió ninguno, responde 200 sin tocar la base.
+- `analysis` no se modifica: las correcciones se agregan a `corrections` (todas las del request en una sola escritura, con la misma `at`) y los valores finales salen de aplicarlas en orden (`applyCorrections`, la misma función que usa `GET /meals/:id`). El dashboard suma los valores corregidos.
+- La comida se busca por id **y** dueño: una comida de otro usuario y un id inexistente responden el mismo 404 `NOT_FOUND`.
+- Solo se corrige una comida `ready`. En `processing` o `failed` no hay análisis que corregir → 409 `MEAL_NOT_READY`, sin tocar la base.
+- Dos PATCH a la vez no se pisan: la escritura solo se aplica si `corrections` sigue teniendo el largo que se leyó; si no, relee (el `from` pasa a ser lo que dejó el otro) y reintenta hasta 3 veces. Si pierde las 3 → 500 `INTERNAL_ERROR` sin escribir nada.
+- Loguea `mealId`, los campos corregidos (`fields`) y `durationMs`; nunca los valores.
 
 ### Dashboard diario
 
@@ -260,7 +270,7 @@ Authorization: Bearer <accessToken>
 | 401 | Sin token, vencido o inválido |
 | 402 | Cupo del plan free agotado (`MEAL_QUOTA_EXCEEDED`) o función premium |
 | 404 | Recurso inexistente **o de otro usuario** (no se distingue, para no filtrar existencia) |
-| 409 | Email ya registrado |
+| 409 | Email ya registrado, o corrección de una comida que no está `ready` (`MEAL_NOT_READY`) |
 | 413 | Foto o audio superan el límite |
 | 429 | Rate limit, con header `Retry-After` |
 | 500 / 503 | Error interno / proveedor de IA caído |
@@ -290,7 +300,7 @@ El catálogo, `AppError` y el middleware de errores viven en `shared/` (paquete 
 | `UNAUTHORIZED`, `TOKEN_EXPIRED` | 401 |
 | `MEAL_QUOTA_EXCEEDED`, `PREMIUM_REQUIRED` | 402 |
 | `NOT_FOUND` | 404 |
-| `EMAIL_TAKEN` | 409 |
+| `EMAIL_TAKEN`, `MEAL_NOT_READY` | 409 |
 | `PAYLOAD_TOO_LARGE` | 413 |
 | `RATE_LIMITED` | 429 |
 | `INTERNAL_ERROR` | 500 |

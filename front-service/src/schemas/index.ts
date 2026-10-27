@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { ZodType } from "zod";
 import {
+  correctMealSchema,
   dailyDashboardQuerySchema,
   loginSchema,
   mealIdParamsSchema,
@@ -38,5 +39,6 @@ export const schemas = {
   // El body es multipart: lo valida validateMealUpload después de multer.
   createMeal: route({}),
   getMeal: route({ params: mealIdParamsSchema }),
+  correctMeal: route({ params: mealIdParamsSchema, body: correctMealSchema }),
   getDailyDashboard: route({ query: dailyDashboardQuerySchema }),
 } satisfies Record<string, RouteSchema>;

@@ -2,6 +2,7 @@ import type { RequestHandler } from "express";
 import {
   AppError,
   AUDIO_MAX_SECONDS,
+  correctMealSchema,
   mealIdParamsSchema,
   validateMealUpload,
 } from "@caloria/shared";
@@ -14,7 +15,9 @@ const AUDIO_DURATION_TOLERANCE_SECONDS = 0.5;
 
 type MulterFiles = Partial<Record<"photo" | "audio", Express.Multer.File[]>>;
 
-export function mealsController(meals: MealService): Record<"create" | "get", RequestHandler> {
+export function mealsController(
+  meals: MealService,
+): Record<"create" | "get" | "patch", RequestHandler> {
   return {
     async create(req, res) {
       const start = performance.now();
@@ -49,6 +52,21 @@ export function mealsController(meals: MealService): Record<"create" | "get", Re
       res.set("Cache-Control", "no-store");
       const { id } = mealIdParamsSchema.parse(req.params);
       res.json(await meals.get(userIdOf(res), id));
+    },
+
+    async patch(req, res) {
+      const start = performance.now();
+      res.set("Cache-Control", "no-store");
+      const { id } = mealIdParamsSchema.parse(req.params);
+      const input = correctMealSchema.parse(req.body);
+      const { meal, fields } = await meals.correct(userIdOf(res), id, input);
+      // Solo qué campos cambiaron: los valores no van al log.
+      req.log.info("comida corregida", {
+        mealId: id,
+        fields,
+        durationMs: Math.round(performance.now() - start),
+      });
+      res.json(meal);
     },
   };
 }

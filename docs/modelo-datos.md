@@ -72,7 +72,7 @@ La media vive en `users/{userId}/meals/{mealId}/photo.{jpg|png|heic}` y `…/aud
 Los valores que se muestran y que suman en el dashboard son los del análisis **con las correcciones aplicadas**:
 
 - `analysis` queda como lo devolvió la IA, con el `promptVersion` y el `model` que lo produjeron. El PATCH no lo modifica.
-- Cada corrección guarda un campo entero (`items` es la lista completa de ingredientes, `macros` los tres rangos).
+- Cada corrección guarda un campo entero (`items` es la lista completa de ingredientes, `macros` los tres rangos). `from` es el valor que veía el usuario (con las correcciones anteriores aplicadas) y un campo que no cambió no se registra. Las de un mismo PATCH comparten `at`.
 - Los valores finales salen de aplicar `corrections` en orden sobre `analysis`, y la última de cada campo gana. Lo hace `applyCorrections` (`back-service/src/services/meal-corrections.ts`), que usan `GET /meals/:id`, el historial y el PATCH. Una corrección que no pasa la validación se ignora.
 - El dashboard suma en Mongo, sin traer las comidas: la agregación (`dailyTotalsPipeline`, `back-service/src/services/dashboard.ts`) aplica la misma regla a `kcal` y `macros` (la última corrección válida del campo gana, si no queda la del análisis). Si cambia `applyCorrections`, cambia también ahí; un test compara las dos.
 - RF-07 compara lo que dijo la IA (`analysis`) con lo que corrigió el usuario (`corrections`).

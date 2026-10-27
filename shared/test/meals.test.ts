@@ -2,8 +2,13 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   AUDIO_MAX_BYTES,
+  correctableFieldsSchema,
+  correctMealSchema,
+  DISH_MAX_CHARS,
   detectAudioType,
   detectPhotoType,
+  ITEM_NAME_MAX_CHARS,
+  ITEMS_MAX,
   mealIdParamsSchema,
   NOTE_MAX_CHARS,
   PHOTO_MAX_BYTES,
@@ -153,4 +158,76 @@ describe("meals: rangos", () => {
       assert.equal(rangeSchema.safeParse(range).success, false);
     });
   }
+});
+
+describe("meals: body de PATCH /meals/:id", () => {
+  const r = (min: number, max: number) => ({ min, max });
+  const item = { name: "Milanesa", grams: r(150, 190), kcal: r(380, 470) };
+  const macros = { protein: r(38, 46), carbs: r(50, 65), fat: r(28, 38) };
+  const accepted = (body: unknown) =>
+    assert.equal(correctMealSchema.safeParse(body).success, true, JSON.stringify(body));
+
+  it("acepta cada campo solo o todos juntos, completos", () => {
+    accepted({ dish: "Milanesa napolitana" });
+    accepted({ items: [item] });
+    accepted({ items: [] });
+    accepted({ kcal: r(800, 900) });
+    accepted({ macros });
+    accepted({ dish: "Milanesa", items: [item], kcal: r(0, 0), macros });
+  });
+
+  it("recorta los espacios del plato y de los ingredientes", () => {
+    const body = correctMealSchema.parse({
+      dish: "  Milanesa  ",
+      items: [{ ...item, name: " Puré " }],
+    });
+    assert.equal(body.dish, "Milanesa");
+    assert.equal(body.items?.[0].name, "Puré");
+  });
+
+  it("acepta los topes justos", () => {
+    accepted({
+      dish: "a".repeat(DISH_MAX_CHARS),
+      items: Array.from({ length: ITEMS_MAX }, () => ({
+        ...item,
+        name: "b".repeat(ITEM_NAME_MAX_CHARS),
+      })),
+    });
+  });
+
+  for (const [name, body] of [
+    ["un body vacío", {}],
+    ["un campo desconocido", { dish: "Milanesa", confidence: 1 }],
+    ["un campo interno", { analysis: { dish: "x" } }],
+    ["un campo desconocido en un ingrediente", { items: [{ ...item, extra: 1 }] }],
+    ["un campo desconocido en macros", { macros: { ...macros, fiber: r(1, 2) } }],
+    ["un plato vacío", { dish: "   " }],
+    ["un plato que no es texto", { dish: 3 }],
+    ["un plato demasiado largo", { dish: "a".repeat(DISH_MAX_CHARS + 1) }],
+    ["un ingrediente sin nombre", { items: [{ ...item, name: "" }] }],
+    [
+      "un nombre demasiado largo",
+      { items: [{ ...item, name: "b".repeat(ITEM_NAME_MAX_CHARS + 1) }] },
+    ],
+    ["demasiados ingredientes", { items: Array.from({ length: ITEMS_MAX + 1 }, () => item) }],
+    ["un ingrediente sin gramos", { items: [{ name: "Puré", kcal: r(1, 2) }] }],
+    ["items que no son una lista", { items: item }],
+    ["kcal con min > max", { kcal: r(900, 800) }],
+    ["kcal negativas", { kcal: r(-1, 800) }],
+    ["kcal como número", { kcal: 850 }],
+    ["un rango con min > max en un ingrediente", { items: [{ ...item, grams: r(200, 100) }] }],
+    ["macros incompletos", { macros: { protein: r(1, 2), carbs: r(1, 2) } }],
+    ["un macro negativo", { macros: { ...macros, fat: r(-5, 2) } }],
+    ["null en un campo", { kcal: null }],
+  ] as const) {
+    it(`rechaza ${name}`, () => {
+      assert.equal(correctMealSchema.safeParse(body).success, false);
+    });
+  }
+
+  it("los topes son solo del PATCH: una corrección guardada más larga sigue siendo válida", () => {
+    // applyCorrections valida con correctableFieldsSchema; un tope ahí ignoraría correcciones viejas.
+    const long = { dish: "a".repeat(DISH_MAX_CHARS + 1) };
+    assert.equal(correctableFieldsSchema.partial().strict().safeParse(long).success, true);
+  });
 });
