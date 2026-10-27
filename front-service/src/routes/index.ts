@@ -22,6 +22,7 @@ export const API_ROUTES: readonly ApiRoute[] = [
   { method: "patch", path: "/users/me", access: "jwt", schema: schemas.updateMe },
   { method: "delete", path: "/users/me", access: "jwt", schema: schemas.deleteMe },
   { method: "get", path: "/meals/:id", access: "jwt", schema: schemas.getMeal },
+  { method: "patch", path: "/meals/:id", access: "jwt", schema: schemas.correctMeal },
   { method: "get", path: "/dashboard/daily", access: "jwt", schema: schemas.getDailyDashboard },
 ];
 

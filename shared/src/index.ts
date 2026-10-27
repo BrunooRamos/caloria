@@ -40,9 +40,13 @@ export {
   AUDIO_MAX_SECONDS,
   AUDIO_TYPES,
   correctableFieldsSchema,
+  correctMealSchema,
   createMealFieldsSchema,
+  DISH_MAX_CHARS,
   detectAudioType,
   detectPhotoType,
+  ITEM_NAME_MAX_CHARS,
+  ITEMS_MAX,
   MEAL_ERROR_CODES,
   MEAL_UPLOAD_FIELDS,
   MEAL_UPLOAD_LIMITS,
@@ -55,7 +59,9 @@ export {
 } from "./meals";
 export type {
   AudioType,
+  CorrectableField,
   CorrectableFields,
+  CorrectMealInput,
   CreateMealResponse,
   FailedMealResponse,
   MealErrorCode,

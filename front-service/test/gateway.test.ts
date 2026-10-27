@@ -495,6 +495,84 @@ describe("front-service: gateway de /api/v1", () => {
     });
   });
 
+  describe("PATCH /meals/:id", () => {
+    const MEAL_ID = "66f1a0000000000000000099";
+    const r = (min: number, max: number) => ({ min, max });
+    const macros = { protein: r(38, 46), carbs: r(50, 65), fat: r(28, 38) };
+    const meal = {
+      id: MEAL_ID,
+      status: "ready",
+      capturedAt: "2026-10-06T13:05:00.000Z",
+      photoUrl: "http://localhost:9000/caloria-media/x?X-Amz-Expires=900",
+      dish: "Milanesa napolitana",
+      items: [],
+      kcal: r(800, 900),
+      macros,
+      confidence: 0.72,
+    };
+
+    it("valida, reenvía el body validado con el id en la ruta y devuelve la respuesta sin caché", async () => {
+      back.respondWith((_req, res) => void res.set("Cache-Control", "no-store").json(meal));
+      const items = [{ name: "Milanesa", grams: r(150, 190), kcal: r(380, 470) }];
+      const res = await call("patch", `/meals/${MEAL_ID}`, valid).send({
+        dish: "  Milanesa napolitana ",
+        items,
+        kcal: r(800, 900),
+        macros,
+      });
+      assert.equal(res.status, 200);
+      assert.deepEqual(res.body, meal);
+      assert.equal(res.headers["cache-control"], "no-store");
+      assert.equal(back.received.length, 1);
+      const [sent] = back.received;
+      assert.equal(sent.method, "PATCH");
+      assert.equal(sent.path, `/api/v1/meals/${MEAL_ID}`);
+      assert.equal(sent.authorization, `Bearer ${valid}`);
+      assert.deepEqual(sent.body, {
+        dish: "Milanesa napolitana",
+        items,
+        kcal: r(800, 900),
+        macros,
+      });
+    });
+
+    it("el 409 MEAL_NOT_READY del Backend llega sin modificar", async () => {
+      back.respondWith(() => {
+        throw new AppError("MEAL_NOT_READY");
+      });
+      const res = await call("patch", `/meals/${MEAL_ID}`, valid).send({ kcal: r(1, 2) });
+      expectEnvelope(res, 409, "MEAL_NOT_READY");
+    });
+
+    const invalid: [string, string, unknown][] = [
+      ["body vacío", MEAL_ID, {}],
+      ["un campo desconocido", MEAL_ID, { dish: "x", status: "ready" }],
+      ["kcal con min > max", MEAL_ID, { kcal: r(900, 800) }],
+      ["kcal negativas", MEAL_ID, { kcal: r(-1, 800) }],
+      ["macros incompletos", MEAL_ID, { macros: { protein: r(1, 2) } }],
+      [
+        "un ingrediente con un campo de más",
+        MEAL_ID,
+        { items: [{ name: "x", grams: r(1, 2), kcal: r(1, 2), id: 1 }] },
+      ],
+      ["un operador en el body", MEAL_ID, { kcal: { $set: 1 } }],
+      ["un id inválido", "123", { kcal: r(1, 2) }],
+    ];
+    for (const [caso, id, body] of invalid) {
+      it(`${caso} → 400 VALIDATION_ERROR sin llegar al Backend`, async () => {
+        const res = await call("patch", `/meals/${id}`, valid).send(body as object);
+        expectEnvelope(res, 400, "VALIDATION_ERROR");
+        assertNotForwarded();
+      });
+    }
+
+    it("sin token, un body inválido es 401 y no 400: el JWT va primero", async () => {
+      const res = await call("patch", `/meals/${MEAL_ID}`).send({});
+      expectEnvelope(res, 401, "UNAUTHORIZED");
+      assertNotForwarded();
+    });
+  });
+
   describe("GET /dashboard/daily", () => {
     const dashboard = {
       date: "2026-10-26",

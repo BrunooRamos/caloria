@@ -81,6 +81,33 @@ export const correctableFieldsSchema = z.object({
   macros: z.object({ protein: rangeSchema, carbs: rangeSchema, fat: rangeSchema }),
 });
 export type CorrectableFields = z.infer<typeof correctableFieldsSchema>;
+export type CorrectableField = keyof CorrectableFields;
+
+// Topes del body del PATCH. No van en correctableFieldsSchema para no ignorar correcciones ya
+// guardadas; son holgados para que el usuario siempre pueda devolver lo que dijo la IA.
+export const DISH_MAX_CHARS = 200;
+export const ITEM_NAME_MAX_CHARS = 100;
+export const ITEMS_MAX = 50;
+
+const { dish, items, macros } = correctableFieldsSchema.shape;
+const item = items.element;
+
+/**
+ * Body de `PATCH /meals/:id`: al menos un campo, cada uno completo. Un campo desconocido, en la
+ * raíz, en un ingrediente o en `macros`, es un 400.
+ */
+export const correctMealSchema = correctableFieldsSchema
+  .extend({
+    dish: dish.max(DISH_MAX_CHARS),
+    items: z
+      .array(item.extend({ name: item.shape.name.max(ITEM_NAME_MAX_CHARS) }).strict())
+      .max(ITEMS_MAX),
+    macros: macros.strict(),
+  })
+  .partial()
+  .strict()
+  .refine((body) => Object.keys(body).length > 0, { message: "Indicá al menos un campo" });
+export type CorrectMealInput = z.infer<typeof correctMealSchema>;
 
 interface MealResponseBase {
   id: string;

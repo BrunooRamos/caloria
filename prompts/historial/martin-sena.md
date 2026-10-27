@@ -178,3 +178,45 @@ No te metas con el historial de platos similares ni el compounding (#30), ni con
 
 Comentarios cortitos en español como en el resto del repo. Actualizádocs/arquitectura.md (el paso 5 ya menciona la transcripción, que quede fiel a lo que hiciste), docs/modelo-datos.md si hace falta y el README del back, y marcá en RF-04 loschecks que queden cumplidos. Fijate que el CI no necesite ninguna variable nueva. Al final corré lint, typecheck y los tests y contame cómo salieron. No commitees, que loquiero revisar primero.
 ```
+
+## Sesión `c3b3b7b1-25e3-41d2-af8e-ba58f0ccb29e` · 2026-10-26
+
+### 2026-10-26 22:57
+
+```text
+Estoy en la rama del issue #24, el del PATCH /meals/:id con historial de correcciones (mirá qué pide con gh issue view 24 y RF-06 en docs/requerimientos.md). Mucho ya está hecho. En models/Meal.ts está el campo corrections ({ field, from, to, at }). En shared está correctableFieldsSchema con dish, items, kcal y macros en la forma del análisis. applyCorrections (services/meal-corrections.ts) aplica las correcciones en orden y la última de cada campo gana. toMealResponse ya devuelve los valores corregidos. dailyTotalsPipeline del dashboard ya suma kcal y macros corregidos, y un test lo compara con applyCorrections. El PATCH también ya está documentado en docs/api.md ("Corregir una comida") y en docs/modelo-datos.md. Lo que falta es el endpoint en sí. No cambies la forma del documento, ni applyCorrections, ni la agregación del dashboard sin avisarme.
+
+1. El body. Armá en shared un esquema para el PATCH sobre correctableFieldsSchema: todos los campos opcionales, strict (un campo desconocido es 400) y con al menos uno. Cada campo va completo, como dice api.md: items es la lista entera de ingredientes y macros lleva los tres rangos. Los rangos ya validan min ≤ max y que no haya negativos. Ponele un tope razonable al largo de dish y de los nombres, y a la cantidad de items, para que no nos manden cualquier cosa. Contame qué topes elegiste. Ojo: applyCorrections usa correctableFieldsSchema para validar las correcciones guardadas, así que fijate que un tope nuevo no deje de aplicar correcciones viejas que hoy son válidas, o avisame si pasa. No recalcules el total desde los items ni al revés: se guarda lo que manda el usuario.
+
+2. El Front. Sumá la ruta { method: "patch", path: "/meals/:id", access: "jwt" } a API_ROUTES, con un schema en schemas/index.ts que tenga params mealIdParamsSchema y el body nuevo (pasa por withoutOperatorKeys como el resto). Se reenvía con forward, igual que el GET.
+
+3. El Back. Agregá patch en mealsController y un correct (o como te parezca) en MealService:
+   - Busca la comida por id y dueño en la misma consulta, como el GET. Si es de otro usuario o no existe, devuelve el mismo 404 NOT_FOUND. Si el id no es un ObjectId, devuelve 400 VALIDATION_ERROR.
+   - Solo se corrige una comida en ready. Si está en processing o failed no hay análisis que corregir. Hoy no hay un código para eso en ERROR_CATALOG: proponé uno (un 409 tipo MEAL_NOT_READY), sumalo a shared y documentalo en api.md. Si te parece mejor otra cosa, frená y contame.
+   - El from sale de los valores actuales, es decir de applyCorrections(analysis, corrections) y no del analysis crudo. Por cada campo del body que cambie de verdad, agregá una corrección { field, from, to, at } con un solo $push. Los campos que vienen iguales al valor actual no se registran. Si no cambió nada, se responde 200 sin tocar la base.
+   - analysis no se toca nunca.
+   - Ojo con la concurrencia: si dos PATCH llegan a la vez, ninguno puede quedar con un from viejo. Hacelo optimista como updateMe en services/users.ts: el update filtra por el largo de corrections que leíste (y por status: "ready") y, si no matchea, vuelve a leer y reintenta un par de veces.
+   - Responde 200 con la misma forma que GET /meals/:id (toMealResponse, con la photoUrl firmada y Cache-Control: no-store). Nunca sale el historial de corrections.
+   - Log con req.log: mealId, qué campos se corrigieron y cuánto tardó. Los valores no van al log.
+
+4. Lo que corrige alimenta el dashboard y el compounding. El dashboard ya lee corrections, así que no hay que tocarlo, pero quiero un test de punta a punta: corregir kcal con el PATCH y que GET /dashboard/daily sume el valor corregido.
+
+Tests en back-service/test con mongodb-memory-server, como get-meal.test.ts:
+- caso feliz: corregir dish y kcal guarda dos correcciones con from/to/at, analysis queda igual y la respuesta trae los valores corregidos;
+- un segundo PATCH del mismo campo: el from es el valor corregido anterior y gana el último;
+- un campo igual al actual no se registra;
+- items y macros completos;
+- comida de otro usuario e id inexistente: el mismo 404;
+- id inválido: 400;
+- body vacío, campo desconocido, rango con min > max o negativo: 400;
+- comida en processing o failed: el error que elijas, sin tocar la base;
+- dos PATCH concurrentes: ninguno pisa al otro y los from encadenan bien;
+- la respuesta no expone campos internos;
+- sin token o con token inválido: 401;
+- el de punta a punta con el dashboard.
+Sumá también los tests del esquema en shared/test/meals.test.ts y de la ruta en front-service/test (que valide y reenvíe, y que un body inválido corte en el Front con 400).
+
+No te metas con la pantalla de edición de la app (#25), ni con el compounding (#30), ni con el listado y el DELETE de comidas (RF-08), ni con attempts (#35).
+
+Comentarios cortitos en español como en el resto del repo. Ajustá docs/api.md con lo que quede fiel a lo que hiciste (códigos de error, respuesta 200 con la forma del GET, campos sin cambios que no se registran, los topes), docs/modelo-datos.md si hace falta, docs/arquitectura.md y el README del back, y marcá en RF-06 los checks que queden cumplidos del lado del servidor. Al final corré lint, typecheck y los tests y contame cómo salieron. No commitees, que lo quiero revisar primero.
+```
