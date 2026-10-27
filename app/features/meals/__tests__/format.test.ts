@@ -1,4 +1,4 @@
-import { formatRange } from "../format";
+import { formatClock, formatRange } from "../format";
 
 describe("formatRange", () => {
   it.each([
@@ -22,5 +22,18 @@ describe("formatRange", () => {
   it("si min y max son iguales, o quedan iguales al redondear, muestra un solo número", () => {
     expect(formatRange({ min: 620, max: 620 }, "kcal")).toBe("620 kcal");
     expect(formatRange({ min: 9.6, max: 10.4 }, "g")).toBe("10 g");
+  });
+});
+
+describe("formatClock", () => {
+  it.each([
+    [60, "1:00"],
+    [42, "0:42"],
+    [9, "0:09"],
+    [0, "0:00"],
+    [41.2, "0:42"],
+    [-1, "0:00"],
+  ])("%d → %s", (seconds, expected) => {
+    expect(formatClock(seconds)).toBe(expected);
   });
 });
