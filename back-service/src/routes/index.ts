@@ -36,8 +36,10 @@ export function apiRouter({ auth, users, meals, dashboard, publicKey }: ApiDeps)
     const mealHandlers = mealsController(meals);
     // El JWT se verifica antes de leer el multipart.
     router.post("/meals", authenticated, mealUpload, mealHandlers.create);
+    router.get("/meals", authenticated, mealHandlers.list);
     router.get("/meals/:id", authenticated, mealHandlers.get);
     router.patch("/meals/:id", authenticated, mealHandlers.patch);
+    router.delete("/meals/:id", authenticated, mealHandlers.remove);
   }
   if (dashboard) {
     router.get("/dashboard/daily", authenticated, dashboardController(dashboard).daily);

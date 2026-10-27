@@ -3,6 +3,7 @@ import {
   AppError,
   AUDIO_MAX_SECONDS,
   correctMealSchema,
+  listMealsQuerySchema,
   mealIdParamsSchema,
   validateMealUpload,
 } from "@caloria/shared";
@@ -17,7 +18,7 @@ type MulterFiles = Partial<Record<"photo" | "audio", Express.Multer.File[]>>;
 
 export function mealsController(
   meals: MealService,
-): Record<"create" | "get" | "patch", RequestHandler> {
+): Record<"create" | "list" | "get" | "patch" | "remove", RequestHandler> {
   return {
     async create(req, res) {
       const start = performance.now();
@@ -48,6 +49,12 @@ export function mealsController(
       res.status(202).json(result);
     },
 
+    async list(req, res) {
+      res.set("Cache-Control", "no-store");
+      const { date, cursor } = listMealsQuerySchema.parse(req.query);
+      res.json(await meals.list(userIdOf(res), date, cursor));
+    },
+
     async get(req, res) {
       res.set("Cache-Control", "no-store");
       const { id } = mealIdParamsSchema.parse(req.params);
@@ -67,6 +74,13 @@ export function mealsController(
         durationMs: Math.round(performance.now() - start),
       });
       res.json(meal);
+    },
+
+    async remove(req, res) {
+      const { id } = mealIdParamsSchema.parse(req.params);
+      await meals.remove(userIdOf(res), id, { log: req.log });
+      req.log.info("comida borrada", { mealId: id });
+      res.status(204).end();
     },
   };
 }

@@ -117,7 +117,7 @@ badges: { code: string; at: Date }[]
 |---|---|---|
 | `users` | `email` | único |
 | `meals` | `{ userId, capturedAt }` | compuesto |
-| `meals` | `{ userId, localDate }` | compuesto |
+| `meals` | `{ userId, localDate, capturedAt, _id }` | compuesto: historial del día en orden (`GET /meals`) y, por prefijo, el dashboard |
 | `weekly_summaries` | `{ userId, week }` | único |
 | `gamification` | `userId` | único |
 
