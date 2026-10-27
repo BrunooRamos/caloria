@@ -27,9 +27,16 @@ export interface VisionCallInfo {
 export type VisionResult = VisionCallInfo &
   ({ isFood: true; analysis: FoodAnalysis } | { isFood: false });
 
+/** Lo que recibe la IA: la foto y, si hay, lo que dijo y escribió el usuario. */
+export interface VisionInput {
+  image: VisionImage;
+  transcript?: string;
+  note?: string;
+}
+
 export interface VisionService {
-  /** Analiza la foto. Lanza InvalidVisionResponseError si la respuesta no pasa la validación. */
-  analyze(image: VisionImage): Promise<VisionResult>;
+  /** Analiza la comida. Lanza InvalidVisionResponseError si la respuesta no pasa la validación. */
+  analyze(input: VisionInput): Promise<VisionResult>;
 }
 
 /** Lo que se puede loguear de una validación fallida: nunca la respuesta cruda. */
@@ -140,16 +147,27 @@ export const RESPONSE_JSON_SCHEMA = {
   additionalProperties: false,
 };
 
-/** Mensaje del usuario. La transcripción y la nota (#23) se suman como partes `input_text`. */
-function userContent(image: VisionImage): ResponseInputContent[] {
+// Rótulos de las partes de texto: el prompt de sistema los nombra.
+export const TRANSCRIPT_LABEL = "Audio del usuario:";
+export const NOTE_LABEL = "Nota del usuario:";
+
+/** Mensaje del usuario: la foto y, si vienen, la transcripción y la nota como partes rotuladas. */
+function userContent({ image, transcript, note }: VisionInput): ResponseInputContent[] {
   const base64 = Buffer.from(image.data.buffer, image.data.byteOffset, image.data.byteLength);
-  return [
+  const content: ResponseInputContent[] = [
     {
       type: "input_image",
       image_url: `data:${image.contentType};base64,${base64.toString("base64")}`,
       detail: "auto",
     },
   ];
+  for (const [label, text] of [
+    [TRANSCRIPT_LABEL, transcript?.trim()],
+    [NOTE_LABEL, note?.trim()],
+  ] as const) {
+    if (text) content.push({ type: "input_text", text: `${label}\n${text}` });
+  }
+  return content;
 }
 
 export interface OpenAiVisionOptions {
@@ -171,11 +189,11 @@ export function createOpenAiVision({
   const client = new OpenAI({ apiKey, timeout: timeoutMs, maxRetries: 0, ...(fetch && { fetch }) });
 
   return {
-    async analyze(image) {
+    async analyze(input) {
       const response = await client.responses.create({
         model,
         instructions: prompt.system,
-        input: [{ role: "user", content: userContent(image) }],
+        input: [{ role: "user", content: userContent(input) }],
         text: {
           format: {
             type: "json_schema",

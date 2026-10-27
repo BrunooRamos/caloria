@@ -8,6 +8,7 @@ import { MEAL_ANALYSIS_QUEUE } from "./jobs/meal-analysis";
 import { createMealAnalysisProcessor } from "./jobs/meal-analysis-processor";
 import { createMealAnalysisWorker } from "./jobs/meal-analysis-worker";
 import { createMediaService } from "./services/media";
+import { createOpenAiTranscription } from "./services/transcription";
 import { createOpenAiVision } from "./services/vision";
 
 const logger = createLogger({ service: "worker" });
@@ -23,12 +24,16 @@ async function main() {
     model: config.openai.visionModel,
     prompt,
   });
+  const transcriber = createOpenAiTranscription({
+    apiKey: config.openai.apiKey,
+    model: config.openai.transcriptionModel,
+  });
   const worker = createMealAnalysisWorker({
     redisUrl: config.redisUrl,
     concurrency: config.concurrency,
     processor: createMealAnalysisProcessor({
       media: createMediaService(config.storage),
-      analyze: createAnalyzeMeal({ vision }),
+      analyze: createAnalyzeMeal({ vision, transcriber }),
     }),
     logger,
   });
@@ -56,6 +61,7 @@ async function main() {
   logger.info(`worker consumiendo la cola ${MEAL_ANALYSIS_QUEUE}`, {
     concurrency: config.concurrency,
     model: config.openai.visionModel,
+    transcriptionModel: config.openai.transcriptionModel,
     promptVersion: prompt.version,
   });
 }

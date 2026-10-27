@@ -6,6 +6,7 @@ import IORedis from "ioredis";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import mongoose from "mongoose";
 import {
+  DEFAULT_OPENAI_TRANSCRIPTION_MODEL,
   DEFAULT_OPENAI_VISION_MODEL,
   DEFAULT_WORKER_CONCURRENCY,
   loadWorkerConfig,
@@ -125,13 +126,23 @@ describe("back-service: config del worker", () => {
     });
   }
 
-  it("toma la clave de OpenAI y el modelo de visión, con default", () => {
+  it("toma la clave de OpenAI y los modelos de visión y transcripción, con default", () => {
     assert.deepEqual(loadWorkerConfig(workerEnv).openai, {
       apiKey: "sk-test",
       visionModel: DEFAULT_OPENAI_VISION_MODEL,
+      transcriptionModel: DEFAULT_OPENAI_TRANSCRIPTION_MODEL,
     });
-    const config = loadWorkerConfig({ ...workerEnv, OPENAI_VISION_MODEL: "gpt-6.1-sol" });
+    assert.equal(DEFAULT_OPENAI_TRANSCRIPTION_MODEL, "gpt-transcribe");
+    const config = loadWorkerConfig({
+      ...workerEnv,
+      OPENAI_VISION_MODEL: "gpt-6.1-sol",
+      OPENAI_TRANSCRIPTION_MODEL: " gpt-4o-mini-transcribe ",
+    });
     assert.equal(config.openai.visionModel, "gpt-6.1-sol");
+    assert.equal(config.openai.transcriptionModel, "gpt-4o-mini-transcribe");
+    // En blanco cuenta como sin definir.
+    const blank = loadWorkerConfig({ ...workerEnv, OPENAI_TRANSCRIPTION_MODEL: " " });
+    assert.equal(blank.openai.transcriptionModel, DEFAULT_OPENAI_TRANSCRIPTION_MODEL);
   });
 
   for (const name of ["MONGO_URI", "REDIS_URL", "S3_BUCKET", "OPENAI_API_KEY"]) {

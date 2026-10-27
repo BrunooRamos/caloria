@@ -45,7 +45,7 @@ capturedAt: Date
 localDate: string             // "YYYY-MM-DD" en la zona del usuario; para historial, dashboard y racha
 status: "processing" | "ready" | "failed"
 media: { photoKey: string; audioKey?: string }
-transcript?: string
+transcript?: string           // transcripción del audio; la escribe el Worker (vacía o solo ruido: no se guarda)
 note?: string
 analysis?: {
   dish: string
