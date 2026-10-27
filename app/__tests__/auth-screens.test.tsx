@@ -97,7 +97,7 @@ describe("login", () => {
     expect(calls.filter((call) => call.path === "/auth/login")).toHaveLength(1);
 
     await act(async () => response.resolve(loggedIn()));
-    expect(await screen.findByText("Sesión iniciada")).toBeOnTheScreen();
+    expect(await screen.findByText("Hoy")).toBeOnTheScreen();
   });
 
   it('el "ir" del teclado envía el formulario', async () => {
@@ -106,7 +106,7 @@ describe("login", () => {
     await fill("cami@example.com", "secreto123");
     await fireEvent(password(), "submitEditing");
 
-    expect(await screen.findByText("Sesión iniciada")).toBeOnTheScreen();
+    expect(await screen.findByText("Hoy")).toBeOnTheScreen();
     expect(calls[0].path).toBe("/auth/login");
   });
 
@@ -158,7 +158,7 @@ describe("login", () => {
 
     online = true;
     await fireEvent.press(screen.getByText("Ingresar"));
-    expect(await screen.findByText("Sesión iniciada")).toBeOnTheScreen();
+    expect(await screen.findByText("Hoy")).toBeOnTheScreen();
   });
 });
 

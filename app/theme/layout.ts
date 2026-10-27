@@ -38,6 +38,9 @@ export const sizes = {
   logo: { width: 160 },
   fab: 64,
   shutter: 72,
+  /** Alto de la ProgressBar (skill §5) y de la principal del dashboard, que es más grande. */
+  progress: 10,
+  progressLarge: 16,
 } as const;
 
 export const opacity = {

@@ -206,3 +206,35 @@ Cuando termines, pasame qué archivos tocaste, si tomaste alguna decisión disti
 ```text
 Al correr los tests del back-service, falló test/analyze-meal.test.ts. 
 ```
+
+### 2026-10-26 17:35
+
+```text
+Tengo que implementar en la app el ticket de la pantalla principal con el progreso del día.
+
+Para el contexto, fijate en docs/requerimientos.md (la parte de RF-09), en docs/api.md para la respuesta de GET /dashboard/daily, y en el RNF-10 de contenido responsable. Para todo lo visual usá la skill caloria-design; cargala antes de empezar y seguila en colores, tipografía, espaciados y componentes.
+
+Los criterios de aceptación son estos: la pantalla muestra barras de kcal y macros consumidos contra la meta; indica las comidas que se están analizando; y se actualiza al volver después de registrar, corregir o borrar una comida.
+
+Algunas cosas que pensé y quiero que se respeten:
+
+Los datos salen solo de GET /dashboard/daily. La app no suma comidas ni recalcula nada, solo muestra lo que devuelve la API. Pedilo sin date, así el Backend usa el día de hoy en la zona horaria del usuario.
+
+Las barras se llenan con el punto medio (mid) dividido la meta, pero el texto tiene que mostrar el rango, para mantener la idea de que son estimaciones. Algo como "1.450–1.820 kcal de 2.100". La de kcal que sea la principal y más grande, y abajo las tres de proteína, carbohidratos y grasas. Formateá los números con separador de miles en español.
+
+Si el consumido pasa la meta, la barra queda completa y nada más: sin rojo, sin íconos de alerta y sin textos tipo "te pasaste" o "excedido". Mismo color que siempre. Esto es por el RNF-10 y es importante.
+
+Si hay comidas en processing, mostrá un indicador tipo "1 comida analizándose" con una animación de carga, para que el usuario entienda que el total todavía va a cambiar. Si hay alguna en failed, un aviso tranquilo de que no se pudo analizar, que lleve a esa comida en el historial.
+
+Para que se actualice, refrescá los datos cada vez que la pantalla gana foco (con useFocusEffect), así al volver de registrar, corregir o borrar ya se ve el cambio. Si el proyecto usa React Query o algo parecido, además invalidá la consulta del dashboard cuando se crea, corrige o borra una comida. Mientras haya comidas en processing, volvé a pedir los datos cada algunos segundos y cortá cuando no quede ninguna. Si ya tenemos el push de "análisis listo", que también dispare un refresco. Agregá también pull to refresh.
+
+Cubrí todos los estados: cargando (con un esqueleto, no una pantalla en blanco), error con botón para reintentar, y día sin comidas con un mensaje amable y neutral. En todos los casos el botón para registrar una comida tiene que estar bien visible, porque el RNF-06 pide registrar en tres interacciones o menos desde esta pantalla.
+
+Que las barras tengan accessibilityLabel con el valor y la meta, para que se lean bien con lector de pantalla.
+
+Organizalo como el resto de la app: la pantalla en app/, la lógica y los componentes de las barras en features/ y la llamada a la API en services/.
+
+Si el proyecto tiene tests de componentes, agregá los de: barras con los valores correctos, barra completa sin estilo de alerta cuando se pasa la meta, indicador de comidas analizándose, día vacío, estado de error, y que se vuelva a pedir el dashboard al ganar foco.
+
+Cuando termines, pasame qué archivos tocaste, si tomaste alguna decisión distinta a lo que puse acá y cómo probarlo en el simulador.
+```

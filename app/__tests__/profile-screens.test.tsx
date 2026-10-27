@@ -224,7 +224,7 @@ describe("registro con perfil", () => {
     expect(router.getPathname()).toBe("/goals");
 
     await fireEvent.press(screen.getByText("Empezar"));
-    expect(await screen.findByText("Sesión iniciada")).toBeOnTheScreen();
+    expect(await screen.findByText("Hoy")).toBeOnTheScreen();
     expect(mockTokenStorage.current()).toEqual(NEW_TOKENS);
   });
 

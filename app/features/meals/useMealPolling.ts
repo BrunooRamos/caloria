@@ -3,7 +3,7 @@ import { AppState } from "react-native";
 import { ApiError } from "@/services/api-error";
 import { getMeal } from "@/services/meals";
 import type { Meal } from "@/services/meals";
-import { nextDelay, POLLING } from "./polling";
+import { inBackground, nextDelay, POLLING } from "./polling";
 
 export interface MealPolling {
   meal: Meal | null;
@@ -18,11 +18,6 @@ export interface MealPolling {
   /** Consulta ya: renueva una `photoUrl` vencida o retoma después de `stalled`. */
   refresh(): void;
 }
-
-// "inactive" es el paso intermedio de iOS (centro de control, cambio de app): también se pausa.
-// Al arrancar `currentState` puede ser "unknown" o null: cuenta como primer plano.
-const inBackground = (state: string | null | undefined) =>
-  state === "background" || state === "inactive";
 
 /**
  * Consulta `GET /meals/:id` mientras la comida está en `processing`, cada vez más espaciado

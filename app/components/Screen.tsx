@@ -1,6 +1,7 @@
 import { StatusBar } from "expo-status-bar";
-import type { PropsWithChildren } from "react";
+import type { PropsWithChildren, ReactElement } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from "react-native";
+import type { RefreshControlProps } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { Edge } from "react-native-safe-area-context";
 import { colors, spacing } from "@/theme";
@@ -11,9 +12,17 @@ export interface ScreenProps extends PropsWithChildren {
   scroll?: boolean;
   edges?: Edge[];
   tone?: SurfaceTone;
+  /** Pull to refresh; solo con `scroll`. */
+  refreshControl?: ReactElement<RefreshControlProps>;
 }
 
-export function Screen({ children, scroll = false, edges, tone = "default" }: ScreenProps) {
+export function Screen({
+  children,
+  scroll = false,
+  edges,
+  tone = "default",
+  refreshControl,
+}: ScreenProps) {
   const root = [styles.root, tone === "brand" ? styles.brand : styles.default];
   const statusBar = tone === "brand" ? <StatusBar style="light" /> : null;
   const content = <ToneContext value={tone}>{children}</ToneContext>;
@@ -31,6 +40,7 @@ export function Screen({ children, scroll = false, edges, tone = "default" }: Sc
     <ScrollView
       keyboardShouldPersistTaps="handled"
       automaticallyAdjustKeyboardInsets
+      refreshControl={refreshControl}
       contentContainerStyle={[styles.content, styles.grow]}
     >
       {content}
