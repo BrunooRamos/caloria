@@ -3,6 +3,8 @@ import { loadStorageConfig } from "./storage";
 export const DEFAULT_WORKER_CONCURRENCY = 2;
 // El más eficiente de la familia vigente (GPT-6), con entrada de imagen y structured outputs.
 export const DEFAULT_OPENAI_VISION_MODEL = "gpt-6-luna";
+// El speech-to-text vigente para audios grabados; acepta M4A.
+export const DEFAULT_OPENAI_TRANSCRIPTION_MODEL = "gpt-transcribe";
 
 /**
  * Config del Worker. Aparte de `loadConfig` para que la clave privada de JWT no le llegue
@@ -23,6 +25,8 @@ export function loadWorkerConfig(env = process.env) {
     openai: {
       apiKey: openaiApiKey,
       visionModel: env.OPENAI_VISION_MODEL?.trim() || DEFAULT_OPENAI_VISION_MODEL,
+      transcriptionModel:
+        env.OPENAI_TRANSCRIPTION_MODEL?.trim() || DEFAULT_OPENAI_TRANSCRIPTION_MODEL,
     },
   };
 }
