@@ -17,6 +17,8 @@ export type { InputProps } from "./Input";
 export { Logo } from "./Logo";
 export { OptionGroup } from "./OptionGroup";
 export type { OptionGroupOption, OptionGroupProps } from "./OptionGroup";
+export { ProgressBar } from "./ProgressBar";
+export type { ProgressBarProps } from "./ProgressBar";
 export { Screen } from "./Screen";
 export type { ScreenProps } from "./Screen";
 export { Skeleton } from "./Skeleton";

@@ -17,3 +17,8 @@ export function nextDelay(attempt: number, elapsedMs: number): number {
   if (elapsedMs >= POLLING.slowAfterMs) return POLLING.slowDelayMs;
   return Math.min(POLLING.firstDelayMs * POLLING.factor ** attempt, POLLING.maxDelayMs);
 }
+
+// "inactive" es el paso intermedio de iOS (centro de control, cambio de app): también se pausa.
+// Al arrancar `currentState` puede ser "unknown" o null: cuenta como primer plano.
+export const inBackground = (state: string | null | undefined) =>
+  state === "background" || state === "inactive";

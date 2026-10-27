@@ -96,7 +96,7 @@ describe("al abrir la app", () => {
 
     await act(async () => refreshResponse.resolve(json(200, { ...NEW_TOKENS })));
 
-    expect(await screen.findByText("Sesión iniciada")).toBeOnTheScreen();
+    expect(await screen.findByText("Hoy")).toBeOnTheScreen();
     expect(router.getPathname()).toBe("/");
     expect(rootRoutes(router)).toEqual(["(app)"]);
     // El login nunca llegó a renderizarse, ni siquiera por un frame.
@@ -134,7 +134,7 @@ describe("al abrir la app", () => {
       OLD_TOKENS,
     );
 
-    expect(await screen.findByText("Sesión iniciada")).toBeOnTheScreen();
+    expect(await screen.findByText("Hoy")).toBeOnTheScreen();
     expect(router.getPathname()).toBe("/");
     expect(mockTokenStorage.current()).toEqual(OLD_TOKENS);
   });
@@ -148,7 +148,7 @@ describe("al abrir la app", () => {
     expect(SplashScreen.hide).not.toHaveBeenCalled();
 
     await act(async () => jest.advanceTimersByTime(STARTUP_REFRESH_TIMEOUT_MS));
-    expect(await screen.findByText("Sesión iniciada")).toBeOnTheScreen();
+    expect(await screen.findByText("Hoy")).toBeOnTheScreen();
     expect(SplashScreen.hide).toHaveBeenCalledTimes(1);
 
     // El refresh termina después y el servidor lo rechaza: vuelve al login.
@@ -171,7 +171,7 @@ describe("con la app abierta", () => {
     await fireEvent.changeText(screen.getByLabelText("Contraseña"), "secreto123");
     await fireEvent.press(screen.getByText("Ingresar"));
 
-    expect(await screen.findByText("Sesión iniciada")).toBeOnTheScreen();
+    expect(await screen.findByText("Hoy")).toBeOnTheScreen();
     expect(router.getPathname()).toBe("/");
     expect(calls[0].body).toBe(
       JSON.stringify({ email: "cami@example.com", password: "secreto123" }),
@@ -248,7 +248,7 @@ describe("con la app abierta", () => {
       ),
       OLD_TOKENS,
     );
-    await screen.findByText("Sesión iniciada");
+    await screen.findByText("Hoy");
 
     // El access token vence y el backend ya no acepta el refresh token.
     await mockTokenStorage.set({ accessToken: "access-vencido", refreshToken: "refresh-2" });
