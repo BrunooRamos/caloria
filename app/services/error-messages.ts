@@ -30,6 +30,7 @@ const MESSAGES: Record<ApiErrorCode, ErrorMessage> = {
   PREMIUM_REQUIRED: "Esto es parte del plan premium.",
   NOT_FOUND: "No encontramos lo que buscabas.",
   EMAIL_TAKEN: "Ya hay una cuenta con este email.",
+  MEAL_NOT_READY: "Esta comida todavía no se puede corregir: falta que termine el análisis.",
   PAYLOAD_TOO_LARGE: "El archivo es demasiado pesado.",
   RATE_LIMITED: ({ retryAfterSeconds }) =>
     `Hiciste muchos intentos seguidos. ${retryHint(retryAfterSeconds)}`,
