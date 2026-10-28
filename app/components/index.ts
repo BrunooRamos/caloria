@@ -26,3 +26,5 @@ export type { SkeletonProps } from "./Skeleton";
 export type { SurfaceTone } from "./tone";
 export { Text } from "./Text";
 export type { TextProps } from "./Text";
+export { TextButton } from "./TextButton";
+export type { TextButtonProps } from "./TextButton";

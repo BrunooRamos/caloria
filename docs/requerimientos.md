@@ -63,12 +63,21 @@ Endpoints: `GET /users/me`, `PATCH /users/me`.
 
 #### RF-06 — Correcciones persistentes
 
-- [ ] El usuario puede corregir el plato, agregar / quitar / editar ingredientes y ajustar kcal y macros. (Servidor listo con `PATCH /meals/:id`; falta la pantalla, #25.)
+- [x] El usuario puede corregir el plato, agregar / quitar / editar ingredientes y ajustar kcal y macros, desde el detalle de una comida `ready` ("Corregir").
 - [x] Cada cambio se agrega a `meals.corrections` con campo, valor anterior, valor nuevo y fecha.
-- [ ] Después de corregir, el historial y el dashboard usan los valores corregidos. (El dashboard y `GET /meals/:id` sí; falta el listado, RF-08.)
+- [ ] Después de corregir, el historial y el dashboard usan los valores corregidos. (El detalle, el dashboard y `GET /meals/:id` sí; falta el listado, RF-08.)
 - [x] Una comida de otro usuario devuelve 404.
 
 Endpoint: `PATCH /meals/:id`.
+
+Cómo corrige la app (`app/features/meals/edit/`). Cada corrección alimenta el compounding (RF-07), así que solo se guarda lo que la persona tocó:
+
+- **Rangos:** cada valor es un solo campo numérico (enteros). Un valor exacto aparece escrito; un rango arranca vacío y se ve como placeholder (`150–190 g`). Escribir un número lo guarda como valor exacto (`min` igual a `max`: si la persona lo sabe, ya no hay incertidumbre). Dejarlo vacío deja el valor que había y no se registra corrección. "Rango" abre mínimo y máximo, cargados con el valor actual.
+- **Total de kcal** (`totalKcal`, en `totals.ts`): si la persona lo escribió, se respeta aunque cambien los ingredientes. Si no, y cambiaron las kcal de los ingredientes (se agregó, quitó o editó uno), es la suma de sus mínimos y de sus máximos. Si no cambiaron, o no queda ninguno con kcal, queda el total que había: no se recalcula, porque la IA puede contar cosas que no listó (el aceite, una salsa). Cambiar el nombre o los gramos no lo toca. Borrar el total vuelve a la suma.
+- **Macros:** se ajustan a mano; no se derivan de los ingredientes, que solo tienen gramos y kcal.
+- **Body** (`buildCorrection`): solo los campos que cambiaron, completos (`items` entero, `macros` con los tres). Como el Backend no recalcula, el total que salió de la suma viaja como `kcal`.
+- **Validación:** enteros no negativos, `min ≤ max`, nombres no vacíos y los topes de `correctMealSchema`. Un ingrediente nuevo necesita nombre, gramos y kcal. Los errores se ven en el campo.
+- Quitar un ingrediente se puede deshacer hasta guardar. Salir con cambios sin guardar pide confirmación. Al guardar, el detalle muestra la respuesta del PATCH sin volver a pedir la comida.
 
 #### RF-07 — Compounding
 

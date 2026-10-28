@@ -39,7 +39,7 @@ export function NotFoundState() {
   );
 }
 
-function Notice({
+export function Notice({
   icon: Icon,
   title,
   detail,
