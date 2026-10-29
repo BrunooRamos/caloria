@@ -220,3 +220,29 @@ No te metas con la pantalla de edición de la app (#25), ni con el compounding (
 
 Comentarios cortitos en español como en el resto del repo. Ajustá docs/api.md con lo que quede fiel a lo que hiciste (códigos de error, respuesta 200 con la forma del GET, campos sin cambios que no se registran, los topes), docs/modelo-datos.md si hace falta, docs/arquitectura.md y el README del back, y marcá en RF-06 los checks que queden cumplidos del lado del servidor. Al final corré lint, typecheck y los tests y contame cómo salieron. No commitees, que lo quiero revisar primero.
 ```
+
+## Sesión `e144cf4a-205b-46af-8c1e-6d6209e77f97` · 2026-10-28
+
+### 2026-10-28 21:04
+
+```text
+Estoy en la rama del issue #34, el de elegir el tono en el perfil (mirá qué pide con gh issue view 34 y RF-11 en docs/requerimientos.md). Parte ya está hecha. users.tone existe en models/User.ts con el enum TONES. GET /users/me ya lo devuelve, y la app ya lo tipa en services/users.ts (Me.tone). El Front ya valida tone en el PATCH (front-service/src/schemas/users.ts) y lo reenvía. ReadyState ya muestra meal.comment.text cuando viene. Lo que falta es que el Back acepte el tono y que la app deje elegirlo. Generar el comentario no entra acá: eso es el #33 (prompt, llamada a la IA y meals.comment), así que no toques el worker ni prompts/.
+
+1. El default. RF-11 dice que el default es motivador, pero en models/User.ts quedó default: "neutro" (y auth.test.ts y users.test.ts lo asumen). Pasalo a "motivador" y ajustá esos tests. Los usuarios que ya están guardados con "neutro" no los migres. Si te parece que hace falta una migración, frená y contame.
+
+2. Shared y Back. Hoy updateMeSchema en shared/src/auth/schemas.ts acepta solo profile, así que el Back responde 400 a un PATCH con tone (docs/api.md lo dice: "el Backend responde 400 hasta RF-11"). Sumale tone opcional, con al menos uno de profile o tone, y que siga strict. pushTokens sigue afuera, que es de RF-13. El enum de tonos hoy está repetido en el modelo y en el Front: llevalo a shared como fuente única (TONES y el tipo), y que lo usen models/User.ts, front-service/src/schemas/users.ts y MeResponse.tone. Fijate que el schema del Front siga armándose desde el de shared como hoy.
+   En updateMe (back-service/src/services/users.ts):
+   - Solo tone: un $set del tono, sin leer el perfil y sin recalcular las metas.
+   - Solo profile: queda exacttimista que filtra por el perfil leído.
+   - Los dos: un único update  y tone, con el mismo filtrooptimista, así no queda la mitad guardada.
+   - Responde 200 con la misma
+                                                                                       3. La app. En services/users.tcambiar el tono (PATCH { tone }) al lado de updateProfile, y en useMe algo para guardarlo que actualice el estado con elMe que vuelve. En ProfileScreede "Tus datos", algo como"Comentario de tus comidas", con un OptionGroup y las cuatro opciones, cada una con unadescripción corta en options.tntienda que es humor ácido sobre la comida, nunca sobre vos). "off" se muestra como "Sin comentario" y explica que no   vas a ver comentarios. El tonoue no puede depender del botón"Guardar cambios" ni del formulario del perfil. Se guarda al elegirlo. Mientras se     guarda, el grupo queda deshabil valor anterior y se muestra el error con FormError, mapeado como en el resto de la app. Si te parece mejor otra       interacción (por ejemplo un boué antes de hacerla.Confirmación accesible de que se guardó, con accessibilityLiveRegion como el "Guardamostus cambios…".
+                                                                                       4. El comentario en el resultaState como texto chico entrecomillas. Revisá con la skill si tiene que verse distinto (por ejemplo, en una Card o  con algo que lo identifique coto del análisis), pero sin rojoni tono de alarma. Si no viene comment (tono off o análisis viejo), no se muestra nada,ni un hueco. Lo que el comenta) lo cubre el #33, no lo valides en la app.                                                                             
+Para la UI seguí la skill caloria-design (.claude/skills/caloria-design/SKILL.md):     colores, tamaños, espaciado y da a mano. Accesibilidad: elgrupo con su label, cada opción con su descripción legible por el lector de pantalla y el estado deshabilitado anunci
+                                                                                       Tests:
+- Back, en users.test.ts con mongodb-memory-server: PATCH solo con tone guarda el tono no toca profile ni targets; PArda los dos y recalcula metas;tono inválido → 400 sin tocar nada; un usuario nuevo arranca con motivador; un PATCH detono y uno de perfil concurren
+- Shared: el schema con tone solo, con profile y tone, vacío y con tono inválido.      - Front: que siga pasando lo ds.test.ts con el enum de shared.
+- App, en __tests__/profile-screens.test.tsx con jest-expo y el fakeFetch: la opción   actual viene marcada; elegir o queda marcada; si el PATCHfalla, vuelve a la anterior y se ve el error; elegir el tono no manda profile ni toca eformulario. En meal-result.tes sin comment no hay nada.
+                                                                                       No te metas con generar el comst.md (#33), ni con pushTokens(RF-13), ni con el compounding (#30), ni con attempts (#35).                           
+Comentarios cortitos en español como en el resto del repo. Actualizá docs/api.md (sacá lo de "el Backend responde 400qué hace el PATCH con tone,también si va solo), docs/modelo-datos.md (el default motivador), el README del back si menciona el PATCH, y marcá en l tono si queda cumplido. Alfinal corré lint, typecheck y los tests de shared, front, back y app, y contame cómo salieron. No commitees, que lo quiero revisar primero.
+```

@@ -165,7 +165,7 @@ describe("back-service: POST /auth/register y /auth/login", () => {
     await register();
     const stored = await User.findOne({ email: "cami@example.com" }).lean();
     assert.deepEqual(stored?.targets, computeTargets(profile as never));
-    assert.equal(stored?.tone, "neutro");
+    assert.equal(stored?.tone, "motivador");
     assert.equal(stored?.usage.analyses, 0);
     assert.deepEqual(stored?.pushTokens, []);
   });

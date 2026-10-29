@@ -23,13 +23,14 @@ profile: {
   timezone: string            // ej. "America/Montevideo"; define el "día" del usuario
 }
 targets: { kcal: number; proteinG: number; carbsG: number; fatG: number }   // recalculadas al editar profile
-tone: "motivador" | "neutro" | "roast" | "off"
+tone: "motivador" | "neutro" | "roast" | "off"   // default "motivador"; "off" no genera comentario (RF-11)
 plan: { tier: "free" | "premium"; since: Date; renewsAt?: Date }
 usage: { month: string; analyses: number }   // "2026-10"; se reinicia al cambiar de mes
 pushTokens: string[]
 sessions: { tokenHash: string; family: string; expiresAt: Date; rotatedAt?: Date; revokedAt?: Date }[]
 ```
 
+- `tone` arranca en `motivador`. Las cuentas creadas antes con `neutro` (el default anterior) no se migran: es un tono válido y se cambia desde el perfil.
 - `sessions.tokenHash` es el SHA-256 del refresh (nunca el token) y tiene índice: `/auth/refresh` y `/auth/logout` buscan por ahí.
 - Los refresh rotados (`rotatedAt`) y revocados (`revokedAt`) no se borran hasta que vencen: así un reuso se distingue de un token inventado.
 - En cada escritura de `sessions` se descartan las vencidas y se aplican dos topes: 10 sesiones activas y 100 rotadas o revocadas; al pasarlos se descartan las más viejas.

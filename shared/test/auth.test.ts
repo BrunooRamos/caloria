@@ -10,6 +10,8 @@ import {
   loginSchema,
   refreshSchema,
   registerSchema,
+  TONES,
+  updateMeSchema,
   verifyAccessToken,
 } from "../src";
 
@@ -100,6 +102,33 @@ describe("loginSchema", () => {
   it("rechaza claves desconocidas", () => {
     const extra = { email: "a@b.co", password: "x", remember: true };
     assert.equal(loginSchema.safeParse(extra).success, false);
+  });
+});
+
+describe("updateMeSchema", () => {
+  const ok = (body: unknown) => assert.equal(updateMeSchema.safeParse(body).success, true);
+  const rejected = (body: unknown) =>
+    assert.equal(updateMeSchema.safeParse(body).success, false, JSON.stringify(body));
+
+  it("acepta el tono solo, el perfil solo o los dos juntos", () => {
+    for (const tone of TONES) ok({ tone });
+    ok({ profile: { weightKg: 58 } });
+    ok({ profile: { weightKg: 58, goal: "lose" }, tone: "roast" });
+  });
+
+  it("rechaza body vacío, perfil vacío, tonos inválidos y campos que no son de RF-11", () => {
+    for (const body of [
+      {},
+      { profile: {} },
+      { profile: {}, tone: "roast" },
+      { tone: "sarcastico" },
+      { tone: "Motivador" },
+      { tone: null },
+      { tone: "neutro", pushTokens: [] },
+      { tone: "neutro", plan: "premium" },
+    ]) {
+      rejected(body);
+    }
   });
 });
 
