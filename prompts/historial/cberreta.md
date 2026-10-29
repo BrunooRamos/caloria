@@ -161,3 +161,22 @@ Las correcciones (RF-06) vienen después, pero dejá pensado dónde va a ir el a
 
 Me gustaría que haya tests de la función de formato de rangos, del mapeo de confianza y del hook de polling con timers falsos, que cubran que se corta al terminar y se pausa en segundo plano. Antes de arrancar, contame cómo lo pensás encarar, en especial lo del polling y los umbrales de confianza, y esperá mi OK. Al final, pasame un resumen y cómo pruebo los tres estados a mano.
 ```
+### 2026-10-27 10:37
+
+```text
+Ahora toca la pantalla para corregir un análisis. Cada corrección que guarda la persona alimenta el compounding (RF-07), así que lo que pongamos acá define qué tan buenos van a ser los análisis futuros. Por eso quiero que corregir sea rápido y que lo que se guarde sea preciso. Hacelo en una rama nueva, `feat/rf-06-edit-meal`.
+
+Hay que poder cambiar el nombre del plato, agregar, quitar y editar ingredientes, y ajustar las kcal y los macros. Al guardar, se manda un `PATCH /meals/:id` y la pantalla de detalle se actualiza con los valores nuevos. Leé RF-06 y RF-07 en `docs/requerimientos.md`, la parte de `PATCH` en `docs/api.md` y la collection `meals` en `docs/modelo-datos.md`, y como siempre, la skill `caloria-design` para lo visual.
+
+Lo primero que quiero que mires es el Backend: el `PATCH /meals/:id` ya existe, fiajte qué campos acepta y en qué formato, sobre todo los ingredientes (si se manda la lista completa o cambios sueltos). El historial de `corrections` lo arma el Backend; la app solo manda los valores nuevos, y solo de los campos que cambiaron.
+
+Después está el tema de cómo editar rangos sin que sea un trámite. Cada valor es un `{ min, max }`, y pedirle a alguien que edite dos números por cada ingrediente es mucho. Pensá una forma más simple: por ejemplo, que se pueda escribir un único valor (que se guarda con `min` igual a `max`, porque si la persona lo sabe, ya no hay incertidumbre) y que el rango completo quede como opción para quien lo quiera. Proponeme cómo lo resolverías antes de implementarlo.
+
+También hay que definir cómo se relacionan los ingredientes con los totales. Si alguien agrega o quita un ingrediente, lo natural es que las kcal totales se ajusten solas sumando los ingredientes, salvo que la persona haya editado el total a mano, en cuyo caso se respeta lo que puso. Los macros no se pueden derivar de los ingredientes, porque cada ingrediente solo tiene gramos y kcal, así que esos se ajustan a mano. Dejá esa lógica en funciones puras, separadas de la pantalla, y contame la regla que elegiste para documentarla.
+
+En lo práctico: los números se cargan con teclado numérico y son enteros; un valor no puede ser negativo y el mínimo no puede pasar al máximo; el nombre del plato y de cada ingrediente no puede quedar vacío. Los errores se muestran en el campo, como en las pantallas de auth. Quitar un ingrediente tiene que poder deshacerse, o pedir confirmación, y el botón de quitar no va en rojo, porque la skill reserva `danger` para errores técnicos. Solo se puede editar una comida en estado `ready`. Si la persona intenta salir con cambios sin guardar, preguntale si quiere descartarlos. El botón de guardar queda deshabilitado mientras no haya cambios, pasa a loading mientras guarda, y si la API falla, se muestra el error con el mapeo que ya tenemos sin perder lo que se cargó.
+
+Al guardar bien, volvé al detalle y asegurate de que muestre los datos nuevos sin esperar al próximo polling ni reabrir la pantalla.
+
+Me gustaría que tengan tests la lógica de totales, el armado del body con solo los campos que cambiaron y la validación. Contame primero cómo pensás resolver la edición de rangos y la regla de totales, y esperá mi OK antes de implementar. Al terminar, pasame un resumen y cómo lo pruebo, incluyendo verificar en la base que las correcciones quedaron registradas.
+```

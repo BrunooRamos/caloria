@@ -1,5 +1,6 @@
+import { router } from "expo-router";
 import { StyleSheet, View } from "react-native";
-import { Card, ConfidenceBadge, Text } from "@/components";
+import { Button, Card, ConfidenceBadge, Text } from "@/components";
 import type { ReadyMeal } from "@/services/meals";
 import { spacing } from "@/theme";
 import { confidenceLevel } from "../confidence";
@@ -59,7 +60,12 @@ export function ReadyState({ meal }: { meal: ReadyMeal }) {
         </Text>
       )}
 
-      {/* acá va el acceso para corregir el plato, los ingredientes, las kcal y los macros. */}
+      <Button
+        variant="secondary"
+        title="Corregir"
+        accessibilityHint="Cambiá el plato, los ingredientes, las kcal o los macros."
+        onPress={() => router.push({ pathname: "/meals/[id]/edit", params: { id: meal.id } })}
+      />
     </>
   );
 }

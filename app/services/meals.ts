@@ -41,6 +41,12 @@ export interface ReadyMeal extends MealBase {
   comment?: { tone: string; text: string };
 }
 
+/** Lo que se puede corregir de una comida lista. */
+export type MealValues = Pick<ReadyMeal, "dish" | "items" | "kcal" | "macros">;
+
+/** Body de `PATCH /meals/:id`: los campos que cambiaron, cada uno completo. */
+export type MealCorrection = Partial<MealValues>;
+
 export interface FailedMeal extends MealBase {
   status: "failed";
   /** `NOT_FOOD`, `ENQUEUE_FAILED`, `ANALYSIS_FAILED` o uno que esta versión de la app no conoce. */
@@ -79,4 +85,9 @@ export function listMealsByDay(
 /** `DELETE /meals/:id`: 204 sin cuerpo; 404 si no existe o es de otro usuario. */
 export function deleteMeal(id: string): Promise<void> {
   return api.delete(`/meals/${encodeURIComponent(id)}`);
+}
+
+/** `PATCH /meals/:id`: devuelve la comida con las correcciones aplicadas. */
+export function correctMeal(id: string, body: MealCorrection): Promise<ReadyMeal> {
+  return api.patch<ReadyMeal>(`/meals/${encodeURIComponent(id)}`, body);
 }

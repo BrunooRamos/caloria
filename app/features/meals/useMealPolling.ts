@@ -3,6 +3,7 @@ import { AppState } from "react-native";
 import { ApiError } from "@/services/api-error";
 import { getMeal } from "@/services/meals";
 import type { Meal } from "@/services/meals";
+import { useCachedMeal, useMealCache } from "@/store/meals";
 import { inBackground, nextDelay, POLLING } from "./polling";
 
 export interface MealPolling {
@@ -25,9 +26,13 @@ export interface MealPolling {
  * siguiente se agenda cuando termina el anterior. Con `enabled: false` (la pantalla perdió el
  * foco) o la app en segundo plano se pausa y cancela el pedido en vuelo; al volver consulta enseguida
  * y sigue desde el mismo intervalo.
+ *
+ * La comida queda en el store de comidas mientras el hook está montado: una corrección guardada
+ * desde otra pantalla se ve acá sin volver a consultar.
  */
 export function useMealPolling(id: string, { enabled = true } = {}): MealPolling {
-  const [meal, setMeal] = useState<Meal | null>(null);
+  const cache = useMealCache();
+  const meal = useCachedMeal(id);
   const [notFound, setNotFound] = useState(false);
   const [slow, setSlow] = useState(false);
   const [stalled, setStalled] = useState(false);
@@ -52,6 +57,9 @@ export function useMealPolling(id: string, { enabled = true } = {}): MealPolling
     };
   }, []);
 
+  // Al cerrar la pantalla se olvida: la próxima vez que se abra, se consulta de nuevo.
+  useEffect(() => () => cache.delete(id), [cache, id]);
+
   const finished = notFound || meal?.status === "ready" || meal?.status === "failed";
   const active = enabled && foreground && !finished && !stalled;
 
@@ -65,7 +73,7 @@ export function useMealPolling(id: string, { enabled = true } = {}): MealPolling
       try {
         const next = await getMeal(id, controller.signal);
         if (cancelled) return;
-        setMeal(next);
+        cache.set(id, next);
         setConnectionIssue(false);
         if (next.status !== "processing") return;
       } catch (err) {
@@ -92,7 +100,7 @@ export function useMealPolling(id: string, { enabled = true } = {}): MealPolling
       controller.abort();
       clearTimeout(timer);
     };
-  }, [active, id, restart]);
+  }, [active, cache, id, restart]);
 
   const refresh = useCallback(() => {
     if (stalled) {
@@ -107,10 +115,10 @@ export function useMealPolling(id: string, { enabled = true } = {}): MealPolling
     // Comida terminada: una sola consulta, para renovar la photoUrl.
     getMeal(id)
       .then((next) => {
-        if (mounted.current) setMeal(next);
+        if (mounted.current) cache.set(id, next);
       })
       .catch(() => {});
-  }, [finished, id, stalled]);
+  }, [cache, finished, id, stalled]);
 
   return { meal, notFound, slow, stalled, connectionIssue, refresh };
 }

@@ -17,6 +17,8 @@ export interface InputProps extends Omit<TextInputProps, "style" | "placeholderT
   hint?: string;
   /** Con `secureTextEntry`: el placeholder mientras se muestra lo escrito. */
   revealedPlaceholder?: string;
+  /** No muestra el label, que sigue llegando al lector de pantalla: lo dibuja quien arma el campo. */
+  hideLabel?: boolean;
   ref?: Ref<TextInputInstance>;
 }
 
@@ -33,6 +35,7 @@ export function Input({
   hint,
   placeholder,
   revealedPlaceholder,
+  hideLabel = false,
   secureTextEntry = false,
   onFocus,
   onBlur,
@@ -48,9 +51,11 @@ export function Input({
 
   return (
     <View style={styles.field}>
-      <Text variant="smallStrong" color={textColors[tone].label}>
-        {label}
-      </Text>
+      {!hideLabel && (
+        <Text variant="smallStrong" color={textColors[tone].label}>
+          {label}
+        </Text>
+      )}
       <View
         style={[
           styles.box,
