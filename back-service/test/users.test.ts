@@ -87,7 +87,7 @@ describe("back-service: GET y PATCH /users/me", () => {
     assert.equal(me.email, "cami@example.com");
     assert.deepEqual(me.profile, profile);
     assert.deepEqual(me.targets, computeTargets(profile));
-    assert.equal(me.tone, "neutro");
+    assert.equal(me.tone, "motivador");
     assert.equal(me.plan.tier, "free");
     assert.ok(!Number.isNaN(Date.parse(me.plan.since)));
     assert.deepEqual(Object.keys(me).sort(), ["email", "id", "plan", "profile", "targets", "tone"]);
@@ -150,6 +150,65 @@ describe("back-service: GET y PATCH /users/me", () => {
       const res = await patchMe({ profile: changes });
       assert.equal(res.status, 200, JSON.stringify(changes));
     }
+  });
+
+  it("PATCH con solo el tono lo guarda y no toca el perfil ni las metas", async () => {
+    for (const tone of ["roast", "off", "neutro", "motivador"] as const) {
+      const res = await patchMe({ tone });
+      assert.equal(res.status, 200, tone);
+      const me = (await res.json()) as MeResponse;
+      assert.equal(me.tone, tone);
+      assert.deepEqual(me.profile, profile);
+      assert.deepEqual(me.targets, computeTargets(profile));
+      const stored = await User.findById(userId).lean();
+      assert.equal(stored?.tone, tone);
+      assert.deepEqual(stored?.profile, profile);
+      assert.deepEqual(stored?.targets, computeTargets(profile));
+    }
+  });
+
+  it("PATCH con perfil y tono guarda los dos y recalcula las metas", async () => {
+    const res = await patchMe({ profile: { weightKg: 80 }, tone: "roast" });
+    assert.equal(res.status, 200);
+    const me = (await res.json()) as MeResponse;
+    assert.equal(me.tone, "roast");
+    assert.deepEqual(me.targets, computeTargets({ ...profile, weightKg: 80 }));
+    assert.equal((await User.findById(userId).lean())?.tone, "roast");
+  });
+
+  it("PATCH con un tono inválido o con pushTokens → 400 y no toca nada", async () => {
+    for (const body of [
+      { tone: "sarcastico" },
+      { tone: null },
+      { tone: "OFF" },
+      { profile: { weightKg: 80 }, tone: "malo" },
+      { pushTokens: ["ExponentPushToken[abc]"] },
+      { tone: "roast", pushTokens: [] },
+    ]) {
+      const res = await patchMe(body);
+      assert.equal(res.status, 400, JSON.stringify(body));
+      assert.equal(await codeOf(res), "VALIDATION_ERROR");
+    }
+    const stored = await User.findById(userId).lean();
+    assert.equal(stored?.tone, "motivador");
+    assert.deepEqual(stored?.profile, profile);
+  });
+
+  it("un PATCH de tono simultáneo con uno de perfil no pisa ninguno de los dos", async () => {
+    const responses = await Promise.all([
+      patchMe({ profile: { weightKg: 90 } }),
+      patchMe({ tone: "roast" }),
+      patchMe({ profile: { goal: "gain" } }),
+    ]);
+    assert.deepEqual(
+      responses.map((res) => res.status),
+      [200, 200, 200],
+    );
+    const stored = await User.findById(userId).lean();
+    const expectedProfile = { ...profile, weightKg: 90, goal: "gain" } as const;
+    assert.equal(stored?.tone, "roast");
+    assert.deepEqual(stored?.profile, expectedProfile);
+    assert.deepEqual(stored?.targets, computeTargets(expectedProfile));
   });
 
   it("PATCH vacío, con campos desconocidos o sin JSON válido → 400", async () => {

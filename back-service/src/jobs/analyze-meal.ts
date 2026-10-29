@@ -1,10 +1,17 @@
+import type { Types } from "mongoose";
+import { serializeError } from "@caloria/shared";
 import type { Logger, MealErrorCode } from "@caloria/shared";
 import { MealModel } from "../models/Meal";
 import type { Meal } from "../models/Meal";
+import { UserModel } from "../models/User";
+import type { User } from "../models/User";
+import { InvalidCommentResponseError } from "../services/comment";
+import type { CommentService } from "../services/comment";
+import { isBlockedComment } from "../services/comment-safety";
 import type { TranscriptionService } from "../services/transcription";
 import { toVisionImage } from "../services/vision-image";
 import { InvalidVisionResponseError } from "../services/vision";
-import type { VisionService } from "../services/vision";
+import type { FoodAnalysis, VisionService } from "../services/vision";
 import type { AnalyzeMeal } from "./meal-analysis-processor";
 
 /** `error.code` de una meal cuya foto no es comida. Termina sin reintento y no consume cupo. */
@@ -13,7 +20,11 @@ export const NOT_FOOD = "NOT_FOOD" satisfies MealErrorCode;
 export interface AnalyzeMealDeps {
   vision: VisionService;
   transcriber: TranscriptionService;
+  commenter: CommentService;
 }
+
+/** Qué pasó con el comentario, para el log. */
+export type CommentOutcome = "ok" | "off" | "not_food" | "invalid" | "failed" | "blocked";
 
 /** `saved: false` si la meal dejó de estar en processing mientras se transcribía. */
 type TranscriptResult = { saved: boolean; transcript?: string };
@@ -56,11 +67,69 @@ async function transcribeOnce(
 }
 
 /**
- * Analiza la foto (más la transcripción y la nota, si hay) con la IA y deja la meal en `ready`
- * o en `failed` (NOT_FOOD). Si la transcripción falla o la respuesta no pasa zod, lanza:
- * BullMQ reintenta y la meal sigue en processing.
+ * Genera el comentario en el tono del dueño de la meal. Nunca lanza: si falla, la meal queda
+ * ready sin comentario y no se reintenta (no se vuelve a pagar la visión por un comentario).
  */
-export function createAnalyzeMeal({ vision, transcriber }: AnalyzeMealDeps): AnalyzeMeal {
+async function commentOnce(
+  userId: Types.ObjectId,
+  { dish, items, kcal, macros }: FoodAnalysis,
+  commenter: CommentService,
+  log: Logger,
+): Promise<Meal["comment"]> {
+  const { model, promptVersion } = commenter;
+  const started = performance.now();
+  // El texto del comentario no va al log: solo el largo.
+  const done = (result: CommentOutcome, fields: Record<string, unknown> = {}) => {
+    const level = result === "ok" ? "info" : "warn";
+    log[level]("comentario de la IA", {
+      ...fields,
+      model,
+      promptVersion,
+      durationMs: Math.round(performance.now() - started),
+      result,
+    });
+  };
+
+  let tone: User["tone"] | undefined;
+  try {
+    // Solo el tono: del perfil no se lee nada más.
+    const user = await UserModel.findById(userId, { tone: 1 }).lean<Pick<User, "tone">>();
+    tone = user?.tone;
+    if (!tone || tone === "off") {
+      log.info("comentario de la IA", { tone: tone ?? null, result: "off" });
+      return undefined;
+    }
+    const { text, usage } = await commenter.comment({
+      tone,
+      analysis: { dish, items, kcal, macros },
+    });
+    if (isBlockedComment(text)) {
+      done("blocked", { tone, usage, chars: text.length });
+      return undefined;
+    }
+    done("ok", { tone, usage, chars: text.length });
+    return { tone, text };
+  } catch (err) {
+    if (err instanceof InvalidCommentResponseError) {
+      done("invalid", { tone, usage: err.usage, issues: err.issues });
+    } else {
+      done("failed", { tone, err: serializeError(err) });
+    }
+    return undefined;
+  }
+}
+
+/**
+ * Analiza la foto (más la transcripción y la nota, si hay) con la IA y deja la meal en `ready`
+ * (con el comentario, si el usuario tiene un tono activo) o en `failed` (NOT_FOOD). Si la
+ * transcripción falla o la respuesta no pasa zod, lanza: BullMQ reintenta y la meal sigue en
+ * processing. Si falla el comentario, no.
+ */
+export function createAnalyzeMeal({
+  vision,
+  transcriber,
+  commenter,
+}: AnalyzeMealDeps): AnalyzeMeal {
   return async ({ meal, photo, audio }, log) => {
     // La transcripción corre en paralelo con la conversión de la foto (RNF-01). allSettled
     // espera a las dos: si la foto falla, la transcripción igual queda guardada para el reintento.
@@ -103,9 +172,19 @@ export function createAnalyzeMeal({ vision, transcriber }: AnalyzeMealDeps): Ana
     const elapsedMs = durationMs();
 
     const { model, promptVersion } = result;
-    const update = result.isFood
-      ? { status: "ready", analysis: { ...result.analysis, promptVersion, model } }
-      : { status: "failed", error: { code: NOT_FOOD } };
+    let update;
+    if (result.isFood) {
+      const comment = await commentOnce(meal.userId, result.analysis, commenter, log);
+      update = {
+        status: "ready",
+        analysis: { ...result.analysis, promptVersion, model },
+        ...(comment && { comment }),
+      };
+    } else {
+      // Solo se comenta lo que es comida.
+      log.info("comentario de la IA", { result: "not_food" });
+      update = { status: "failed", error: { code: NOT_FOOD } };
+    }
     // Solo si sigue en processing: un job repetido no pisa una meal que ya cambió.
     const { matchedCount } = await MealModel.updateOne(
       { _id: meal._id, status: "processing" },

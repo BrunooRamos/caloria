@@ -6,6 +6,6 @@
 app
 docs
 infra
-# De prompts/ solo entran los que usa el Worker.
-prompts/*
-!prompts/analisis-comida.md
+# prompts/ de la raíz es el registro de prompts del equipo: no va a la imagen.
+# Los del Worker viven en back-service/prompts/ y entran con el resto de back-service/.
+/prompts

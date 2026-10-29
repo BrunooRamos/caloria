@@ -220,3 +220,40 @@ No te metas con la pantalla de edición de la app (#25), ni con el compounding (
 
 Comentarios cortitos en español como en el resto del repo. Ajustá docs/api.md con lo que quede fiel a lo que hiciste (códigos de error, respuesta 200 con la forma del GET, campos sin cambios que no se registran, los topes), docs/modelo-datos.md si hace falta, docs/arquitectura.md y el README del back, y marcá en RF-06 los checks que queden cumplidos del lado del servidor. Al final corré lint, typecheck y los tests y contame cómo salieron. No commitees, que lo quiero revisar primero.
 ```
+
+## Sesión `eeaef936-9451-47e7-8b40-570128054c01` · 2026-10-28
+
+### 2026-10-28 21:00
+
+```text
+Estoy en la rama del issue #33, el del comentario por tono y las reglas de contenido responsable (mirá qué pide con gh issue view 33, RF-11 y RNF-10 en docs/requerimientos.md). Buena parte de la base ya existe. En models/User.ts está tone con TONES (motivador, neutro, roast, off). En models/Meal.ts está comment { tone, text }. toMealResponse ya lo devuelve, y si no hay comentario no viene. ReadyState en la app ya lo muestra. El worker del #18 y el #23 deja la meal en ready o en failed (NOT_FOOD) desde createAnalyzeMeal (jobs/analyze-meal.ts). Lo que falta es generar el comentario y que el usuario pueda guardar su tono. No cambies la forma de comment ni del documento sin avisarme.
+
+1. El prompt. Creá prompts/roast.md con autor, versión y fecha en el frontmatter, igual que analisis-comida.md. El worker lo lee una sola vez al arrancar, y si falta el archivo o no tiene versión, no arranca. Generalizá loadAnalysisPrompt (config/analysis-prompt.ts) en vez de copiarlo. Tiene que cubrir los tres tonos: motivador (alienta sin exagerar), neutro (un dato o una observación sin juicio) y roast (gracioso y picante con el plato, nunca con la persona). Un solo comentario de hasta 200 caracteres, en español rioplatense. Y lo más importante (RNF-10): nada sobre el cuerpo, el peso o la apariencia, nada que incentive la restricción (saltear comidas, "compensar", culpa, "te pasaste") y nada de consejos médicos. Esto vale también en roast y aunque el plato tenga muchas kcal o muy pocas. El roast se burla del plato, no de lo que comió la persona ni de cuánto.
+
+2. El service. Ponelo en services/, separado de vision.ts, detrás de una interfaz chica que reciba el tono y el análisis y devuelva el texto. Así los tests usan un fake y nunca le pegan a OpenAI. Mandale solo lo que hace falta del análisis (dish, items, kcal, macros). Nada de la foto, la nota, el transcript, las metas ni el perfil del usuario: no los necesita, y así no hay de bre el cuerpo ni instruccionesinyectadas. Usá structured outputs y validá igual con zod: texto no vacío y de 200 caracteres como máximo. Si vieno lo cortes a mano. Poneletimeout corto (ojo con RNF-01, que este llamado va después de la visión) y maxRetries:
+0, como los otros.
+
+3. La config. OPENAI_TEXT_MODEon un default vigente, igual que los otros dos modelos (fijate en la doc de OpenAI cuál conviene para un texto corto y
+barato; no lo escribas de memoel back. Sumala alinfra/.env.example y al servicio worker del compose. La clave y la red de salida son las
+mismas. En docs/requerimientos1 con el modelo de texto.
+
+4. El flujo, en createAnalyzeM
+   - Leé el tone del usuario dueño de la meal (solo ese campo). Si es off o el usuario no aparece, no se llama a la Ient.
+   - Solo se comenta lo que es comida. Con NOT_FOOD no hay llamada.                         - El comentario se genera duarda en el mismo updateOne quepasa la meal a ready ({ tone, text }), con el mismo filtro status: "processing".            - Si el comentario falla (tzod lo rechaza), la meal igualqueda ready sin comment, sin reintento: no vamos a volver a pagar la visión por un       comentario. Logueá un warn. Si, frená y contame.
+   - Sumá un filtro chico de seguridad: si el texto menciona peso, cuerpo o apariencia   (una lista corta de términos, rueba), se descarta como sihubiera fallado. Es una red, no el control principal, que es el prompt.                 
+5. Elegir el tono. Hoy el PATCH /users/me del Back responde 400 con tone porque          updateMeSchema de shared no lo lo valida y lo reenvía. PasáTONES a shared, sumá tone a updateMeSchema y que el Front use ese en vez de su copia. En el Back, que updateMe guarde etone no tiene que tocar lasmetas ni romper el control de concurrencia que ya tiene. pushTokens sigue respondiendo 400 hasta RF-13. Ojo: el defauneutro", pero RF-11 dicemotivador. Pasalo a motivador y avisame si eso afecta algo más (docs, tests, ede api.md).
+                                                                              6. Logs. Usá el logger del jobr tono, modelo, promptVersion de roast.md, cuánto tardó, el usage, el largo en caracteres y el resultado (ok, onot_food, invalid, failed o blexto del comentario no va allog.                                                                          
+7. El set de comidas "problemáticas". Armá un fixture con análisis que invitenpasarse: un plato de más de 25ma de 80 kcal, un café solo, una porción doble de postre, comida rápida, un plato con mucha grasa. Dos cosas:     - Tests con el fake que usaujo y el filtro de seguridad.
+   - Un script en scripts/ que corra el set con los tres tonos contra OpenAI d(solo si hay OPENAI_API_KEY), lista de términos prohibidos yque imprima los comentarios para revisarlos a mano. No va al CI. Documentá cómen el README del back.
+                                                                              Tests con mongodb-memory-serveun fake del comentario:
+- tono activo: la meal queda ready con comment { tone, text } y el comentador solo el análisis;
+- tono off: no se llama al comentador y no hay comment;                       - NOT_FOOD: no se llama al com
+- el comentador falla o devuelve más de 200 caracteres: queda ready sin commen- el filtro descarta un texto
+- meal que cambió de estado: no se pisa;                                      - la carga de roast.md (sin verkerConfig con el modelo detexto por defecto y con override;                                             - un test del service con fetca foto, nota ni transcript);
+- PATCH /users/me con tone en back y front, solo tone sin tocar las metas, y uinválido da 400.
+Ninguno le pega a OpenAI de verdad.                                           
+No te metas con la pantalla para elegir el tono en la app, ni con los insightsWrapped (RF-12), ni con el comempts (#35), ni con los push. No se regenera el comentario cuando el usuario corrige con el PATCH /meals/:id.
+ 
+Comentarios cortitos en español como en el resto del repo. Actualizá docs/api.en el PATCH /users/me, el defaltar aunque el tono estéactivo), docs/modelo-datos.md, docs/arquitectura.md (el paso 6 ya menciona el comentario, que quede fiel a l del back, y marcá en RF-11 loschecks que queden cumplidos. Fijate que el CI no necesite ninguna variable nueva. Al final corré lint, typecheck y alieron. No commitees, que loquiero revisar primero. 
+```
+

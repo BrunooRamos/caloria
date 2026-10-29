@@ -1,12 +1,13 @@
 import mongoose from "mongoose";
 import { createLogger, serializeError } from "@caloria/shared";
-import { loadAnalysisPrompt } from "./config/analysis-prompt";
+import { ANALYSIS_PROMPT_PATH, COMMENT_PROMPT_PATH, loadPrompt } from "./config/prompts";
 import { loadWorkerConfig } from "./config/worker";
 import { connectMongo } from "./config/db";
 import { createAnalyzeMeal } from "./jobs/analyze-meal";
 import { MEAL_ANALYSIS_QUEUE } from "./jobs/meal-analysis";
 import { createMealAnalysisProcessor } from "./jobs/meal-analysis-processor";
 import { createMealAnalysisWorker } from "./jobs/meal-analysis-worker";
+import { createOpenAiCommenter } from "./services/comment";
 import { createMediaService } from "./services/media";
 import { createOpenAiTranscription } from "./services/transcription";
 import { createOpenAiVision } from "./services/vision";
@@ -15,8 +16,9 @@ const logger = createLogger({ service: "worker" });
 
 async function main() {
   const config = loadWorkerConfig();
-  // Se lee una sola vez: sin archivo o sin versión, el worker no arranca.
-  const prompt = loadAnalysisPrompt();
+  // Se leen una sola vez: sin archivo o sin versión, el worker no arranca.
+  const prompt = loadPrompt(ANALYSIS_PROMPT_PATH);
+  const commentPrompt = loadPrompt(COMMENT_PROMPT_PATH);
   await connectMongo(config.mongoUri);
 
   const vision = createOpenAiVision({
@@ -28,12 +30,17 @@ async function main() {
     apiKey: config.openai.apiKey,
     model: config.openai.transcriptionModel,
   });
+  const commenter = createOpenAiCommenter({
+    apiKey: config.openai.apiKey,
+    model: config.openai.textModel,
+    prompt: commentPrompt,
+  });
   const worker = createMealAnalysisWorker({
     redisUrl: config.redisUrl,
     concurrency: config.concurrency,
     processor: createMealAnalysisProcessor({
       media: createMediaService(config.storage),
-      analyze: createAnalyzeMeal({ vision, transcriber }),
+      analyze: createAnalyzeMeal({ vision, transcriber, commenter }),
     }),
     logger,
   });
@@ -63,6 +70,8 @@ async function main() {
     model: config.openai.visionModel,
     transcriptionModel: config.openai.transcriptionModel,
     promptVersion: prompt.version,
+    textModel: config.openai.textModel,
+    commentPromptVersion: commentPrompt.version,
   });
 }
 

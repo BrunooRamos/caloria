@@ -38,7 +38,18 @@ export function createUserService(): UserService {
       return toMe(user);
     },
 
-    async updateMe(userId, { profile: changes }) {
+    async updateMe(userId, { profile: changes, tone }) {
+      // Solo el tono: un $set atómico que no toca el perfil ni las metas.
+      if (!changes) {
+        const updated = await UserModel.findByIdAndUpdate(
+          userId,
+          { $set: { tone } },
+          { new: true, projection: ME_FIELDS, runValidators: true },
+        ).lean<MeFields>();
+        if (!updated) throw new AppError("UNAUTHORIZED");
+        return toMe(updated);
+      }
+
       for (let attempt = 0; attempt < MAX_UPDATE_ATTEMPTS; attempt++) {
         const current = await UserModel.findById(userId, { profile: 1 }).lean<
           Pick<User, "profile">
@@ -51,7 +62,7 @@ export function createUserService(): UserService {
         );
         const updated = await UserModel.findOneAndUpdate(
           { _id: userId, ...unchanged },
-          { $set: { profile, targets: computeTargets(profile) } },
+          { $set: { profile, targets: computeTargets(profile), ...(tone && { tone }) } },
           { new: true, projection: ME_FIELDS },
         ).lean<MeFields>();
         if (updated) return toMe(updated);

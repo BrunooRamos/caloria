@@ -115,7 +115,7 @@ Authorization: Bearer <accessToken>
   "profile": { "sex": "female", "birthDate": "2002-04-10", "heightCm": 165, "weightKg": 60,
                "activity": "moderate", "goal": "maintain", "timezone": "America/Montevideo" },
   "targets": { "kcal": 2093, "proteinG": 108, "carbsG": 285, "fatG": 58 },
-  "tone": "neutro",
+  "tone": "motivador",
   "plan": { "tier": "free", "since": "2026-10-14T19:00:00.000Z" }
 }
 ```
@@ -128,12 +128,13 @@ Content-Type: application/json
 { "profile": { "weightKg": 58, "goal": "lose" }, "tone": "roast" }
 ```
 
-Devuelve 200 con la misma forma que `GET`, con las metas ya recalculadas.
+Devuelve 200 con la misma forma que `GET`, con las metas ya recalculadas si cambió el perfil.
 
 - El body lleva al menos uno de `profile`, `tone` y `pushTokens`.
 - En `profile` van solo los campos que cambian, con los mismos rangos que el registro. Fuera de rango, sin ningún campo o con un campo desconocido → 400 `VALIDATION_ERROR`.
-- `tone`: `motivador`, `neutro`, `roast` u `off` (RF-11). `pushTokens`: hasta 10 tokens de Expo sin repetir, `ExponentPushToken[…]` o `ExpoPushToken[…]` (RF-13).
-- Por ahora el Backend implementa solo `profile`: a `tone` y `pushTokens` el Front los valida y los reenvía, y el Backend responde 400 hasta RF-11 y RF-13.
+- `tone`: `motivador`, `neutro`, `roast` u `off` (RF-11). Por defecto, `motivador`. Con `off` no se genera el comentario de las comidas. Cambiar solo el tono no toca el perfil ni las metas. Otro valor → 400 `VALIDATION_ERROR`.
+- `pushTokens`: hasta 10 tokens de Expo sin repetir, `ExponentPushToken[…]` o `ExpoPushToken[…]` (RF-13). Por ahora el Front los valida y los reenvía, y el Backend responde 400 hasta RF-13.
+- El tono vale para las comidas que se analicen después: no se regeneran los comentarios de antes.
 - Las metas se recalculan en cada PATCH con la fórmula de [modelo-datos.md](modelo-datos.md#cálculo-de-metas-rf-02). Si dos PATCH llegan a la vez, ninguno pisa los cambios del otro y las metas guardadas corresponden siempre al perfil guardado.
 - El Backend re-verifica el JWT: sin token o inválido → 401 `UNAUTHORIZED`, vencido → 401 `TOKEN_EXPIRED`. Un token válido de una cuenta que ya no existe también es 401.
 
@@ -188,7 +189,7 @@ GET /api/v1/meals/66f1a…
 La forma depende del `status`:
 
 - `processing`: solo `id`, `status`, `capturedAt` y `photoUrl`.
-- `ready`: además `dish`, `items`, `kcal`, `macros`, `confidence` y `comment`, como en el ejemplo. Los valores son los del análisis **con las correcciones aplicadas** (ver [modelo de datos](modelo-datos.md#meals)), los mismos que suma el dashboard. Si no hay comentario (tono `off`), `comment` no viene: nunca es `null`.
+- `ready`: además `dish`, `items`, `kcal`, `macros`, `confidence` y `comment`, como en el ejemplo. Los valores son los del análisis **con las correcciones aplicadas** (ver [modelo de datos](modelo-datos.md#meals)), los mismos que suma el dashboard. Si no hay comentario, `comment` no viene: nunca es `null`. Puede faltar aunque el tono esté activo: si la IA del comentario falla, devuelve algo inválido o el filtro de seguridad lo descarta, la comida igual queda `ready`, sin comentario. `comment.tone` es el tono con el que se generó, y `text` tiene hasta 200 caracteres. Corregir la comida con `PATCH /meals/:id` no regenera el comentario.
 - `failed`: además `error.code`, sin análisis. La API no manda un mensaje para el usuario: la app lo arma a partir del código.
 
 | `error.code` | Quién lo escribe y cuándo | Mensaje que muestra la app |

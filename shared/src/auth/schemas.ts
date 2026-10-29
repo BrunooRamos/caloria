@@ -82,6 +82,10 @@ export const refreshSchema = z
   .object({ refreshToken: z.string().regex(/^[A-Za-z0-9_-]{1,512}$/) })
   .strict();
 
+/** Tono del comentario de cada comida (RF-11). Con "off" no se genera comentario. */
+export const TONES = ["motivador", "neutro", "roast", "off"] as const;
+export type Tone = (typeof TONES)[number];
+
 export const updateMeSchema = z
   .object({
     profile: profileSchema
@@ -89,9 +93,12 @@ export const updateMeSchema = z
       .strict()
       .refine((profile) => Object.keys(profile).length > 0, {
         message: "Indicá al menos un dato del perfil",
-      }),
+      })
+      .optional(),
+    tone: z.enum(TONES).optional(),
   })
-  .strict();
+  .strict()
+  .refine((body) => Object.keys(body).length > 0, { message: "Indicá al menos un campo" });
 
 export type Profile = z.infer<typeof profileSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
@@ -110,6 +117,6 @@ export interface MeResponse {
   email: string;
   profile: Profile;
   targets: { kcal: number; proteinG: number; carbsG: number; fatG: number };
-  tone: "motivador" | "neutro" | "roast" | "off";
+  tone: Tone;
   plan: { tier: "free" | "premium"; since: string; renewsAt?: string };
 }

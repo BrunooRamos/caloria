@@ -10,6 +10,8 @@ import {
   loginSchema,
   refreshSchema,
   registerSchema,
+  TONES,
+  updateMeSchema,
   verifyAccessToken,
 } from "../src";
 
@@ -196,6 +198,32 @@ describe("refreshSchema", () => {
       { refreshToken: "abc", otro: 1 },
     ]) {
       assert.equal(refreshSchema.safeParse(body).success, false, JSON.stringify(body));
+    }
+  });
+});
+
+describe("updateMeSchema", () => {
+  it("acepta perfil parcial, tono o los dos", () => {
+    for (const body of [
+      { profile: { weightKg: 58 } },
+      ...TONES.map((tone) => ({ tone })),
+      { profile: { goal: "lose" }, tone: "off" },
+    ]) {
+      assert.equal(updateMeSchema.safeParse(body).success, true, JSON.stringify(body));
+    }
+    assert.deepEqual(TONES, ["motivador", "neutro", "roast", "off"]);
+  });
+
+  it("rechaza body vacío, perfil vacío, tono inválido y campos desconocidos (pushTokens incluido)", () => {
+    for (const body of [
+      {},
+      { profile: {} },
+      { tone: "sarcastico" },
+      { tone: null },
+      { tone: "roast", plan: "premium" },
+      { pushTokens: ["ExponentPushToken[abc]"] },
+    ]) {
+      assert.equal(updateMeSchema.safeParse(body).success, false, JSON.stringify(body));
     }
   });
 });

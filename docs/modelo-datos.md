@@ -23,7 +23,7 @@ profile: {
   timezone: string            // ej. "America/Montevideo"; define el "día" del usuario
 }
 targets: { kcal: number; proteinG: number; carbsG: number; fatG: number }   // recalculadas al editar profile
-tone: "motivador" | "neutro" | "roast" | "off"
+tone: "motivador" | "neutro" | "roast" | "off"   // default "motivador"; "off" no genera comentario
 plan: { tier: "free" | "premium"; since: Date; renewsAt?: Date }
 usage: { month: string; analyses: number }   // "2026-10"; se reinicia al cambiar de mes
 pushTokens: string[]
@@ -53,7 +53,7 @@ analysis?: {
   kcal: Range
   macros: { protein: Range; carbs: Range; fat: Range }
   confidence: number          // 0 a 1
-  promptVersion: string       // `version` del frontmatter de prompts/analisis-comida.md
+  promptVersion: string       // `version` del frontmatter de back-service/prompts/analisis-comida.md
   model: string               // el modelo que devolvió OpenAI
 }
 corrections: {
@@ -62,7 +62,7 @@ corrections: {
   to: unknown                 // valor nuevo completo, con la forma del análisis
   at: Date
 }[]
-comment?: { tone: string; text: string }   // ausente con el tono "off"
+comment?: { tone: string; text: string }   // tono con que se generó y texto ≤ 200; ausente con "off", NOT_FOOD o si falló
 attempts: number              // reintentos del job de análisis
 error?: { code: "ENQUEUE_FAILED" | "NOT_FOOD" | "ANALYSIS_FAILED" }   // solo con status "failed"
 ```

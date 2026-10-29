@@ -2,7 +2,7 @@ import OpenAI from "openai";
 import type { ResponseInputContent } from "openai/resources/responses/responses";
 import { z } from "zod";
 import { correctableFieldsSchema } from "@caloria/shared";
-import type { AnalysisPrompt } from "../config/analysis-prompt";
+import type { Prompt } from "../config/prompts";
 import type { MealAnalysis } from "../models/Meal";
 import type { VisionImage } from "./vision-image";
 
@@ -173,7 +173,7 @@ function userContent({ image, transcript, note }: VisionInput): ResponseInputCon
 export interface OpenAiVisionOptions {
   apiKey: string;
   model: string;
-  prompt: AnalysisPrompt;
+  prompt: Prompt;
   timeoutMs?: number;
   /** Solo para tests: reemplaza el fetch del SDK. */
   fetch?: typeof globalThis.fetch;
