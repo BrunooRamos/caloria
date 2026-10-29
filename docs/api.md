@@ -116,25 +116,31 @@ Authorization: Bearer <accessToken>
                "activity": "moderate", "goal": "maintain", "timezone": "America/Montevideo" },
   "targets": { "kcal": 2093, "proteinG": 108, "carbsG": 285, "fatG": 58 },
   "tone": "neutro",
-  "plan": { "tier": "free", "since": "2026-10-14T19:00:00.000Z" }
+  "plan": { "tier": "free", "since": "2026-10-14T19:00:00.000Z" },
+  "notifications": { "analysisReady": true, "streakRisk": true, "wrappedReady": true }
 }
 ```
+
+`notifications` son las preferencias de avisos push (RF-13); un usuario que nunca las cambió tiene todo en `true`. Los push tokens nunca salen en la respuesta.
 
 ```http
 PATCH /api/v1/users/me
 Authorization: Bearer <accessToken>
 Content-Type: application/json
 
-{ "profile": { "weightKg": 58, "goal": "lose" }, "tone": "roast" }
+{ "profile": { "weightKg": 58, "goal": "lose" }, "pushTokens": ["ExponentPushToken[xxxx]"],
+  "notifications": { "streakRisk": false } }
 ```
 
 Devuelve 200 con la misma forma que `GET`, con las metas ya recalculadas.
 
-- El body lleva al menos uno de `profile`, `tone` y `pushTokens`.
+- El body lleva al menos uno de `profile`, `tone`, `pushTokens` y `notifications`.
 - En `profile` van solo los campos que cambian, con los mismos rangos que el registro. Fuera de rango, sin ningún campo o con un campo desconocido → 400 `VALIDATION_ERROR`.
-- `tone`: `motivador`, `neutro`, `roast` u `off` (RF-11). `pushTokens`: hasta 10 tokens de Expo sin repetir, `ExponentPushToken[…]` o `ExpoPushToken[…]` (RF-13).
-- Por ahora el Backend implementa solo `profile`: a `tone` y `pushTokens` el Front los valida y los reenvía, y el Backend responde 400 hasta RF-11 y RF-13.
-- Las metas se recalculan en cada PATCH con la fórmula de [modelo-datos.md](modelo-datos.md#cálculo-de-metas-rf-02). Si dos PATCH llegan a la vez, ninguno pisa los cambios del otro y las metas guardadas corresponden siempre al perfil guardado.
+- `tone`: `motivador`, `neutro`, `roast` u `off` (RF-11). Por ahora el Front lo valida y lo reenvía, y el Backend responde 400 hasta RF-11.
+- `pushTokens` (RF-13): hasta 10 tokens de Expo sin repetir, `ExponentPushToken[…]` o `ExpoPushToken[…]`. **Se suman** a los que ya tiene el usuario, no los reemplazan: cada dispositivo manda solo el suyo. Un token que ya estaba pasa a ser el más nuevo, y quedan como mucho 10 (se descartan los más viejos). Si el token estaba en otra cuenta (el mismo teléfono con otro usuario), se le saca a esa cuenta. Los tokens que Expo marca como inválidos (`DeviceNotRegistered`) se borran solos.
+- `notifications` (RF-13): parcial, con solo los tipos que cambian (`analysisReady`, `streakRisk`, `wrappedReady`), cada uno un booleano. Vacío, con un tipo desconocido o un valor que no es booleano → 400 `VALIDATION_ERROR`.
+- Todo el PATCH se aplica en un solo update: o se guarda todo o nada.
+- Las metas se recalculan en cada PATCH con la fórmula de [modelo-datos.md](modelo-datos.md#cálculo-de-metas-rf-02). Si dos PATCH llegan a la vez (por ejemplo, dos dispositivos registrando su token), ninguno pisa los cambios del otro y las metas guardadas corresponden siempre al perfil guardado.
 - El Backend re-verifica el JWT: sin token o inválido → 401 `UNAUTHORIZED`, vencido → 401 `TOKEN_EXPIRED`. Un token válido de una cuenta que ya no existe también es 401.
 
 ### Registrar una comida (endpoint central)

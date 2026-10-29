@@ -1,6 +1,7 @@
 import type { Logger, MealErrorCode } from "@caloria/shared";
 import { MealModel } from "../models/Meal";
 import type { Meal } from "../models/Meal";
+import type { NotificationService } from "../services/notifications";
 import type { TranscriptionService } from "../services/transcription";
 import { toVisionImage } from "../services/vision-image";
 import { InvalidVisionResponseError } from "../services/vision";
@@ -13,6 +14,7 @@ export const NOT_FOOD = "NOT_FOOD" satisfies MealErrorCode;
 export interface AnalyzeMealDeps {
   vision: VisionService;
   transcriber: TranscriptionService;
+  notifications: Pick<NotificationService, "notify">;
 }
 
 /** `saved: false` si la meal dejó de estar en processing mientras se transcribía. */
@@ -60,7 +62,11 @@ async function transcribeOnce(
  * o en `failed` (NOT_FOOD). Si la transcripción falla o la respuesta no pasa zod, lanza:
  * BullMQ reintenta y la meal sigue en processing.
  */
-export function createAnalyzeMeal({ vision, transcriber }: AnalyzeMealDeps): AnalyzeMeal {
+export function createAnalyzeMeal({
+  vision,
+  transcriber,
+  notifications,
+}: AnalyzeMealDeps): AnalyzeMeal {
   return async ({ meal, photo, audio }, log) => {
     // La transcripción corre en paralelo con la conversión de la foto (RNF-01). allSettled
     // espera a las dos: si la foto falla, la transcripción igual queda guardada para el reintento.
@@ -127,6 +133,16 @@ export function createAnalyzeMeal({ vision, transcriber }: AnalyzeMealDeps): Ana
     });
     if (matchedCount === 0) {
       log.info("la comida cambió de estado durante el análisis, no se pisa");
+      return;
+    }
+    // Solo si este job la dejó en ready: un job repetido no avisa dos veces. NOT_FOOD no avisa
+    // acá (#35). notify no lanza: si el push falla, la meal ya está ready y el job termina bien.
+    if (result.isFood) {
+      await notifications.notify(
+        meal.userId.toString(),
+        { type: "analysisReady", mealId: meal._id.toString() },
+        log,
+      );
     }
   };
 }

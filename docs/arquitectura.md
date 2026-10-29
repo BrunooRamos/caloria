@@ -55,7 +55,7 @@ Firewall **default deny**: todo cerrado salvo estas reglas.
 - **multipart/form-data:** subida de foto (≤ 8 MB) y audio (≤ 60 s) en `POST /meals`. Límites validados en nginx y en la API.
 - **DNS:** `api.caloria.app` → registro A/AAAA a la IP pública de la DMZ. Los hosts de la red segura no tienen DNS público.
 - **Cola interna (Redis):** solo dentro de la red segura, nunca atraviesa Internet.
-- **Expo Push:** notificaciones servidor → app (análisis listo, racha en riesgo, Wrapped disponible).
+- **Expo Push:** notificaciones servidor → app (análisis listo, racha en riesgo, Wrapped disponible). Las manda el Worker por HTTPS a `exp.host` (`services/push.ts`), solo a los tipos que el usuario tiene prendidos en `users.notifications`. Los receipts se consultan 15 min después con un job demorado en la cola `push-receipts`, y los tokens que Expo marca como inválidos se borran del usuario.
 
 ## Flujo central: registrar una comida
 
@@ -64,7 +64,7 @@ Firewall **default deny**: todo cerrado salvo estas reglas.
 3. El Front verifica el JWT, valida el multipart y reenvía al Backend por 4000.
 4. El Backend verifica cupo del plan, sube la media al bucket privado, crea el documento en `meals` con `status: "processing"`, encola el job y responde **202 Accepted** con el `mealId`.
 5. El Worker toma el job (hasta `WORKER_CONCURRENCY` en paralelo), lee la comida de Mongo y baja la foto y el audio del bucket. Si la comida ya no existe o no está en `processing`, descarta el job; si falla Mongo o el bucket, BullMQ reintenta con backoff. Si hay audio, lo transcribe (OpenAI speech-to-text, `services/transcription.ts`, en español) en paralelo con la conversión de la foto, y guarda el texto en `meals.transcript` solo si la comida sigue en `processing`; si un intento anterior ya lo guardó, lo reusa sin volver a transcribir. Una transcripción vacía o de puro ruido cuenta como si no hubiera audio; si la transcripción falla, BullMQ reintenta. Después busca platos similares del usuario (con sus correcciones) y llama a la IA de visión (OpenAI, `services/vision.ts`) con la foto + la transcripción y la nota (si hay, como partes de texto rotuladas) + historial. Las fotos HEIC se pasan a JPEG antes, porque la API no las acepta. El prompt de sistema es `prompts/analisis-comida.md`, que el Worker lee una vez al arrancar: el audio y la nota completan lo que la foto no ve, pero son datos y no instrucciones.
-6. Valida la respuesta con zod (rangos con `min ≤ max` y sin negativos, `confidence` entre 0 y 1); si no cumple, lanza y BullMQ reintenta. Si es comida, guarda en `meals` el análisis en rangos, la confianza, `promptVersion` y `model` y el comentario (`status: "ready"`), actualiza la racha y dispara el push "análisis listo". Si no es comida, la deja `failed` con `error.code: "NOT_FOOD"`, sin reintento. En los dos casos, solo si sigue en `processing`.
+6. Valida la respuesta con zod (rangos con `min ≤ max` y sin negativos, `confidence` entre 0 y 1); si no cumple, lanza y BullMQ reintenta. Si es comida, guarda en `meals` el análisis en rangos, la confianza, `promptVersion` y `model` y el comentario (`status: "ready"`), actualiza la racha y dispara el push "análisis listo" (solo si este job la dejó en `ready`, así un job repetido no avisa dos veces; si el push falla se loguea y el job termina bien). Si no es comida, la deja `failed` con `error.code: "NOT_FOOD"`, sin reintento ni push. En los dos casos, solo si sigue en `processing`.
 7. La app consulta `GET /meals/:id` hasta que deja de estar en `processing` y muestra el rango. El Backend busca la comida por id y dueño, aplica las correcciones y firma la `photoUrl` en cada request (15 min, sin caché). Si el usuario corrige, un `PATCH /meals/:id` agrega a `corrections` los campos que cambiaron (sin tocar `analysis`) y responde la comida con los valores corregidos, que son los que suma el dashboard y los que alimentan el próximo análisis.
 
 ## Organización del repo
@@ -88,4 +88,4 @@ Firewall **default deny**: todo cerrado salvo estas reglas.
 | MongoDB | A definir | Backups programados |
 | Storage | MinIO en `docker compose` (local); bucket gestionado compatible con S3 en prod (DO Spaces previsto) | Acceso solo con credenciales de Backend y Worker. Las URLs se firman con `S3_PUBLIC_ENDPOINT`, el host que alcanza la app |
 
-Dependencias externas: API de IA de OpenAI (visión · speech-to-text · texto) y Expo Push, cada una encapsulada en un service propio. La clave (`OPENAI_API_KEY`) solo la recibe el Worker.
+Dependencias externas: API de IA de OpenAI (visión · speech-to-text · texto) y Expo Push, cada una encapsulada en un service propio. La clave (`OPENAI_API_KEY`) y el token opcional de Expo (`EXPO_ACCESS_TOKEN`) solo los recibe el Worker.

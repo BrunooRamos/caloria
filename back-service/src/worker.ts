@@ -7,7 +7,11 @@ import { createAnalyzeMeal } from "./jobs/analyze-meal";
 import { MEAL_ANALYSIS_QUEUE } from "./jobs/meal-analysis";
 import { createMealAnalysisProcessor } from "./jobs/meal-analysis-processor";
 import { createMealAnalysisWorker } from "./jobs/meal-analysis-worker";
+import { createPushReceiptsQueue, PUSH_RECEIPTS_QUEUE } from "./jobs/push-receipts";
+import { createPushReceiptsProcessor, createPushReceiptsWorker } from "./jobs/push-receipts-worker";
 import { createMediaService } from "./services/media";
+import { createNotificationService } from "./services/notifications";
+import { createExpoPush } from "./services/push";
 import { createOpenAiTranscription } from "./services/transcription";
 import { createOpenAiVision } from "./services/vision";
 
@@ -28,24 +32,35 @@ async function main() {
     apiKey: config.openai.apiKey,
     model: config.openai.transcriptionModel,
   });
+  const push = createExpoPush({ accessToken: config.expo.accessToken });
+  const receiptsQueue = createPushReceiptsQueue({ redisUrl: config.redisUrl, logger });
+  const receiptsWorker = createPushReceiptsWorker({
+    redisUrl: config.redisUrl,
+    processor: createPushReceiptsProcessor(push),
+    logger,
+  });
+  // Lo usa también el cron del Wrapped (#36) con notifyWrappedReady.
+  const notifications = createNotificationService({ push, receipts: receiptsQueue, logger });
   const worker = createMealAnalysisWorker({
     redisUrl: config.redisUrl,
     concurrency: config.concurrency,
     processor: createMealAnalysisProcessor({
       media: createMediaService(config.storage),
-      analyze: createAnalyzeMeal({ vision, transcriber }),
+      analyze: createAnalyzeMeal({ vision, transcriber, notifications }),
     }),
     logger,
   });
 
-  // Primero el worker (espera los jobs en curso) y después Mongo, que esos jobs todavía usan.
+  // Primero los workers (esperan los jobs en curso), después la cola de receipts, en la que el
+  // análisis todavía encola, y al final Mongo, que esos jobs todavía usan.
   let closing = false;
   const shutdown = async (signal: NodeJS.Signals) => {
     if (closing) return;
     closing = true;
     logger.info("worker cerrando", { signal });
     try {
-      await worker.close();
+      await Promise.all([worker.close(), receiptsWorker.close()]);
+      await receiptsQueue.close();
       await mongoose.disconnect();
       logger.info("worker cerrado");
       process.exit(0);
@@ -57,12 +72,13 @@ async function main() {
   process.once("SIGTERM", shutdown);
   process.once("SIGINT", shutdown);
 
-  await worker.ready();
-  logger.info(`worker consumiendo la cola ${MEAL_ANALYSIS_QUEUE}`, {
+  await Promise.all([worker.ready(), receiptsWorker.ready()]);
+  logger.info(`worker consumiendo las colas ${MEAL_ANALYSIS_QUEUE} y ${PUSH_RECEIPTS_QUEUE}`, {
     concurrency: config.concurrency,
     model: config.openai.visionModel,
     transcriptionModel: config.openai.transcriptionModel,
     promptVersion: prompt.version,
+    expoAuth: Boolean(config.expo.accessToken),
   });
 }
 

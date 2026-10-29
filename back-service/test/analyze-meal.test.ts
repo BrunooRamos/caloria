@@ -119,7 +119,12 @@ function setup(
   const ai = fakeVision(respond);
   const processor = createMealAnalysisProcessor({
     media: fakeMedia(photo),
-    analyze: createAnalyzeMeal({ vision: ai.vision, transcriber: stt.transcriber }),
+    analyze: createAnalyzeMeal({
+      vision: ai.vision,
+      transcriber: stt.transcriber,
+      // Los avisos se prueban en notifications.test.ts.
+      notifications: { notify: async () => "noDevices" },
+    }),
   });
   return { ai, stt, processor, ...captureLogger("worker") };
 }

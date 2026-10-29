@@ -272,6 +272,7 @@ describe("front-service: gateway de /api/v1", () => {
       ["PATCH vacío", "patch", "/users/me", {}],
       ["PATCH con tono inválido", "patch", "/users/me", { tone: "sarcastico" }],
       ["PATCH con push token inválido", "patch", "/users/me", { pushTokens: ["abc"] }],
+      ["PATCH con un aviso desconocido", "patch", "/users/me", { notifications: { promo: true } }],
       ["PATCH con plan", "patch", "/users/me", { plan: "premium" }],
     ];
     for (const [caso, method, path, body] of invalidBodies) {
@@ -341,11 +342,12 @@ describe("front-service: gateway de /api/v1", () => {
       expectEnvelope(res, 400, "VALIDATION_ERROR");
     });
 
-    it("PATCH reenvía solo lo validado: tono y push tokens incluidos", async () => {
+    it("PATCH reenvía solo lo validado: tono, push tokens y avisos incluidos", async () => {
       const body = {
         profile: { weightKg: 58 },
         tone: "roast",
         pushTokens: ["ExponentPushToken[abc_DEF-123]"],
+        notifications: { streakRisk: false },
       };
       const res = await call("patch", "/users/me", valid).send(body);
       assert.equal(res.status, 200);

@@ -8,8 +8,10 @@ import {
   loadPrivateKey,
   loadPublicKey,
   loginSchema,
+  MAX_PUSH_TOKENS,
   refreshSchema,
   registerSchema,
+  updateMeSchema,
   verifyAccessToken,
 } from "../src";
 
@@ -196,6 +198,41 @@ describe("refreshSchema", () => {
       { refreshToken: "abc", otro: 1 },
     ]) {
       assert.equal(refreshSchema.safeParse(body).success, false, JSON.stringify(body));
+    }
+  });
+});
+
+describe("updateMeSchema", () => {
+  const token = (id: string) => `ExponentPushToken[${id}]`;
+  const ok = (body: unknown) =>
+    assert.equal(updateMeSchema.safeParse(body).success, true, JSON.stringify(body));
+  const rejected = (body: unknown) =>
+    assert.equal(updateMeSchema.safeParse(body).success, false, JSON.stringify(body));
+
+  it("acepta perfil, push tokens y avisos parciales, juntos o por separado", () => {
+    ok({ profile: { weightKg: 58 } });
+    ok({ pushTokens: [token("abc_DEF-123"), "ExpoPushToken[xyz]"] });
+    ok({ pushTokens: Array.from({ length: MAX_PUSH_TOKENS }, (_, i) => token(`t${i}`)) });
+    ok({ notifications: { analysisReady: false } });
+    ok({ profile: { heightCm: 170 }, pushTokens: [], notifications: { wrappedReady: true } });
+  });
+
+  it("rechaza body vacío, campos desconocidos, tokens inválidos y avisos inválidos", () => {
+    for (const body of [
+      {},
+      { profile: {} },
+      { tone: "roast" },
+      { pushTokens: "ExponentPushToken[abc]" },
+      { pushTokens: ["no-es-un-token"] },
+      { pushTokens: ["ExponentPushToken[]"] },
+      { pushTokens: [token("a"), token("a")] },
+      { pushTokens: Array.from({ length: MAX_PUSH_TOKENS + 1 }, (_, i) => token(`t${i}`)) },
+      { notifications: {} },
+      { notifications: { promo: true } },
+      { notifications: { streakRisk: "no" } },
+      { notifications: null },
+    ]) {
+      rejected(body);
     }
   });
 });

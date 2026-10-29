@@ -1,4 +1,5 @@
 import { Schema, model, type Types } from "mongoose";
+import type { NotificationPreferences } from "@caloria/shared";
 
 export const SEXES = ["female", "male"] as const;
 export const ACTIVITIES = ["sedentary", "light", "moderate", "active", "very_active"] as const;
@@ -52,7 +53,9 @@ export interface User {
   tone: (typeof TONES)[number];
   plan: Plan;
   usage: Usage;
-  pushTokens: string[];
+  pushTokens: string[]; // del más viejo al más nuevo, hasta 10
+  // Opcional: los usuarios creados antes de RF-13 no lo tienen y valen los defaults.
+  notifications?: Partial<NotificationPreferences>;
   sessions: Session[];
 }
 
@@ -96,6 +99,15 @@ const usageSchema = new Schema<Usage>(
   { _id: false },
 );
 
+const notificationsSchema = new Schema<NotificationPreferences>(
+  {
+    analysisReady: { type: Boolean, required: true, default: true },
+    streakRisk: { type: Boolean, required: true, default: true },
+    wrappedReady: { type: Boolean, required: true, default: true },
+  },
+  { _id: false },
+);
+
 const sessionSchema = new Schema<Session>(
   {
     tokenHash: { type: String, required: true },
@@ -121,6 +133,7 @@ const userSchema = new Schema<User>(
       default: () => ({ month: new Date().toISOString().slice(0, 7) }),
     },
     pushTokens: { type: [String], default: [] },
+    notifications: { type: notificationsSchema, default: () => ({}) },
     sessions: { type: [sessionSchema], default: [] },
   },
   { collection: "users", timestamps: { createdAt: true, updatedAt: false } },
@@ -128,5 +141,7 @@ const userSchema = new Schema<User>(
 
 userSchema.index({ email: 1 }, { unique: true });
 userSchema.index({ "sessions.tokenHash": 1 });
+// Para sacarle un token a otra cuenta cuando lo registra un usuario nuevo en el mismo teléfono.
+userSchema.index({ pushTokens: 1 });
 
 export const UserModel = model<User>("User", userSchema);
