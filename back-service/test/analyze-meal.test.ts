@@ -183,7 +183,7 @@ describe("back-service: análisis con IA", () => {
       const data = { mealId: meal.id, requestId: REQUEST_ID };
 
       await assert.rejects(
-        handle({ data, attemptsMade: 0, opts: { attempts: 4 } }),
+        handle({ data, attemptsMade: 0, opts: { attempts: MEAL_ANALYSIS_JOB_OPTIONS.attempts } }),
         InvalidVisionResponseError,
       );
       const saved = await MealModel.findById(meal.id).lean();
@@ -261,12 +261,12 @@ describe("back-service: análisis con IA", () => {
     const failures = lines.filter((line) => line.msg === "job de análisis falló");
     assert.deepEqual(
       failures.map((line) => line.willRetry),
-      [true, true, true, false],
+      [true, true, false],
     );
     const saved = await MealModel.findById(meal.id).lean();
     assert.equal(saved?.status, "failed");
     assert.deepEqual(saved?.error, { code: ANALYSIS_FAILED });
-    assert.equal(saved?.attempts, 4);
+    assert.equal(saved?.attempts, 3);
     assert.deepEqual(saved?.media, meal.toObject().media);
     assert.deepEqual(removed, []);
     // La clave no va al log.
@@ -409,7 +409,7 @@ describe("back-service: análisis con IA", () => {
       const job = {
         data: { mealId: meal.id, requestId: REQUEST_ID },
         attemptsMade: 0,
-        opts: { attempts: 4 },
+        opts: { attempts: MEAL_ANALYSIS_JOB_OPTIONS.attempts },
       };
 
       await assert.rejects(handle(job), InvalidVisionResponseError);
@@ -432,7 +432,7 @@ describe("back-service: análisis con IA", () => {
         handle({
           data: { mealId: meal.id, requestId: REQUEST_ID },
           attemptsMade: 0,
-          opts: { attempts: 4 },
+          opts: { attempts: MEAL_ANALYSIS_JOB_OPTIONS.attempts },
         }),
         /transcripción caída/,
       );

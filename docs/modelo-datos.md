@@ -83,7 +83,7 @@ Los valores que se muestran y que suman en el dashboard son los del análisis **
 |---|---|---|
 | `ENQUEUE_FAILED` | Backend | No se pudo encolar el análisis (Redis caído). Reprocesable |
 | `NOT_FOOD` | Worker | La IA dice que la foto no es comida. Sin reintento y no consume cupo |
-| `ANALYSIS_FAILED` | Worker | Falló el último de los 4 intentos del análisis (3 reintentos con backoff exponencial de 5, 10 y 20 s, RNF-02). La media queda en el bucket |
+| `ANALYSIS_FAILED` | Worker | Falló el último de los 3 intentos del análisis (2 reintentos con backoff exponencial de 5 y 10 s, RNF-02). La media queda en el bucket |
 
 ## `weekly_summaries`
 

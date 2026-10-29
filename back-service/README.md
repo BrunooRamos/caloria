@@ -4,7 +4,7 @@ Lógica de negocio, MongoDB, Redis (cola) y worker de IA (`src/worker.ts`). Firm
 
 ## Cola de análisis (Redis + BullMQ)
 
-`POST /meals` encola en la cola `meal-analysis` (`src/jobs/meal-analysis.ts`) un job `{ mealId, requestId }` con `jobId = mealId`, 4 intentos (el original y 3 reintentos) y backoff exponencial de 5, 10 y 20 s. Config en `REDIS_URL` (obligatoria).
+`POST /meals` encola en la cola `meal-analysis` (`src/jobs/meal-analysis.ts`) un job `{ mealId, requestId }` con `jobId = mealId`, 3 intentos (el original y 2 reintentos) y backoff exponencial de 5 y 10 s; no hay un 4º para acotar el costo de la IA. Config en `REDIS_URL` (obligatoria).
 
 Los tests de la cola y del worker corren contra un Redis real y se saltean si no está `REDIS_TEST_URL`. El override de dev publica el Redis del compose en `127.0.0.1:6379`:
 

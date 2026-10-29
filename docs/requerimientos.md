@@ -169,7 +169,7 @@ Endpoints: `GET /billing/plan`, `POST /billing/subscribe`.
 | RNF | Requerimiento | Métrica / criterio | Cómo se verifica |
 |---|---|---|---|
 | RNF-01 | Rendimiento | Análisis foto + audio en < 15 s (p90) con indicador de progreso; navegación y endpoints de lectura en < 1 s | Logs de duración por job; medición sobre 20 registros de prueba |
-| RNF-02 | Resiliencia | Si la IA falla, el job reintenta 3 veces con backoff exponencial; si sigue fallando, `failed` y aviso al usuario. La media subida nunca se pierde | Test cortando la API de IA (clave inválida) y verificando reintentos |
+| RNF-02 | Resiliencia | Si la IA falla, el job reintenta 2 veces con backoff exponencial (3 intentos en total, para acotar el costo de la IA); si sigue fallando, `failed` y aviso al usuario. La media subida nunca se pierde | Test cortando la API de IA (clave inválida) y verificando reintentos |
 | RNF-03 | Seguridad | HTTPS en todo el tráfico; HTTP redirige a HTTPS; Front → Backend por HTTPS con mTLS | Revisión de config de nginx; `curl` a HTTP y a puertos internos |
 | RNF-04 | Privacidad | Bucket privado con URLs firmadas (≤ 15 min); `DELETE /users/me` borra todo | Abrir una URL vencida; borrar una cuenta de prueba y verificar Mongo y bucket |
 | RNF-05 | Arquitectura asincrónica | Análisis y Wrapped corren en el Worker vía Redis; la API responde 202 en < 1 s | Test de `POST /meals` con el Worker apagado: responde 202 y queda encolado |

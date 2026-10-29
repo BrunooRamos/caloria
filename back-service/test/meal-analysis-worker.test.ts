@@ -261,7 +261,7 @@ describe("back-service: worker de análisis", () => {
       assert.equal(log.mealId, meal.id);
       assert.equal(log.requestId, REQUEST_ID);
       assert.equal(log.attempt, 1);
-      assert.equal(log.maxAttempts, 4);
+      assert.equal(log.maxAttempts, 3);
       assert.equal(log.outcome, "analyzed");
       assert.equal(typeof log.durationMs, "number");
       // Ni la nota ni la media van al log.
@@ -278,7 +278,7 @@ describe("back-service: worker de análisis", () => {
       const data = { mealId: meal.id, requestId: REQUEST_ID };
 
       await assert.rejects(handle({ data, attemptsMade: 0, opts }), /bucket no disponible/);
-      await assert.rejects(handle({ data, attemptsMade: 3, opts }), /bucket no disponible/);
+      await assert.rejects(handle({ data, attemptsMade: 2, opts }), /bucket no disponible/);
       const failures = lines.filter((line) => line.msg === "job de análisis falló");
       assert.equal(failures.length, 2);
       const [first, last] = failures as Record<string, unknown>[];
@@ -289,7 +289,7 @@ describe("back-service: worker de análisis", () => {
       assert.equal(first.willRetry, true);
       assert.equal(typeof first.durationMs, "number");
       assert.equal((first.err as { message: string }).message, "bucket no disponible");
-      assert.equal(last.attempt, 4);
+      assert.equal(last.attempt, 3);
       assert.equal(last.willRetry, false);
     });
   });
@@ -297,8 +297,8 @@ describe("back-service: worker de análisis", () => {
   describe("reintentos agotados (RNF-02)", () => {
     const opts = { attempts: MEAL_ANALYSIS_JOB_OPTIONS.attempts };
 
-    it("3 reintentos con backoff exponencial", () => {
-      assert.equal(MEAL_ANALYSIS_JOB_OPTIONS.attempts, 4);
+    it("2 reintentos con backoff exponencial", () => {
+      assert.equal(MEAL_ANALYSIS_JOB_OPTIONS.attempts, 3);
       assert.deepEqual(MEAL_ANALYSIS_JOB_OPTIONS.backoff, { type: "exponential", delay: 5_000 });
     });
 
@@ -309,19 +309,19 @@ describe("back-service: worker de análisis", () => {
       const handle = createMealAnalysisHandler(processor, logger);
       const data = { mealId: meal.id, requestId: REQUEST_ID };
 
-      for (let attemptsMade = 0; attemptsMade < 3; attemptsMade++) {
+      for (let attemptsMade = 0; attemptsMade < 2; attemptsMade++) {
         await assert.rejects(handle({ data, attemptsMade, opts }), /bucket no disponible/);
         const stored = await MealModel.findById(meal.id).lean();
         assert.equal(stored?.status, "processing");
         assert.equal(stored?.attempts, attemptsMade + 1);
         assert.equal(stored?.error, undefined);
       }
-      await assert.rejects(handle({ data, attemptsMade: 3, opts }), /bucket no disponible/);
+      await assert.rejects(handle({ data, attemptsMade: 2, opts }), /bucket no disponible/);
 
       const stored = await MealModel.findById(meal.id).lean();
       assert.equal(stored?.status, "failed");
       assert.deepEqual(stored?.error, { code: ANALYSIS_FAILED });
-      assert.equal(stored?.attempts, 4);
+      assert.equal(stored?.attempts, 3);
       // La media sigue en el bucket y en la meal.
       assert.deepEqual(stored?.media, meal.toObject().media);
       assert.deepEqual(bucket.removed, []);
@@ -341,7 +341,7 @@ describe("back-service: worker de análisis", () => {
         const handle = createMealAnalysisHandler(failing, logger);
         const data = { mealId: meal.id, requestId: REQUEST_ID };
 
-        await assert.rejects(handle({ data, attemptsMade: 3, opts }), /IA caída/);
+        await assert.rejects(handle({ data, attemptsMade: 2, opts }), /IA caída/);
         const stored = await MealModel.findById(meal.id).lean();
         assert.equal(stored?.status, status);
         assert.equal(stored?.attempts, 0);
@@ -359,7 +359,7 @@ describe("back-service: worker de análisis", () => {
       const original = MealModel.updateOne.bind(MealModel);
       MealModel.updateOne = (() => Promise.reject(new Error("mongo caído"))) as never;
       try {
-        await assert.rejects(handle({ data, attemptsMade: 3, opts }), /IA caída/);
+        await assert.rejects(handle({ data, attemptsMade: 2, opts }), /IA caída/);
       } finally {
         MealModel.updateOne = original;
       }
