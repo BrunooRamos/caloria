@@ -2,22 +2,41 @@ import mongoose from "mongoose";
 import { createLogger, serializeError } from "@caloria/shared";
 import { loadAnalysisPrompt } from "./config/analysis-prompt";
 import { loadWorkerConfig } from "./config/worker";
+import { loadWrappedPrompt } from "./config/wrapped-prompt";
 import { connectMongo } from "./config/db";
 import { createAnalyzeMeal } from "./jobs/analyze-meal";
 import { MEAL_ANALYSIS_QUEUE } from "./jobs/meal-analysis";
 import { createMealAnalysisProcessor } from "./jobs/meal-analysis-processor";
 import { createMealAnalysisWorker } from "./jobs/meal-analysis-worker";
+import {
+  createWeeklySummaryQueue,
+  WEEKLY_SUMMARY_PATTERN,
+  WEEKLY_SUMMARY_QUEUE,
+  WEEKLY_SUMMARY_TZ,
+} from "./jobs/weekly-summary";
+import {
+  createWeeklyFanOut,
+  createWeeklySummaryProcessor,
+  markWeeklySummaryFailed,
+} from "./jobs/weekly-summary-processor";
+import { createWeeklySummaryWorker } from "./jobs/weekly-summary-worker";
+import { WeeklySummaryModel } from "./models/WeeklySummary";
+import { createOpenAiInsights } from "./services/insights";
 import { createMediaService } from "./services/media";
 import { createOpenAiTranscription } from "./services/transcription";
 import { createOpenAiVision } from "./services/vision";
+import { createWeeklyMetricsService } from "./services/weekly-metrics";
 
 const logger = createLogger({ service: "worker" });
 
 async function main() {
   const config = loadWorkerConfig();
-  // Se lee una sola vez: sin archivo o sin versión, el worker no arranca.
+  // Se leen una sola vez: sin archivo o sin versión, el worker no arranca.
   const prompt = loadAnalysisPrompt();
+  const wrappedPrompt = loadWrappedPrompt();
   await connectMongo(config.mongoUri);
+  // El índice único { userId, week } es el que evita duplicar un Wrapped.
+  await WeeklySummaryModel.syncIndexes();
 
   const vision = createOpenAiVision({
     apiKey: config.openai.apiKey,
@@ -38,14 +57,33 @@ async function main() {
     logger,
   });
 
-  // Primero el worker (espera los jobs en curso) y después Mongo, que esos jobs todavía usan.
+  const weeklyMetrics = createWeeklyMetricsService();
+  const weeklyQueue = createWeeklySummaryQueue({ redisUrl: config.redisUrl, logger });
+  const weeklyWorker = createWeeklySummaryWorker({
+    redisUrl: config.redisUrl,
+    concurrency: config.concurrency,
+    fanOut: createWeeklyFanOut({ metrics: weeklyMetrics, queue: weeklyQueue }),
+    summary: createWeeklySummaryProcessor({
+      metrics: weeklyMetrics,
+      insights: createOpenAiInsights({
+        apiKey: config.openai.apiKey,
+        model: config.openai.textModel,
+        prompt: wrappedPrompt,
+      }),
+    }),
+    markFailed: markWeeklySummaryFailed,
+    logger,
+  });
+
+  // Primero los workers (esperan los jobs en curso) y después Mongo, que esos jobs todavía usan.
   let closing = false;
   const shutdown = async (signal: NodeJS.Signals) => {
     if (closing) return;
     closing = true;
     logger.info("worker cerrando", { signal });
     try {
-      await worker.close();
+      await Promise.all([worker.close(), weeklyWorker.close()]);
+      await weeklyQueue.close();
       await mongoose.disconnect();
       logger.info("worker cerrado");
       process.exit(0);
@@ -63,6 +101,16 @@ async function main() {
     model: config.openai.visionModel,
     transcriptionModel: config.openai.transcriptionModel,
     promptVersion: prompt.version,
+  });
+
+  // Idempotente: con el mismo id, reiniciar el worker actualiza el cron y no lo duplica.
+  await weeklyQueue.registerScheduler();
+  await weeklyWorker.ready();
+  logger.info(`worker consumiendo la cola ${WEEKLY_SUMMARY_QUEUE}`, {
+    pattern: WEEKLY_SUMMARY_PATTERN,
+    tz: WEEKLY_SUMMARY_TZ,
+    model: config.openai.textModel,
+    promptVersion: wrappedPrompt.version,
   });
 }
 

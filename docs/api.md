@@ -24,7 +24,7 @@ REST + JSON, versionada en `/api/v1`. El Front Service expone los mismos endpoin
 | PATCH | `/meals/:id` | JWT | Corrección del usuario; persiste para compounding | 200 | RF-06, RF-07 |
 | DELETE | `/meals/:id` | JWT | Elimina la comida y su media | 204 | RF-08 |
 | GET | `/dashboard/daily?date=` | JWT | Consumido vs. meta del día (la racha llega con RF-10) | 200 | RF-09, RF-10 |
-| GET | `/summaries/weekly/:week` | JWT | Wrapped de la semana (`2026-W38`) | 200 | RF-12 |
+| GET | `/summaries/weekly/:week` | JWT | Wrapped de la semana ISO (`2026-W43`): métricas e insights | 200 | RF-12 |
 | GET | `/billing/plan` | JWT | Plan vigente y análisis restantes del mes | 200 | RF-14, RF-16 |
 | POST | `/billing/subscribe` | JWT | Alta premium (pago sandbox) | 200 | RF-16 |
 
@@ -258,6 +258,41 @@ Authorization: Bearer <accessToken>
 - Una sola agregación sobre el índice `{ userId, localDate }`; con `date`, la meta se busca en paralelo (RNF-01, < 1 s).
 - La respuesta lleva `Cache-Control: no-store`: la app lo vuelve a pedir al volver a la pantalla.
 - La racha (RF-10) todavía no viene: se agrega cuando exista la collection `gamification`.
+
+### Wrapped semanal
+
+```http
+GET /api/v1/summaries/weekly/2026-W43
+Authorization: Bearer <accessToken>
+```
+```json
+{
+  "week": "2026-W43",
+  "from": "2026-10-19",
+  "to": "2026-10-25",
+  "metrics": { "avgKcal": 1840, "daysLogged": 6, "streak": 5, "topDish": "Milanesa con puré" },
+  "insights": [
+    "Registraste 6 de los 7 días: la app ya es parte de tu semana.",
+    "De martes a sábado no cortaste: 5 días seguidos.",
+    "La milanesa con puré fue la que más se repitió."
+  ],
+  "generatedAt": "2026-10-26T09:00:12.000Z"
+}
+```
+
+- `week` es una semana ISO 8601 (`YYYY-Www`, de lunes a domingo) que exista en ese año: `W53` solo en los años que la tienen (2026 sí, 2025 no). Otro formato, `W00`, `W54`, una `W53` que no existe o cualquier query → 400 `VALIDATION_ERROR`, en el Front y en el Backend (`weeklySummaryParamsSchema`, en `shared`).
+- `from` y `to` son el lunes y el domingo de la semana (`YYYY-MM-DD`); se calculan de `week`, no se guardan.
+- El resumen se busca por `userId` del token y `week` en la misma consulta. Uno de otro usuario, uno inexistente y uno que todavía no está `ready` (`pending` o `failed`) responden el mismo 404 `NOT_FOUND`.
+- Las métricas se explican en [modelo-datos.md](modelo-datos.md#weekly_summaries). `insights` son de 3 a 5 textos de hasta 140 caracteres. No salen `_id`, `userId`, `status` ni `promptVersion`.
+- Lo genera el cron del Worker los lunes a las 06:00 (UTC-3) para la semana anterior; este endpoint solo lee. La respuesta lleva `Cache-Control: no-store`.
+- Qué ve el plan free todavía no está definido (decisión abierta 4): el gating de premium llega con #40.
+
+```json
+{ "error": { "code": "NOT_FOUND", "message": "Recurso inexistente", "requestId": "a81f…" } }
+```
+```json
+{ "error": { "code": "VALIDATION_ERROR", "message": "La solicitud no es válida", "requestId": "a81f…" } }
+```
 
 ## Códigos HTTP
 

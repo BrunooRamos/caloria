@@ -74,7 +74,7 @@ Los valores que se muestran y que suman en el dashboard son los del análisis **
 - `analysis` queda como lo devolvió la IA, con el `promptVersion` y el `model` que lo produjeron. El PATCH no lo modifica.
 - Cada corrección guarda un campo entero (`items` es la lista completa de ingredientes, `macros` los tres rangos). `from` es el valor que veía el usuario (con las correcciones anteriores aplicadas) y un campo que no cambió no se registra. Las de un mismo PATCH comparten `at`.
 - Los valores finales salen de aplicar `corrections` en orden sobre `analysis`, y la última de cada campo gana. Lo hace `applyCorrections` (`back-service/src/services/meal-corrections.ts`), que usan `GET /meals/:id`, el historial y el PATCH. Una corrección que no pasa la validación se ignora.
-- El dashboard suma en Mongo, sin traer las comidas: la agregación (`dailyTotalsPipeline`, `back-service/src/services/dashboard.ts`) aplica la misma regla a `kcal` y `macros` (la última corrección válida del campo gana, si no queda la del análisis). Si cambia `applyCorrections`, cambia también ahí; un test compara las dos.
+- El dashboard y el Wrapped suman en Mongo, sin traer las comidas: `currentValue` (`back-service/src/services/meal-corrections.ts`, junto a `applyCorrections`) aplica la misma regla dentro de la agregación a `dish`, `kcal` y `macros` (la última corrección válida del campo gana, si no queda la del análisis). La usan `dailyTotalsPipeline` y `weeklyMealsPipeline`. Si cambia `applyCorrections`, cambia también ahí; los tests comparan las dos.
 - RF-07 compara lo que dijo la IA (`analysis`) con lo que corrigió el usuario (`corrections`).
 
 `error.code` lo escribe quien pasa la comida a `failed`, y el catálogo vive en `shared` (`MEAL_ERROR_CODES`):
@@ -92,13 +92,21 @@ El Wrapped de cada usuario y semana. Se genera una vez por cron para no recalcul
 ```ts
 _id: ObjectId
 userId: ObjectId
-week: string                  // ISO week, ej. "2026-W38"
+week: string                  // ISO week, ej. "2026-W43"; índice único con userId
 status: "pending" | "ready" | "failed"
-metrics: { avgKcal: number; daysLogged: number; streak: number; topDish: string }
-insights: string[]            // generados por IA
-promptVersion: string
-generatedAt: Date
+metrics?: { avgKcal: number; daysLogged: number; streak: number; topDish: string }
+insights?: string[]           // generados por IA: de 3 a 5, de hasta 140 caracteres
+promptVersion?: string        // `version` del frontmatter de prompts/wrapped.md
+generatedAt?: Date
 ```
+
+- `metrics`, `insights`, `promptVersion` y `generatedAt` existen solo con `status: "ready"`. Un resumen `failed` (se agotaron los reintentos del Worker) tiene solo `userId`, `week` y `status`; el siguiente job de esa semana lo puede pasar a `ready`.
+- El índice único `{ userId, week }` es el que garantiza que una semana no se duplica: el Worker escribe con un upsert que excluye los `ready`, y un choque con el índice (E11000) cuenta como "ya existe".
+- Las métricas se calculan con una agregación sobre `meals` (`weeklyMealsPipeline`, `back-service/src/services/weekly-metrics.ts`) por `userId` y `localDate` entre el lunes y el domingo de la semana, sobre el índice `{ userId, localDate }`. Solo cuentan las comidas `ready`, con las correcciones aplicadas; las `processing` y `failed` no suman en nada.
+  - `avgKcal`: el promedio diario de kcal en los días con registro. Cada día vale el punto medio de la suma de mínimos y de máximos (como el `mid` del dashboard), y se redondea a la unidad recién al final.
+  - `daysLogged`: los días distintos (`localDate`) con al menos una comida `ready`, de 0 a 7.
+  - `streak`: la tira más larga de días consecutivos con registro dentro de esos 7 días. No es la racha de RF-10 (`gamification`), que todavía no existe.
+  - `topDish`: el `dish` más frecuente, ya corregido. Se compara recortado y en minúsculas, y se guarda como lo escribió el usuario la última vez. Si hay empate, gana el que se comió más recientemente (por `capturedAt` y, si coincide, por `_id`).
 
 ## `gamification`
 

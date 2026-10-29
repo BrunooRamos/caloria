@@ -15,9 +15,9 @@ REDIS_TEST_URL=redis://127.0.0.1:6379 npm test
 
 ## Worker de análisis
 
-`src/worker.ts` consume la cola `meal-analysis` con un Worker de BullMQ (`src/jobs/meal-analysis-worker.ts`). Usa su propia config (`src/config/worker.ts`): `MONGO_URI`, `REDIS_URL`, `S3_*`, `OPENAI_API_KEY` (obligatoria), `OPENAI_VISION_MODEL` (por defecto `gpt-6-luna`), `OPENAI_TRANSCRIPTION_MODEL` (por defecto `gpt-transcribe`) y `WORKER_CONCURRENCY` (entero positivo, por defecto 2; cualquier otro valor no arranca). No recibe `JWT_PRIVATE_KEY`, y el Back (`loadConfig`) no recibe la clave de OpenAI.
+`src/worker.ts` consume la cola `meal-analysis` con un Worker de BullMQ (`src/jobs/meal-analysis-worker.ts`) y la cola `weekly-summary` del Wrapped (ver más abajo). Usa su propia config (`src/config/worker.ts`): `MONGO_URI`, `REDIS_URL`, `S3_*`, `OPENAI_API_KEY` (obligatoria), `OPENAI_VISION_MODEL` (por defecto `gpt-6-luna`), `OPENAI_TRANSCRIPTION_MODEL` (por defecto `gpt-transcribe`), `OPENAI_TEXT_MODEL` (por defecto `gpt-6.1-terra`) y `WORKER_CONCURRENCY` (entero positivo, por defecto 2; cualquier otro valor no arranca). No recibe `JWT_PRIVATE_KEY`, y el Back (`loadConfig`) no recibe la clave de OpenAI.
 
-Al arrancar lee una sola vez el prompt `prompts/analisis-comida.md` (`src/config/analysis-prompt.ts`): el frontmatter tiene `autor`, `version` y `fecha`, y el cuerpo es el prompt de sistema. `version` es el `promptVersion` que se guarda en cada meal. Si falta el archivo o no tiene versión, el worker no arranca. La imagen de Docker copia ese archivo (`.dockerignore` deja afuera el resto de `prompts/`).
+Al arrancar lee una sola vez los prompts `prompts/analisis-comida.md` y `prompts/wrapped.md` (`loadPrompt`, en `src/config/prompt.ts`): el frontmatter tiene `autor`, `version` y `fecha`, y el cuerpo es el prompt de sistema. `version` es el `promptVersion` que se guarda en cada meal y en cada Wrapped. Si falta un archivo o no tiene versión, el worker no arranca. La imagen de Docker copia esos dos archivos (`.dockerignore` deja afuera el resto de `prompts/`).
 
 Cada job lo resuelve `src/jobs/meal-analysis-processor.ts`: lee la meal, baja la foto (y el audio) del bucket y se los pasa a `analyze` (`src/jobs/analyze-meal.ts`). Si la meal no existe o ya no está en `processing`, el job termina sin error; si falla Mongo o el bucket, el error se propaga y BullMQ reintenta.
 
@@ -34,13 +34,39 @@ La transcripción (`src/services/transcription.ts`) va detrás de la interfaz `T
 - Si la meal ya tiene `transcript` (un intento anterior transcribió y después falló), se reusa: no se transcribe dos veces.
 - Si la transcripción falla, lanza: BullMQ reintenta y la meal sigue en `processing` sin `transcript`.
 
-Cada job loguea `mealId`, `requestId`, intento y `durationMs`; si falla, el error y `willRetry`. Cada transcripción loguea `model`, `durationMs`, `reused` y `chars` (el largo del texto); si se reusó, solo `reused` y `chars`. Cada llamada a la IA loguea `model`, `promptVersion`, `durationMs`, `usage` (tokens `input`, `output` y `total`), `result` (`ready` o `NOT_FOOD`) y si llevó `withTranscript` y `withNote`. Si zod rechaza, solo los `issues` (path, código y mensaje): ni la foto, ni el audio, ni la respuesta cruda, ni el texto transcripto, ni la nota van al log. Con `SIGTERM`/`SIGINT` cierra el worker (espera los jobs en curso) y después Mongo.
+Cada job loguea `mealId`, `requestId`, intento y `durationMs`; si falla, el error y `willRetry`. Cada transcripción loguea `model`, `durationMs`, `reused` y `chars` (el largo del texto); si se reusó, solo `reused` y `chars`. Cada llamada a la IA loguea `model`, `promptVersion`, `durationMs`, `usage` (tokens `input`, `output` y `total`), `result` (`ready` o `NOT_FOOD`) y si llevó `withTranscript` y `withNote`. Si zod rechaza, solo los `issues` (path, código y mensaje): ni la foto, ni el audio, ni la respuesta cruda, ni el texto transcripto, ni la nota van al log. Con `SIGTERM`/`SIGINT` cierra los dos workers (esperan los jobs en curso) y después Mongo.
 
 Los tests usan una IA y un transcriptor falsos (la IA pasa por el mismo zod), y los services de OpenAI se prueban con un `fetch` falso: ninguno sale a la red.
 
 ```sh
 npm run dev:worker   # necesita MONGO_URI, REDIS_URL, S3_* y OPENAI_API_KEY en el entorno
 ```
+
+## Wrapped semanal (cron)
+
+La cola `weekly-summary` (`src/jobs/weekly-summary.ts`) tiene dos jobs:
+
+- `fan-out`: lo crea un job scheduler de BullMQ (`upsertJobScheduler`, id `weekly-summary-cron`, patrón `0 6 * * 1`, `tz: "America/Montevideo"`), que el worker registra al arrancar. Con el mismo id, un reinicio actualiza el cron y no lo duplica. Calcula la semana ISO anterior a hoy en Montevideo, busca los usuarios con al menos una comida `ready` en esa semana y encola un `summary` por usuario con `jobId` `<userId>-<week>`: un fan-out repetido no duplica (BullMQ no admite `:` en un `jobId` propio).
+- `summary` `{ userId, week }` (`src/jobs/weekly-summary-processor.ts`): si el resumen ya está `ready`, termina sin llamar a la IA. Si no, calcula las métricas (`src/services/weekly-metrics.ts`), pide los insights y hace un upsert a `ready` con un filtro que excluye los `ready`; el E11000 del índice único cuenta como "ya existe". Si el usuario ya no tiene comidas `ready` esa semana, loguea y termina sin error. Si falla OpenAI o zod, lanza y BullMQ reintenta con las mismas opciones que `meal-analysis` (4 intentos, backoff exponencial); al agotarlos, el handler (`src/jobs/weekly-summary-worker.ts`) deja el resumen en `failed`.
+
+Las métricas salen de una agregación sobre `meals` por `userId` y `localDate` que aplica las correcciones con `currentValue` (la misma regla que `applyCorrections` y el dashboard). Se pueden probar sin Redis. El cálculo de cada una está en [docs/modelo-datos.md](../docs/modelo-datos.md#weekly_summaries).
+
+Los insights (`src/services/insights.ts`) van detrás de la interfaz `InsightsService`: recibe la semana agregada y devuelve los insights. La IA recibe solo las métricas y, por día, las kcal, la cantidad de comidas y los nombres de los platos, como JSON en un mensaje rotulado ("Datos de la semana:"): nunca fotos, transcripciones ni notas. Los nombres de platos los puede escribir el usuario (PATCH), así que el prompt los trata como datos y no como instrucciones. La implementación de OpenAI usa la Responses API con structured outputs (`minItems`/`maxItems`), `store: false` y un timeout de 60 s sin reintentos del SDK. La respuesta se valida igual con zod: de 3 a 5 strings no vacíos de hasta 140 caracteres (`WRAPPED_INSIGHT_MAX_CHARS`, en `shared`).
+
+El fan-out loguea `week`, `users` (cuántos encoló) y `durationMs`. Cada `summary` loguea `userId`, `week`, intento, el `outcome` (`generated`, `skipped` si ya estaba ready, `no-meals` o `exists`) y `durationMs`; y la llamada a la IA, `model`, `promptVersion`, `usage` (tokens), `insights` (cuántos) y `durationMs`. Ni el texto de los insights ni los platos ni `topDish` van al log.
+
+Para dispararlo a mano en local, sin esperar al lunes (lo procesa el worker que esté corriendo; solo necesita `REDIS_URL`):
+
+```sh
+npm run wrapped                     # la semana anterior a hoy
+npm run wrapped -- --week 2026-W43  # una semana puntual
+```
+
+Un `summary` que terminó en `failed` queda en la cola 7 días con el mismo `jobId`: un fan-out manual de esa semana no lo vuelve a encolar hasta que se borre.
+
+## Wrapped de una semana
+
+`GET /summaries/weekly/:week` (`src/services/summaries.ts`) valida `week` con `weeklySummaryParamsSchema` de `shared` (formato `YYYY-Www` y una semana que exista en ese año), busca el resumen por `userId` del token, `week` y `status: "ready"` en la misma consulta (ajeno, inexistente, `pending` o `failed` → el mismo 404) y responde `{ week, from, to, metrics, insights, generatedAt }` con `Cache-Control: no-store`. `from` y `to` salen de la semana; no salen `_id`, `userId`, `status` ni `promptVersion`.
 
 ## Consultar una comida
 

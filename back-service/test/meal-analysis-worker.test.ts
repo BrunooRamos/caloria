@@ -6,6 +6,7 @@ import IORedis from "ioredis";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import mongoose from "mongoose";
 import {
+  DEFAULT_OPENAI_TEXT_MODEL,
   DEFAULT_OPENAI_TRANSCRIPTION_MODEL,
   DEFAULT_OPENAI_VISION_MODEL,
   DEFAULT_WORKER_CONCURRENCY,
@@ -131,6 +132,7 @@ describe("back-service: config del worker", () => {
       apiKey: "sk-test",
       visionModel: DEFAULT_OPENAI_VISION_MODEL,
       transcriptionModel: DEFAULT_OPENAI_TRANSCRIPTION_MODEL,
+      textModel: DEFAULT_OPENAI_TEXT_MODEL,
     });
     assert.equal(DEFAULT_OPENAI_TRANSCRIPTION_MODEL, "gpt-transcribe");
     const config = loadWorkerConfig({

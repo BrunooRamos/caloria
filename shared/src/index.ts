@@ -76,6 +76,19 @@ export type {
 } from "./meals";
 export { dailyDashboardQuerySchema } from "./dashboard";
 export type { DailyDashboardQuery, DailyDashboardResponse, DailyRange } from "./dashboard";
+export {
+  isoWeekOf,
+  isoWeekRange,
+  isoWeekSchema,
+  isoWeeksInYear,
+  parseIsoWeek,
+  previousIsoWeek,
+  weeklySummaryParamsSchema,
+  WRAPPED_INSIGHT_MAX_CHARS,
+  WRAPPED_INSIGHTS_MAX,
+  WRAPPED_INSIGHTS_MIN,
+} from "./summaries";
+export type { WeeklyMetrics, WeeklySummaryResponse } from "./summaries";
 export { ACCESS_TOKEN_TTL_SECONDS, JWT_ALGORITHM, verifyAccessToken } from "./auth/jwt";
 export type { AccessTokenClaims, PlanTier } from "./auth/jwt";
 export { loadPrivateKey, loadPublicKey } from "./auth/keys";
