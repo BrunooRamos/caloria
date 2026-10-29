@@ -247,6 +247,25 @@ describe("historial por día", () => {
     expect(await screen.findByText("Ensalada César")).toBeOnTheScreen();
   });
 
+  it("el error de la página siguiente no se arrastra a otro día", async () => {
+    await start({
+      list: (call) =>
+        call.path.includes("cursor=")
+          ? apiError(503, "SERVICE_UNAVAILABLE")
+          : byDay({
+              [TODAY]: page([LUNCH], "cursor-2"),
+              "2026-10-26": page([YESTERDAY], "cursor-y"),
+            })(call),
+    });
+    expect(await screen.findByText("Milanesa con puré")).toBeOnTheScreen();
+    await reachEnd();
+    expect(await screen.findByRole("button", { name: "Cargar más" })).toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByRole("button", { name: "Día anterior" }));
+    expect(await screen.findByText("Guiso de lentejas")).toBeOnTheScreen();
+    expect(screen.queryByRole("button", { name: "Cargar más" })).toBeNull();
+  });
+
   it("tocar una comida abre el detalle, y al volver la lista se actualiza", async () => {
     let lunch = LUNCH;
     const router = await start({ list: (call) => byDay({ [TODAY]: page([lunch]) })(call) });
@@ -309,6 +328,37 @@ describe("historial por día", () => {
         ),
       ).toBeOnTheScreen();
       expect(screen.getByText("Milanesa con puré")).toBeOnTheScreen();
+    });
+
+    it("un refresco que salió antes de borrar no la trae de vuelta", async () => {
+      const refresh = deferred<Response>();
+      let first = true;
+      await start({
+        list: (call) => {
+          if (first) {
+            first = false;
+            return byDay({ [TODAY]: page([BREAKFAST, LUNCH]) })(call);
+          }
+          return refresh.promise;
+        },
+      });
+      expect(await screen.findByText("Milanesa con puré")).toBeOnTheScreen();
+
+      // Ir al detalle y volver pide la lista de nuevo; esa respuesta queda en vuelo.
+      await fireEvent.press(screen.getByRole("button", { name: /Tostadas con palta/ }));
+      await act(() => appRouter.back());
+      expect(listCalls()).toHaveLength(2);
+
+      await fireEvent.press(
+        screen.getByRole("button", { name: "Eliminar la comida de las 13:30" }),
+      );
+      await fireEvent.press(screen.getByRole("button", { name: "Sí, eliminar" }));
+      expect(screen.queryByText("Milanesa con puré")).toBeNull();
+
+      // El servidor respondió con la lista de antes del borrado.
+      await act(async () => refresh.resolve(json(200, page([BREAKFAST, LUNCH]))));
+      expect(screen.getByText("Tostadas con palta")).toBeOnTheScreen();
+      expect(screen.queryByText("Milanesa con puré")).toBeNull();
     });
 
     it("un 404 cuenta como borrada: ya no estaba", async () => {

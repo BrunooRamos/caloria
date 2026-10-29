@@ -22,11 +22,19 @@ export function useDayMeals(day: string) {
   const [stored, setStored] = useState<Stored>({ day, status: "loading" });
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [loadMoreError, setLoadMoreError] = useState<unknown>(null);
+  // Del día en que falló: al cambiar de día no se arrastra.
+  const [loadMoreFailure, setLoadMoreFailure] = useState<{ day: string; error: unknown } | null>(
+    null,
+  );
   const firstPage = useRef<AbortController | null>(null);
   const nextPage = useRef<AbortController | null>(null);
+  // Una página pedida antes de borrar puede traer todavía la comida borrada: no vuelve a aparecer.
+  const deleted = useRef(new Set<string>());
+  const withoutDeleted = (meals: readonly Meal[]) =>
+    meals.filter((meal) => !deleted.current.has(meal.id));
 
   const state: DayMealsState = stored.day === day ? stored : { status: "loading" };
+  const loadMoreError = loadMoreFailure?.day === day ? loadMoreFailure.error : null;
 
   const load = useCallback(async () => {
     firstPage.current?.abort();
@@ -40,11 +48,11 @@ export function useDayMeals(day: string) {
       setStored({
         day,
         status: "ready",
-        meals: page.items,
+        meals: withoutDeleted(page.items),
         nextCursor: page.nextCursor,
         stale: false,
       });
-      setLoadMoreError(null);
+      setLoadMoreFailure(null);
     } catch (error) {
       if (controller.signal.aborted) return;
       // Con datos del mismo día en pantalla, un refresco que falla no los tapa.
@@ -79,17 +87,21 @@ export function useDayMeals(day: string) {
     const controller = new AbortController();
     nextPage.current = controller;
     setLoadingMore(true);
-    setLoadMoreError(null);
+    setLoadMoreFailure(null);
     try {
       const page = await listMealsByDay(day, cursor, controller.signal);
       if (controller.signal.aborted) return;
       setStored((prev) =>
         prev.day === day && prev.status === "ready"
-          ? { ...prev, meals: mergePage(prev.meals, page.items), nextCursor: page.nextCursor }
+          ? {
+              ...prev,
+              meals: mergePage(prev.meals, withoutDeleted(page.items)),
+              nextCursor: page.nextCursor,
+            }
           : prev,
       );
     } catch (error) {
-      if (!controller.signal.aborted) setLoadMoreError(error);
+      if (!controller.signal.aborted) setLoadMoreFailure({ day, error });
     } finally {
       if (nextPage.current === controller) {
         nextPage.current = null;
@@ -120,6 +132,7 @@ export function useDayMeals(day: string) {
     } catch (error) {
       if (!(error instanceof ApiError && error.status === 404)) throw error;
     }
+    deleted.current.add(id);
     setStored((prev) =>
       prev.status === "ready" ? { ...prev, meals: removeMeal(prev.meals, id) } : prev,
     );
