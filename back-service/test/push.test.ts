@@ -135,7 +135,12 @@ describe("back-service: service de Expo Push (sin red)", () => {
       timeoutMs: 50,
       fetch: (_url, init) =>
         new Promise((_resolve, reject) => {
-          init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+          // El timer de AbortSignal.timeout no mantiene vivo el proceso; un fetch real sí (el socket).
+          const pending = setTimeout(() => {}, 60_000);
+          init?.signal?.addEventListener("abort", () => {
+            clearTimeout(pending);
+            reject(init.signal?.reason);
+          });
         }),
     });
     await assert.rejects(push.send([token("a")], message), /timeout|aborted/i);
