@@ -238,3 +238,46 @@ Si el proyecto tiene tests de componentes, agregá los de: barras con los valore
 
 Cuando termines, pasame qué archivos tocaste, si tomaste alguna decisión distinta a lo que puse acá y cómo probarlo en el simulador.
 ```
+
+## Sesión `bf5d41e8-0ec5-4a10-948b-3af45d2b5c38` · 2026-10-28
+
+### 2026-10-28 20:45
+
+```text
+Tengo que implementar el ticket de la racha en gamification al registrar una comida, o sea el cálculo de los días consecutivos con registro.
+
+Para el contexto, fijate en docs/requerimientos.md (la parte de RF-10) y en el modelo de datos de gamification. Esto se engancha en dos cosas que ya están hechas: el POST /meals, que ya calcula el localDate de cada comida, y el GET /dashboard/daily, que tiene un TODO donde iba la racha.
+
+Los criterios de aceptación son estos: se crea el documento de gamification del usuario; el primer registro de un día consecutivo suma 1 y si se saltea un día vuelve a 1; se guarda la racha máxima; se usa la zona horaria del usuario y borrar comidas no recalcula rachas pasadas; y el dashboard devuelve la racha actual y la máxima.
+
+Algunas cosas que pensé y quiero que se respeten:
+
+La racha se actualiza en el POST /meals, al registrar, no cuando la comida termina de analizarse. Lo que cuenta es que el usuario registró algo ese día, aunque después el análisis falle. Usá el localDate que ya calcula el endpoint.
+
+El documento de gamification se crea con un upsert la primera vez que el usuario registra una comida, así funciona también con los usuarios que ya existen. Asegurate de que haya un índice único por userId.
+
+La lógica, comparando el localDate de la comida con el lastLogDate guardado:
+- Si es el mismo día, no cambia nada.
+- Si lastLogDate es justo el día anterior, la racha actual suma 1.
+- Si no hay lastLogDate o hay al menos un día salteado, la racha actual vuelve a 1.
+- Si por algún motivo el localDate es anterior al lastLogDate (por ejemplo, el usuario cambió de zona horaria), no se toca nada.
+- Después se actualiza la máxima si la actual la superó, y lastLogDate pasa a ser el día de la comida.
+
+El "día anterior" calculalo con aritmética de fechas de calendario sobre el string YYYY-MM-DD, no restando 24 horas, así no hay problemas con los cambios de horario de verano.
+
+Si el usuario registra dos comidas casi al mismo tiempo el mismo día, la racha no puede sumar dos veces. Hacé la actualización atómica en Mongo, que solo se aplique si lastLogDate todavía no es ese día. Si el upsert inicial choca por la clave única porque llegaron dos a la vez, reintentá una vez.
+
+La racha no puede romper el registro de la comida: si la actualización falla, logueá el error con el requestId y seguí respondiendo el 202. La comida es lo importante. Y cuidá que no se pase del segundo de respuesta.
+
+Borrar una comida no toca la racha. Si un día queda sin comidas porque el usuario las borró, la racha de ese día ya está contada y queda así.
+
+En el dashboard hay un detalle importante: la racha guardada solo se actualiza cuando el usuario registra, así que si alguien no registró ayer ni hoy, en la base sigue figurando la racha vieja. Entonces la racha actual que devuelve el dashboard tiene que ser la guardada solo si lastLogDate es hoy o ayer (en la zona horaria del usuario); si es más vieja, devolvé 0. La máxima se devuelve tal cual. Y la racha siempre se calcula respecto a hoy, aunque se pida el dashboard de otra fecha. Si el usuario todavía no tiene documento de gamification, devolvé las dos en 0.
+
+Agregalo a la respuesta del dashboard como "streak": { "current": 4, "best": 12 } y actualizá docs/api.md.
+
+Fuera de alcance: la mascota y las insignias.
+
+Para los tests: primera comida crea el documento con racha 1; dos comidas el mismo día dejan la racha en 1; días consecutivos suman; saltear un día vuelve a 1 y la máxima se mantiene; una comida a las 23:30 de Montevideo cuenta para ese día y no para el siguiente; el día anterior se calcula bien con una zona que tenga horario de verano (por ejemplo America/New_York en el día del cambio); dos registros simultáneos el mismo día suman una sola vez; borrar una comida no cambia la racha; si falla la actualización de la racha, el POST /meals igual responde 202; y el dashboard devuelve 0 de racha actual cuando el último registro fue hace dos días o más.
+
+Cuando termines, pasame qué archivos tocaste, si tomaste alguna decisión distinta a lo que puse acá y cómo dieron los tests.
+```

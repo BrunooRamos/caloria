@@ -160,6 +160,10 @@ note:  "milanesa con puré"
 - El Backend lee la duración del audio del propio archivo (`moov/mvhd`); si no la puede leer o pasa de 60 s → 400.
 - Orden en el Backend: genera el `mealId`, sube la media a `users/{userId}/meals/{mealId}/photo.{jpg|png|heic}` (y `audio.m4a`), crea la comida con `status: "processing"` y `localDate` (el día en la zona del perfil al llegar el pedido) y encola el job `{ mealId, requestId }` con `jobId = mealId`. Responde 202 sin esperar al Worker: con el Worker apagado el job queda en espera.
 - Si falla la subida → 503 `SERVICE_UNAVAILABLE` y no queda nada. Si falla crear la comida → 500 `INTERNAL_ERROR` y se borra la media subida. Si falla encolar (Redis caído) → 503 `SERVICE_UNAVAILABLE`; la comida y la media quedan, con `status: "failed"` y `error.code: "ENQUEUE_FAILED"` para reprocesarla.
+- **Racha (RF-10):** con la comida ya creada, y en paralelo con el encolado, se cuenta el `localDate` en `gamification` (se crea con un upsert la primera vez). Cuenta el registro, no el análisis: vale aunque después el análisis falle. Contra `streak.lastLogDate`: el mismo día no cambia nada; el día anterior (calculado con el calendario sobre `YYYY-MM-DD`, no restando 24 h) suma 1; sin registro previo o con algún día salteado vuelve a 1; un día anterior a `lastLogDate` (cambio de zona) no toca nada. Después se actualiza `best` y `lastLogDate`.
+  - Es una sola escritura atómica, condicionada a que `localDate` sea posterior a `lastLogDate`: dos comidas a la vez el mismo día suman una vez. Si el upsert choca con el índice único (dos primeras comidas a la vez), se reintenta una vez.
+  - La racha nunca rompe el registro: si falla se loguea con el `requestId` y se responde 202 igual. Se espera como mucho 300 ms; si tarda más, se responde sin esperarla (la escritura sigue).
+  - Borrar comidas no recalcula la racha: un día que queda sin comidas ya está contado.
 
 ### Consultar el análisis
 
@@ -244,7 +248,8 @@ Authorization: Bearer <accessToken>
     "fat":     { "min": 45,   "max": 60,   "mid": 53 }
   },
   "targets": { "kcal": 2100, "proteinG": 120, "carbsG": 240, "fatG": 70 },
-  "meals": { "ready": 3, "processing": 1, "failed": 0 }
+  "meals": { "ready": 3, "processing": 1, "failed": 0 },
+  "streak": { "current": 4, "best": 12 }
 }
 ```
 
@@ -257,7 +262,10 @@ Authorization: Bearer <accessToken>
 - Solo números: la respuesta no dice si lo consumido está por encima o por debajo de la meta (RNF-10). Cómo se muestra lo decide la app.
 - Una sola agregación sobre el índice `{ userId, localDate }`; con `date`, la meta se busca en paralelo (RNF-01, < 1 s).
 - La respuesta lleva `Cache-Control: no-store`: la app lo vuelve a pedir al volver a la pantalla.
-- La racha (RF-10) todavía no viene: se agrega cuando exista la collection `gamification`.
+- `streak` es la racha de días con al menos un registro (RF-10), leída de `gamification`. Siempre es respecto de **hoy** en la zona del perfil, aunque se pida otra `date`.
+  - `current` es la racha guardada solo si el último registro fue hoy o ayer; si es más viejo, 0 (la racha guardada solo se actualiza al registrar, así que en la base puede seguir la vieja).
+  - `best` es la máxima histórica, tal cual está guardada.
+  - Un usuario que todavía no registró ninguna comida no tiene documento: las dos en 0.
 
 ## Códigos HTTP
 
