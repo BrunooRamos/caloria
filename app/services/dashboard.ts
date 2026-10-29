@@ -18,9 +18,11 @@ const dailyDashboardSchema = z.object({
     fatG: z.number().nonnegative(),
   }),
   meals: z.object({ ready: count, processing: count, failed: count }),
+  streak: z.object({ current: count, best: count }),
 });
 
 export type DailyRange = z.infer<typeof dailyRange>;
+export type DailyStreak = DailyDashboard["streak"];
 /** `GET /dashboard/daily`: consumido del día (comidas `ready`) contra la meta. */
 export type DailyDashboard = z.infer<typeof dailyDashboardSchema>;
 

@@ -281,3 +281,32 @@ Para los tests: primera comida crea el documento con racha 1; dos comidas el mis
 
 Cuando termines, pasame qué archivos tocaste, si tomaste alguna decisión distinta a lo que puse acá y cómo dieron los tests.
 ```
+
+### 2026-10-28 21:03
+
+```text
+Ahora tengo que implementar en la app el ticket de mostrar la racha en el dashboard. Revisá los cambios y la actualización de docs/api.md que hicimos recién para ver la forma exacta de la respuesta. 
+
+Para el contexto, fijate también en docs/requerimientos.md (la parte de RF-10). Para lo visual usá la skill caloria-design; cargala antes de empezar y seguila.
+
+El criterio de aceptación es que la racha actual y la máxima se vean en el dashboard.
+
+Algunas cosas que pensé y quiero que se respeten:
+
+Los datos salen de la misma respuesta del dashboard que ya usamos, no hagas otro pedido. Así la racha se actualiza con el mismo refresco que ya tiene la pantalla (al ganar foco, pull to refresh, etc.) y no hay que agregar nada para eso. Actualizá el tipo de la respuesta del dashboard en la app para incluir streak.
+
+La racha actual que esté destacada, arriba en la pantalla, con un número grande y un ícono que siga la skill de diseño. La máxima más chica al lado o debajo, como dato secundario. Cuidá el singular y el plural: "1 día", "4 días".
+
+Si la actual es igual a la máxima y es mayor a 1, mostrá un detalle positivo chico, tipo "tu mejor racha".
+
+Cuando la racha actual es 0, nada de mensajes que hagan sentir mal al usuario, tipo "perdiste tu racha" o "rompiste tu racha". Algo neutro y que invite, como "Registrá una comida para empezar tu racha". Esto va en línea con el RNF-10.
+
+Que tenga accessibilityLabel, por ejemplo "Racha actual: 4 días. Mejor racha: 12 días".
+
+Fuera de alcance: la notificación de racha en riesgo.
+
+Si el proyecto tiene tests de componentes, agregá los de: racha con valores normales, singular y plural, el detalle de mejor racha, y el estado en 0.
+
+Cuando termines, pasame qué archivos tocaste, si tomaste alguna decisión distinta a lo que puse acá y cómo probarlo en el simulador.
+
+```

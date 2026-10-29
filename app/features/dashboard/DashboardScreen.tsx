@@ -9,6 +9,7 @@ import { colors, sizes, spacing } from "@/theme";
 import { AnalyzingNotice, EmptyDayNotice, FailedNotice } from "./DayNotices";
 import { DashboardSkeleton } from "./DashboardSkeleton";
 import { NutrientBar } from "./NutrientBar";
+import { StreakCard } from "./StreakCard";
 import { useDailyDashboard } from "./useDailyDashboard";
 
 const MACROS = [
@@ -18,7 +19,7 @@ const MACROS = [
 ] as const;
 
 /**
- * Pantalla principal: el progreso del día contra la meta (RF-09). Muestra lo que devuelve
+ * Pantalla principal: la racha (RF-10) y el progreso del día contra la meta (RF-09). Muestra lo que devuelve
  * `GET /dashboard/daily` sin recalcular nada. El botón de registrar está en todos los estados
  * (RNF-06: botón, foto y confirmar).
  */
@@ -67,7 +68,7 @@ export default function DashboardScreen() {
 }
 
 function DayProgress({ dashboard, stale }: { dashboard: DailyDashboard; stale: boolean }) {
-  const { consumed, targets, meals } = dashboard;
+  const { consumed, targets, meals, streak } = dashboard;
   const empty = meals.ready + meals.processing + meals.failed === 0;
   return (
     <>
@@ -76,6 +77,7 @@ function DayProgress({ dashboard, stale }: { dashboard: DailyDashboard; stale: b
           No pudimos actualizar. Estás viendo lo último que cargó.
         </Text>
       )}
+      <StreakCard streak={streak} />
       {empty && <EmptyDayNotice />}
       {meals.processing > 0 && <AnalyzingNotice count={meals.processing} />}
       {meals.failed > 0 && <FailedNotice count={meals.failed} />}
