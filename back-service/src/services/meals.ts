@@ -1,12 +1,13 @@
 import { isDeepStrictEqual } from "node:util";
 import { Types } from "mongoose";
-import { AppError, serializeError } from "@caloria/shared";
+import { AppError, MEALS_PAGE_SIZE, serializeError } from "@caloria/shared";
 import type {
   CorrectableField,
   CorrectMealInput,
   CreateMealResponse,
   Logger,
   MealErrorCode,
+  MealListResponse,
   MealResponse,
   ValidMealUpload,
 } from "@caloria/shared";
@@ -33,6 +34,23 @@ const CORRECTABLE_FIELDS = [
 
 type StoredMeal = MealResponseSource & { media: Pick<MealMedia, "photoKey"> };
 
+/** Posición en el historial: la última comida de la página anterior, en el orden del listado. */
+interface ListCursor {
+  capturedAt: Date;
+  id: Types.ObjectId;
+}
+
+// Opaco para la app: base64url de "<capturedAt en ms>.<id>".
+function encodeCursor({ capturedAt, _id }: Pick<StoredMeal, "capturedAt" | "_id">): string {
+  return Buffer.from(`${capturedAt.getTime()}.${_id.toString()}`).toString("base64url");
+}
+
+function decodeCursor(cursor: string): ListCursor {
+  const match = /^(\d{1,15})\.([0-9a-f]{24})$/.exec(Buffer.from(cursor, "base64url").toString());
+  if (!match) throw new AppError("VALIDATION_ERROR", "El cursor no es válido");
+  return { capturedAt: new Date(Number(match[1])), id: new Types.ObjectId(match[2]) };
+}
+
 export interface CorrectMealResult {
   meal: MealResponse;
   /** Campos que cambiaron y quedaron en `corrections`; vacío si no cambió nada. */
@@ -44,6 +62,10 @@ export interface CreateMealContext {
   log: Logger;
 }
 
+export interface RemoveMealContext {
+  log: Logger;
+}
+
 export interface MealService {
   create(
     userId: string,
@@ -51,6 +73,10 @@ export interface MealService {
     context: CreateMealContext,
   ): Promise<CreateMealResponse>;
   get(userId: string, mealId: string): Promise<MealResponse>;
+  /** Comidas del día (`localDate`) por hora ascendente, de a MEALS_PAGE_SIZE. */
+  list(userId: string, date: string, cursor?: string): Promise<MealListResponse>;
+  /** Borra la media y después el documento. Lanza NOT_FOUND si no es del usuario. */
+  remove(userId: string, mealId: string, context: RemoveMealContext): Promise<void>;
   correct(userId: string, mealId: string, input: CorrectMealInput): Promise<CorrectMealResult>;
 }
 
@@ -171,6 +197,59 @@ export function createMealService({
       ).lean<StoredMeal>();
       if (!meal) throw new AppError("NOT_FOUND");
       return toMealResponse(meal, await media.signedUrl(meal.media.photoKey));
+    },
+
+    async list(userId, date, cursor) {
+      const after = cursor === undefined ? undefined : decodeCursor(cursor);
+      // Mismo orden que el índice { userId, localDate, capturedAt, _id }: el _id desempata.
+      const meals = await MealModel.find(
+        {
+          userId,
+          localDate: date,
+          ...(after && {
+            $or: [
+              { capturedAt: { $gt: after.capturedAt } },
+              { capturedAt: after.capturedAt, _id: { $gt: after.id } },
+            ],
+          }),
+        },
+        MEAL_RESPONSE_FIELDS,
+      )
+        .sort({ capturedAt: 1, _id: 1 })
+        .limit(MEALS_PAGE_SIZE + 1)
+        .lean<StoredMeal[]>();
+      const page = meals.slice(0, MEALS_PAGE_SIZE);
+      const items = await Promise.all(
+        page.map(async (meal) => toMealResponse(meal, await media.signedUrl(meal.media.photoKey))),
+      );
+      const last = page.at(-1);
+      return {
+        items,
+        nextCursor: meals.length > MEALS_PAGE_SIZE && last ? encodeCursor(last) : null,
+      };
+    },
+
+    async remove(userId, mealId, { log }) {
+      const meal = await MealModel.findOne({ _id: mealId, userId }, { media: 1 }).lean<{
+        media: MealMedia;
+      }>();
+      if (!meal) throw new AppError("NOT_FOUND");
+
+      // Primero la media: si el bucket falla, la comida sigue y el usuario reintenta (borrar es
+      // idempotente). Al revés, un 204 podría dejar la foto en el bucket sin nada que la apunte.
+      const keys = [meal.media.photoKey, ...(meal.media.audioKey ? [meal.media.audioKey] : [])];
+      const results = await Promise.allSettled(keys.map((key) => media.remove(key)));
+      const failed = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
+      if (failed) {
+        log.error("no se pudo borrar la media; la comida no se borra", {
+          mealId,
+          err: serializeError(failed.reason, { stack: true }),
+        });
+        throw new AppError("SERVICE_UNAVAILABLE", undefined, { cause: failed.reason });
+      }
+
+      // Si ya no está (otro DELETE ganó la carrera), el resultado es el mismo: no existe más.
+      await MealModel.deleteOne({ _id: mealId, userId });
     },
 
     async correct(userId, mealId, input) {

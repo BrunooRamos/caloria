@@ -129,6 +129,7 @@ const mealSchema = new Schema<Meal>(
 );
 
 mealSchema.index({ userId: 1, capturedAt: -1 });
-mealSchema.index({ userId: 1, localDate: 1 });
+// Historial del día (GET /meals) en orden y dashboard (prefijo { userId, localDate }).
+mealSchema.index({ userId: 1, localDate: 1, capturedAt: 1, _id: 1 });
 
 export const MealModel = model<Meal>("Meal", mealSchema);

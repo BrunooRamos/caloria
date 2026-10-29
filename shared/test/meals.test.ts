@@ -9,6 +9,7 @@ import {
   detectPhotoType,
   ITEM_NAME_MAX_CHARS,
   ITEMS_MAX,
+  listMealsQuerySchema,
   mealIdParamsSchema,
   NOTE_MAX_CHARS,
   PHOTO_MAX_BYTES,
@@ -142,6 +143,31 @@ describe("meals: id de la ruta", () => {
     const params = { id: "66f1a0000000000000000099", extra: "1" };
     assert.equal(mealIdParamsSchema.safeParse(params).success, false);
   });
+});
+
+describe("meals: query de GET /meals", () => {
+  it("acepta date sola y date con cursor", () => {
+    assert.deepEqual(listMealsQuerySchema.parse({ date: "2026-10-06" }), { date: "2026-10-06" });
+    assert.deepEqual(listMealsQuerySchema.parse({ date: "2026-10-06", cursor: "MTc5_MC-2" }), {
+      date: "2026-10-06",
+      cursor: "MTc5_MC-2",
+    });
+  });
+
+  for (const [caso, query] of [
+    ["sin date", {}],
+    ["date con otro formato", { date: "06-10-2026" }],
+    ["un día que no existe", { date: "2026-02-30" }],
+    ["date repetida", { date: ["2026-10-06", "2026-10-07"] }],
+    ["cursor vacío", { date: "2026-10-06", cursor: "" }],
+    ["cursor fuera de base64url", { date: "2026-10-06", cursor: "a+b/=" }],
+    ["cursor demasiado largo", { date: "2026-10-06", cursor: "a".repeat(129) }],
+    ["un campo de más", { date: "2026-10-06", userId: "66f1a0000000000000000002" }],
+  ] as const) {
+    it(`rechaza ${caso}`, () => {
+      assert.equal(listMealsQuerySchema.safeParse(query).success, false);
+    });
+  }
 });
 
 describe("meals: rangos", () => {

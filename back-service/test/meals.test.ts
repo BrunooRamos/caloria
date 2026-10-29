@@ -152,9 +152,14 @@ describe("back-service: POST /meals", () => {
     bucketFails = undefined;
   });
 
-  it("crea el índice { userId, localDate } en meals", async () => {
+  it("crea el índice { userId, localDate, capturedAt, _id } en meals", async () => {
     const indexes = await MealModel.collection.indexes();
-    assert.ok(indexes.some((index) => JSON.stringify(index.key) === '{"userId":1,"localDate":1}'));
+    assert.ok(
+      indexes.some(
+        (index) =>
+          JSON.stringify(index.key) === '{"userId":1,"localDate":1,"capturedAt":1,"_id":1}',
+      ),
+    );
   });
 
   describe("sin Redis", () => {

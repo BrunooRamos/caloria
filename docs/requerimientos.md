@@ -65,7 +65,7 @@ Endpoints: `GET /users/me`, `PATCH /users/me`.
 
 - [x] El usuario puede corregir el plato, agregar / quitar / editar ingredientes y ajustar kcal y macros, desde el detalle de una comida `ready` ("Corregir").
 - [x] Cada cambio se agrega a `meals.corrections` con campo, valor anterior, valor nuevo y fecha.
-- [ ] Después de corregir, el historial y el dashboard usan los valores corregidos. (El detalle, el dashboard y `GET /meals/:id` sí; falta el listado, RF-08.)
+- [x] Después de corregir, el historial y el dashboard usan los valores corregidos.
 - [x] Una comida de otro usuario devuelve 404.
 
 Endpoint: `PATCH /meals/:id`.
@@ -88,11 +88,11 @@ Cómo corrige la app (`app/features/meals/edit/`). Cada corrección alimenta el 
 
 #### RF-08 — Historial por día
 
-- [ ] La app muestra las comidas de un día, ordenadas por hora, con navegación a días anteriores.
-- [ ] El "día" se calcula en la zona horaria del usuario.
-- [ ] Se puede ver el detalle, editar (RF-06) y eliminar una comida.
-- [ ] Eliminar borra el documento y su media del bucket (204).
-- [ ] La lista está paginada por cursor (20 por página).
+- [x] La app muestra las comidas de un día, ordenadas por hora, con navegación a días anteriores.
+- [x] El "día" se calcula en la zona horaria del usuario.
+- [x] Se puede ver el detalle, editar (RF-06) y eliminar una comida.
+- [x] Eliminar borra el documento y su media del bucket (204).
+- [x] La lista está paginada por cursor (20 por página).
 
 Endpoints: `GET /meals?date=&cursor=`, `GET /meals/:id`, `DELETE /meals/:id`.
 

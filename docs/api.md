@@ -204,6 +204,32 @@ La forma depende del `status`:
 - La comida se busca por id **y** dueño en la misma consulta: una comida de otro usuario y un id inexistente responden el mismo 404 `NOT_FOUND`, con el mismo mensaje.
 - Un `id` que no es un ObjectId (24 caracteres hex) → 400 `VALIDATION_ERROR`, en el Front y en el Backend.
 
+### Historial del día
+
+```http
+GET /api/v1/meals?date=2026-10-06
+GET /api/v1/meals?date=2026-10-06&cursor=MTc5MTI5ODcwMDAwMC42NmYx…
+Authorization: Bearer <accessToken>
+```
+```json
+{
+  "items": [
+    { "id": "66f1a…", "status": "ready", "capturedAt": "2026-10-06T11:05:00.000Z", "photoUrl": "https://…firmada…", "dish": "Tostadas con palta", "…": "…" },
+    { "id": "66f1b…", "status": "processing", "capturedAt": "2026-10-06T15:40:00.000Z", "photoUrl": "https://…firmada…" }
+  ],
+  "nextCursor": null
+}
+```
+
+- `date` es obligatoria, `YYYY-MM-DD` y un día real del calendario. Las comidas se filtran por `localDate` (el día en la zona del perfil al registrarlas), no por `capturedAt`: una comida de las 23:30 en Montevideo es de ese día aunque en UTC ya sea el siguiente.
+- Orden por `capturedAt` ascendente (desempata el id), de a 20 por página (`MEALS_PAGE_SIZE`). `nextCursor` es `null` en la última página; si no, se manda tal cual como `cursor` para pedir la siguiente.
+- El cursor es opaco para la app (base64url de la posición de la última comida de la página). Es estable: una comida nueva o borrada entre páginas no hace repetir ni saltear las demás.
+- Cada item tiene **la misma forma que `GET /meals/:id`**, según su `status` y con las correcciones aplicadas (`toMealResponse` + `applyCorrections`). Cada `photoUrl` se firma en la request (15 min).
+- Un día sin comidas no es un error: 200 con `{ "items": [], "nextCursor": null }`.
+- Solo las comidas del usuario del token. Sin `date`, un `date` inválido o repetido, un `cursor` vacío o que no salió de la API, o cualquier otro campo en la query → 400 `VALIDATION_ERROR`. El Front valida la forma (`listMealsQuerySchema`, en `shared`); el Backend además decodifica el cursor.
+- Una sola consulta sobre el índice `{ userId, localDate, capturedAt, _id }`, sin ordenar en memoria. La respuesta lleva `Cache-Control: no-store`.
+- Tipo de la respuesta: `MealListResponse` (`shared`).
+
 ### Corregir una comida
 
 ```http
@@ -227,6 +253,20 @@ Cada campo que cambió se registra en `corrections` con su valor anterior y nuev
 - Solo se corrige una comida `ready`. En `processing` o `failed` no hay análisis que corregir → 409 `MEAL_NOT_READY`, sin tocar la base.
 - Dos PATCH a la vez no se pisan: la escritura solo se aplica si `corrections` sigue teniendo el largo que se leyó; si no, relee (el `from` pasa a ser lo que dejó el otro) y reintenta hasta 3 veces. Si pierde las 3 → 500 `INTERNAL_ERROR` sin escribir nada.
 - Loguea `mealId`, los campos corregidos (`fields`) y `durationMs`; nunca los valores.
+
+### Eliminar una comida
+
+```http
+DELETE /api/v1/meals/66f1a…
+Authorization: Bearer <accessToken>
+```
+
+Responde 204 sin cuerpo: borró la foto, el audio (si lo había) y el documento.
+
+- La comida se busca por id **y** dueño: una comida de otro usuario y un id inexistente responden el mismo 404 `NOT_FOUND`, sin tocar nada. Un id que no es un ObjectId → 400 `VALIDATION_ERROR`.
+- Orden: primero la media del bucket, después el documento. Si el bucket falla → 503 `SERVICE_UNAVAILABLE` y la comida queda como estaba (se loguea el `mealId`); la app puede reintentar, porque borrar una key que ya no existe no falla. Así un 204 garantiza que no quedó media huérfana en el bucket. Si falla Mongo después de borrar la media, la comida queda sin foto hasta el reintento.
+- Se puede borrar en cualquier `status`. Si el Worker todavía la está analizando, el job no encuentra la comida (o la foto) y se descarta sin escribir nada.
+- Borrar no recalcula rachas pasadas (RF-10). El dashboard deja de sumarla al volver a pedirlo.
 
 ### Dashboard diario
 
@@ -255,7 +295,7 @@ Authorization: Bearer <accessToken>
 - `targets` es `users.targets` tal cual está guardada (con las mismas claves que `GET /users/me`); no se recalcula acá.
 - Un día sin comidas no es un error: 200 con `consumed` en cero y `meals` en cero.
 - Solo números: la respuesta no dice si lo consumido está por encima o por debajo de la meta (RNF-10). Cómo se muestra lo decide la app.
-- Una sola agregación sobre el índice `{ userId, localDate }`; con `date`, la meta se busca en paralelo (RNF-01, < 1 s).
+- Una sola agregación sobre el índice `{ userId, localDate, capturedAt, _id }` (usa el prefijo `{ userId, localDate }`); con `date`, la meta se busca en paralelo (RNF-01, < 1 s).
 - La respuesta lleva `Cache-Control: no-store`: la app lo vuelve a pedir al volver a la pantalla.
 - La racha (RF-10) todavía no viene: se agrega cuando exista la collection `gamification`.
 

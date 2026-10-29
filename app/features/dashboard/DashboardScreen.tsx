@@ -55,6 +55,9 @@ export default function DashboardScreen() {
             Hoy
           </Text>
           {body}
+          <Link href="/history" asChild>
+            <Button variant="secondary" title="Ver comidas del día" />
+          </Link>
           <Link href="/profile" asChild>
             <Button variant="ghost" title="Mi perfil" />
           </Link>

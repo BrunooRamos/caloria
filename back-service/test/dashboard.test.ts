@@ -348,11 +348,11 @@ describe("back-service: GET /dashboard/daily", () => {
       return undefined;
     }
 
-    it("la agregación usa el índice { userId, localDate }", async () => {
+    it("la agregación usa el índice { userId, localDate, … } (prefijo del del historial)", async () => {
       await seedDays();
       const explain = await MealModel.aggregate(dailyTotalsPipeline(userId, DAY)).explain();
       const plan = JSON.stringify(winningPlan(explain));
-      assert.match(plan, /"indexName":"userId_1_localDate_1"/);
+      assert.match(plan, /"indexName":"userId_1_localDate_1_capturedAt_1__id_1"/);
       assert.doesNotMatch(plan, /COLLSCAN/);
     });
 
