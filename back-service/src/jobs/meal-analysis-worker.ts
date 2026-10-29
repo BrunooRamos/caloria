@@ -1,16 +1,56 @@
 import { Worker } from "bullmq";
 import type { Job } from "bullmq";
 import IORedis from "ioredis";
+import { Types } from "mongoose";
 import { serializeError } from "@caloria/shared";
-import type { Logger } from "@caloria/shared";
+import type { Logger, MealErrorCode } from "@caloria/shared";
+import { MealModel } from "../models/Meal";
 import { MEAL_ANALYSIS_QUEUE } from "./meal-analysis";
 import type { MealAnalysisJob } from "./meal-analysis";
 import type { MealAnalysisProcessor } from "./meal-analysis-processor";
 
+/** `error.code` de una meal que agotó los reintentos del análisis (RNF-02). */
+export const ANALYSIS_FAILED = "ANALYSIS_FAILED" satisfies MealErrorCode;
+
 /** Lo que el handler lee del job de BullMQ; alcanza con esto para testearlo sin Redis. */
 export type MealAnalysisJobRun = Pick<Job<MealAnalysisJob>, "data" | "attemptsMade" | "opts">;
 
-/** Envuelve el processor con los logs de cada job: ids, intento y duración, salga bien o mal. */
+/**
+ * Guarda en la meal cuántos intentos fallaron y, si fue el último, la deja en `failed` con
+ * `ANALYSIS_FAILED` (RNF-02). Solo si sigue en processing: no pisa una meal que ya cambió.
+ * La media no se toca: queda en el bucket. Si Mongo falla, se loguea y no tapa el error del job.
+ */
+async function recordFailedAttempt(mealId: string, attempt: number, final: boolean, log: Logger) {
+  if (!Types.ObjectId.isValid(mealId)) return;
+  try {
+    const { matchedCount } = await MealModel.updateOne(
+      { _id: mealId, status: "processing" },
+      {
+        $set: {
+          attempts: attempt,
+          ...(final && { status: "failed", error: { code: ANALYSIS_FAILED } }),
+        },
+      },
+      { runValidators: true },
+    );
+    if (final && matchedCount === 1) {
+      log.warn("se agotaron los reintentos: la comida queda en failed", {
+        errorCode: ANALYSIS_FAILED,
+      });
+    }
+  } catch (err) {
+    log.error("no se pudo registrar el intento fallido en la comida", {
+      final,
+      err: serializeError(err, { stack: true }),
+    });
+  }
+}
+
+/**
+ * Envuelve el processor con los logs de cada job: ids, intento y duración, salga bien o mal.
+ * Si falla, registra el intento en la meal y vuelve a tirar el error para que BullMQ reintente
+ * (o marque el job como fallido en el último intento).
+ */
 export function createMealAnalysisHandler(processor: MealAnalysisProcessor, logger: Logger) {
   return async ({ data, attemptsMade, opts }: MealAnalysisJobRun) => {
     const attempt = attemptsMade + 1;
@@ -27,11 +67,13 @@ export function createMealAnalysisHandler(processor: MealAnalysisProcessor, logg
       const outcome = await processor(data, log);
       log.info("job de análisis terminado", { outcome, durationMs: durationMs() });
     } catch (err) {
+      const willRetry = attempt < maxAttempts;
       log.error("job de análisis falló", {
         durationMs: durationMs(),
-        willRetry: attempt < maxAttempts,
+        willRetry,
         err: serializeError(err, { stack: true }),
       });
+      await recordFailedAttempt(data.mealId, attempt, !willRetry, log);
       throw err;
     }
   };

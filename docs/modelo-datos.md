@@ -63,7 +63,7 @@ corrections: {
   at: Date
 }[]
 comment?: { tone: string; text: string }   // ausente con el tono "off"
-attempts: number              // reintentos del job de análisis
+attempts: number              // intentos fallidos del análisis; lo escribe el Worker en cada fallo
 error?: { code: "ENQUEUE_FAILED" | "NOT_FOOD" | "ANALYSIS_FAILED" }   // solo con status "failed"
 ```
 
@@ -83,7 +83,7 @@ Los valores que se muestran y que suman en el dashboard son los del análisis **
 |---|---|---|
 | `ENQUEUE_FAILED` | Backend | No se pudo encolar el análisis (Redis caído). Reprocesable |
 | `NOT_FOOD` | Worker | La IA dice que la foto no es comida. Sin reintento y no consume cupo |
-| `ANALYSIS_FAILED` | Worker | Se agotaron los reintentos del análisis (RNF-02). Reservado: lo escribe #35 |
+| `ANALYSIS_FAILED` | Worker | Falló el último de los 4 intentos del análisis (3 reintentos con backoff exponencial de 5, 10 y 20 s, RNF-02). La media queda en el bucket |
 
 ## `weekly_summaries`
 
