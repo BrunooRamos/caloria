@@ -7,7 +7,7 @@ ENV MONGOMS_DISABLE_POSTINSTALL=1
 RUN npm install
 COPY shared/ /repo/shared/
 COPY back-service/ ./
-# El Worker lee el prompt de análisis al arrancar (../prompts/analisis-comida.md).
+# El Worker lee los prompts al arrancar (../prompts/analisis-comida.md e identificar-plato.md).
 COPY prompts/ /repo/prompts/
 RUN npm run build
 CMD ["npm", "start"]

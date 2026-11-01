@@ -17,7 +17,7 @@ import type { MealMedia } from "../models/Meal";
 import { UserModel } from "../models/User";
 import type { User } from "../models/User";
 import { localDateIn } from "./local-date";
-import { applyCorrections } from "./meal-corrections";
+import { applyCorrections, toMealSearch } from "./meal-corrections";
 import { MEAL_RESPONSE_FIELDS, toMealResponse } from "./meal-response";
 import type { MealResponseSource } from "./meal-response";
 import type { MediaKind, MediaService } from "./media";
@@ -278,6 +278,10 @@ export function createMealService({
           };
         }
 
+        // El índice de similares tiene que ver los valores finales, no los de la IA.
+        const search = toMealSearch(
+          applyCorrections(meal.analysis, [...meal.corrections, ...corrections]),
+        );
         // Optimista: si otro PATCH agregó correcciones desde que leímos, el from quedó viejo.
         const updated = await MealModel.findOneAndUpdate(
           {
@@ -286,7 +290,7 @@ export function createMealService({
             status: "ready",
             corrections: { $size: meal.corrections.length },
           },
-          { $push: { corrections: { $each: corrections } } },
+          { $push: { corrections: { $each: corrections } }, $set: { search } },
           { new: true, projection: MEAL_RESPONSE_FIELDS },
         ).lean<StoredMeal>();
         if (updated) {

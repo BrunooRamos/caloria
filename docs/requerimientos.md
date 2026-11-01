@@ -81,9 +81,9 @@ Cómo corrige la app (`app/features/meals/edit/`). Cada corrección alimenta el 
 
 #### RF-07 — Compounding
 
-- [ ] Antes de llamar a la IA, el Worker busca hasta 5 comidas del mismo usuario con plato o ingredientes similares que tengan correcciones.
-- [ ] Esas comidas (plato, valores finales y qué se corrigió) se incluyen en el prompt como contexto.
-- [ ] Primera versión: similitud por texto (nombre del plato e ingredientes, búsqueda full-text de Mongo). Embeddings solo si sobra tiempo.
+- [x] Antes de llamar a la IA, el Worker busca hasta 5 comidas del mismo usuario con plato o ingredientes similares que tengan correcciones. Como al buscar todavía no se sabe qué plato es, si el usuario tiene comidas corregidas se identifica con una llamada corta a la IA, en paralelo con la transcripción, y se busca con eso, la nota y la transcripción. Si la búsqueda falla, el análisis sigue sin contexto.
+- [x] Esas comidas (plato, valores finales y qué se corrigió) se incluyen en el prompt como contexto (`analisis-comida.md` 1.2.0), y sus ids quedan en `analysis.contextMealIds`.
+- [x] Primera versión: similitud por texto (nombre del plato e ingredientes, búsqueda full-text de Mongo). Embeddings solo si sobra tiempo. El índice cubre los valores **corregidos** (`meals.search`, ver [modelo-datos.md](modelo-datos.md#compounding-rf-07)).
 - [ ] Prueba de aceptación: corregir un plato y volver a registrar uno parecido da un rango más cercano a la corrección que el primer análisis.
 
 #### RF-08 — Historial por día

@@ -2,14 +2,16 @@ import OpenAI from "openai";
 import type { ResponseInputContent } from "openai/resources/responses/responses";
 import { z } from "zod";
 import { correctableFieldsSchema } from "@caloria/shared";
-import type { AnalysisPrompt } from "../config/analysis-prompt";
+import type { Prompt } from "../config/prompts";
 import type { MealAnalysis } from "../models/Meal";
+import type { SimilarMeal } from "./similar-meals";
+import { formatSimilarMeals } from "./similar-meals-context";
 import type { VisionImage } from "./vision-image";
 
 // Tope de la llamada a la IA. Sin reintentos del SDK: los reintentos son de BullMQ.
 export const VISION_TIMEOUT_MS = 45_000;
 
-export type FoodAnalysis = Omit<MealAnalysis, "promptVersion" | "model">;
+export type FoodAnalysis = Omit<MealAnalysis, "promptVersion" | "model" | "contextMealIds">;
 
 export interface TokenUsage {
   input: number;
@@ -32,6 +34,8 @@ export interface VisionInput {
   image: VisionImage;
   transcript?: string;
   note?: string;
+  /** Comidas corregidas parecidas del mismo usuario, la más parecida primero. */
+  similarMeals?: SimilarMeal[];
 }
 
 export interface VisionService {
@@ -151,8 +155,16 @@ export const RESPONSE_JSON_SCHEMA = {
 export const TRANSCRIPT_LABEL = "Audio del usuario:";
 export const NOTE_LABEL = "Nota del usuario:";
 
-/** Mensaje del usuario: la foto y, si vienen, la transcripción y la nota como partes rotuladas. */
-function userContent({ image, transcript, note }: VisionInput): ResponseInputContent[] {
+/**
+ * Mensaje del usuario: la foto y, si vienen, la transcripción, la nota y las comidas corregidas
+ * parecidas como partes rotuladas.
+ */
+function userContent({
+  image,
+  transcript,
+  note,
+  similarMeals,
+}: VisionInput): ResponseInputContent[] {
   const base64 = Buffer.from(image.data.buffer, image.data.byteOffset, image.data.byteLength);
   const content: ResponseInputContent[] = [
     {
@@ -167,13 +179,16 @@ function userContent({ image, transcript, note }: VisionInput): ResponseInputCon
   ] as const) {
     if (text) content.push({ type: "input_text", text: `${label}\n${text}` });
   }
+  if (similarMeals?.length) {
+    content.push({ type: "input_text", text: formatSimilarMeals(similarMeals) });
+  }
   return content;
 }
 
 export interface OpenAiVisionOptions {
   apiKey: string;
   model: string;
-  prompt: AnalysisPrompt;
+  prompt: Prompt;
   timeoutMs?: number;
   /** Solo para tests: reemplaza el fetch del SDK. */
   fetch?: typeof globalThis.fetch;
