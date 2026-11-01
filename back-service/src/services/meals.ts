@@ -21,10 +21,14 @@ import { applyCorrections, toMealSearch } from "./meal-corrections";
 import { MEAL_RESPONSE_FIELDS, toMealResponse } from "./meal-response";
 import type { MealResponseSource } from "./meal-response";
 import type { MediaKind, MediaService } from "./media";
+import { createStreakService } from "./streak";
+import type { StreakService } from "./streak";
 
 export const ENQUEUE_FAILED = "ENQUEUE_FAILED" satisfies MealErrorCode;
 
 const MAX_CORRECT_ATTEMPTS = 3;
+// Tope de espera por la racha para no pasar del segundo de respuesta (RNF-01).
+export const STREAK_TIMEOUT_MS = 300;
 const CORRECTABLE_FIELDS = [
   "dish",
   "items",
@@ -83,14 +87,40 @@ export interface MealService {
 export interface MealServiceDeps {
   media: MediaService;
   queue: MealAnalysisQueue;
+  streak?: StreakService;
   now?: () => Date;
 }
 
 export function createMealService({
   media,
   queue,
+  streak = createStreakService(),
   now = () => new Date(),
 }: MealServiceDeps): MealService {
+  /**
+   * La racha nunca rompe el registro: si falla se loguea, y si tarda más de STREAK_TIMEOUT_MS se
+   * responde sin esperarla (la escritura sigue y es atómica). Nunca rechaza.
+   */
+  async function recordStreak(userId: string, localDate: string, log: Logger, mealId: string) {
+    const update = streak.record(userId, localDate).then(
+      () => true,
+      (err: unknown) => {
+        log.error("no se pudo actualizar la racha", {
+          mealId,
+          err: serializeError(err, { stack: true }),
+        });
+        return true;
+      },
+    );
+    let timer: NodeJS.Timeout | undefined;
+    const timeout = new Promise<false>((resolve) => {
+      timer = setTimeout(() => resolve(false), STREAK_TIMEOUT_MS);
+    });
+    const settled = await Promise.race([update, timeout]);
+    clearTimeout(timer);
+    if (!settled) log.warn("la racha tarda; se responde sin esperarla", { mealId });
+  }
+
   /** Best effort: si no se puede borrar, queda logueada para limpiarla a mano. */
   async function removeMedia(keys: string[], log: Logger, mealId: string) {
     const results = await Promise.allSettled(keys.map((key) => media.remove(key)));
@@ -146,13 +176,14 @@ export function createMealService({
       const mealId = new Types.ObjectId();
       const id = mealId.toString();
       const mediaKeys = await uploadMedia(userId, id, upload, log);
+      const localDate = localDateIn(user.profile.timezone, receivedAt);
 
       try {
         await MealModel.create({
           _id: mealId,
           userId,
           capturedAt: receivedAt,
-          localDate: localDateIn(user.profile.timezone, receivedAt),
+          localDate,
           status: "processing",
           media: mediaKeys,
           ...(upload.note !== undefined && { note: upload.note }),
@@ -166,6 +197,9 @@ export function createMealService({
         throw new AppError("INTERNAL_ERROR", undefined, { cause: err });
       }
 
+      // Cuenta el registro, no el análisis: la comida ya está guardada aunque después falle.
+      // Va en paralelo con el encolado.
+      const streakRecorded = recordStreak(userId, localDate, log, id);
       try {
         await queue.enqueue({ mealId: id, requestId });
       } catch (err) {
@@ -186,6 +220,7 @@ export function createMealService({
         });
         throw new AppError("SERVICE_UNAVAILABLE", undefined, { cause: err });
       }
+      await streakRecorded;
 
       return { mealId: id, status: "processing" };
     },

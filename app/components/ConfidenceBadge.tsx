@@ -1,7 +1,5 @@
-import { StyleSheet, View } from "react-native";
-import { colors, radius, spacing } from "@/theme";
 import type { ColorToken } from "@/theme";
-import { Text } from "./Text";
+import { Badge } from "./Badge";
 
 export type ConfidenceLevel = "high" | "medium" | "low";
 
@@ -17,21 +15,5 @@ const LEVELS: Record<ConfidenceLevel, { label: string; background: ColorToken; t
   };
 
 export function ConfidenceBadge({ level }: ConfidenceBadgeProps) {
-  const { label, background, text } = LEVELS[level];
-  return (
-    <View style={[styles.badge, { backgroundColor: colors[background] }]}>
-      <Text variant="caption" color={text}>
-        {label}
-      </Text>
-    </View>
-  );
+  return <Badge {...LEVELS[level]} />;
 }
-
-const styles = StyleSheet.create({
-  badge: {
-    alignSelf: "flex-start",
-    borderRadius: radius.full,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xxs,
-  },
-});

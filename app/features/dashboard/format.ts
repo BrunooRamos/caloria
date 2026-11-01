@@ -23,3 +23,13 @@ export function progressOf(mid: number, target: number): number {
 export function mealsCount(count: number): string {
   return `${formatNumber(count)} ${count === 1 ? "comida" : "comidas"}`;
 }
+
+/** `día` o `días`, para cuando el número va aparte. */
+export function dayUnit(count: number): string {
+  return count === 1 ? "día" : "días";
+}
+
+/** `1 día`, `4 días`. */
+export function daysCount(count: number): string {
+  return `${formatNumber(count)} ${dayUnit(count)}`;
+}
