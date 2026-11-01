@@ -55,6 +55,7 @@ analysis?: {
   confidence: number          // 0 a 1
   promptVersion: string       // `version` del frontmatter de prompts/analisis-comida.md
   model: string               // el modelo que devolvió OpenAI
+  contextMealIds?: ObjectId[] // RF-07: comidas corregidas que la IA recibió como contexto ([] si ninguna)
 }
 corrections: {
   field: "dish" | "items" | "kcal" | "macros"
@@ -62,6 +63,10 @@ corrections: {
   to: unknown                 // valor nuevo completo, con la forma del análisis
   at: Date
 }[]
+search?: {                    // RF-07: solo para el índice de texto; lo escribe el PATCH
+  dish: string                // plato final, con las correcciones aplicadas
+  items: string[]             // nombres finales de los ingredientes
+}
 comment?: { tone: string; text: string }   // ausente con el tono "off"
 attempts: number              // reintentos del job de análisis
 error?: { code: "ENQUEUE_FAILED" | "NOT_FOOD" | "ANALYSIS_FAILED" }   // solo con status "failed"
@@ -76,6 +81,17 @@ Los valores que se muestran y que suman en el dashboard son los del análisis **
 - Los valores finales salen de aplicar `corrections` en orden sobre `analysis`, y la última de cada campo gana. Lo hace `applyCorrections` (`back-service/src/services/meal-corrections.ts`), que usan `GET /meals/:id`, el historial y el PATCH. Una corrección que no pasa la validación se ignora.
 - El dashboard suma en Mongo, sin traer las comidas: la agregación (`dailyTotalsPipeline`, `back-service/src/services/dashboard.ts`) aplica la misma regla a `kcal` y `macros` (la última corrección válida del campo gana, si no queda la del análisis). Si cambia `applyCorrections`, cambia también ahí; un test compara las dos.
 - RF-07 compara lo que dijo la IA (`analysis`) con lo que corrigió el usuario (`corrections`).
+
+### Compounding (RF-07)
+
+Antes de llamar a la IA, el Worker busca hasta 5 comidas `ready` y corregidas del mismo usuario que se parezcan a la que analiza, y se las pasa como contexto (plato, valores finales y el antes y el después de cada campo corregido):
+
+- **Qué se busca:** como el PATCH no toca `analysis`, un índice sobre `analysis.dish` vería lo que dijo la IA y no la corrección. Por eso el PATCH guarda en `search` el plato y los nombres de los ingredientes **finales** (los de `applyCorrections`), en el mismo update atómico que agrega las correcciones. Solo las comidas corregidas tienen `search`, y el índice de texto deja afuera las que no lo tienen.
+- **El índice:** de texto en español (`"milanesas"` encuentra `"milanesa"`, sin distinguir tildes ni mayúsculas), compuesto con `userId` adelante para que la búsqueda siempre quede dentro del usuario. El plato pesa 3 y los ingredientes, 1.
+- **La consulta:** `userId`, `status: "ready"`, al menos una corrección y `_id` distinto de la comida que se analiza; ordena por relevancia (`textScore`) y corta en 5. La hace `createMongoSimilarMealsFinder` (`back-service/src/services/similar-meals.ts`), detrás de la interfaz `SimilarMealsFinder`.
+- **Con qué texto se busca:** al momento de buscar todavía no se sabe qué plato es. Si el usuario tiene alguna comida corregida, el Worker hace una llamada corta a la IA que solo nombra el plato y sus ingredientes principales (foto en baja resolución, `prompts/identificar-plato.md`), en paralelo con la transcripción. Busca con eso, la nota y la transcripción. Si la identificación falla o tarda más de 6 s, busca con la nota y la transcripción.
+- **Trazabilidad:** `analysis.contextMealIds` guarda qué comidas fueron contexto de ese análisis, para entender después por qué dio lo que dio. Si alguna de esas comidas se borra, el id queda como registro. Los análisis previos a RF-07 no tienen el campo.
+- **Las comidas corregidas antes de RF-07** no tienen `search`: se completan una vez con `back-service/src/scripts/backfill-meal-search.ts`, que se puede repetir.
 
 `error.code` lo escribe quien pasa la comida a `failed`, y el catálogo vive en `shared` (`MEAL_ERROR_CODES`):
 
@@ -118,6 +134,7 @@ badges: { code: string; at: Date }[]
 | `users` | `email` | único |
 | `meals` | `{ userId, capturedAt }` | compuesto |
 | `meals` | `{ userId, localDate, capturedAt, _id }` | compuesto: historial del día en orden (`GET /meals`) y, por prefijo, el dashboard |
+| `meals` | `{ userId, search.dish, search.items }` | compuesto de texto (`similar_meals`), en español: comidas corregidas parecidas (RF-07) |
 | `weekly_summaries` | `{ userId, week }` | único |
 | `gamification` | `userId` | único |
 

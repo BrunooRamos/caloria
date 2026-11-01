@@ -23,6 +23,17 @@ export interface MealAnalysis {
   confidence: number; // 0 a 1
   promptVersion: string;
   model: string;
+  /** Comidas corregidas que la IA recibió como contexto. Sin este campo, análisis previo a RF-07. */
+  contextMealIds?: Types.ObjectId[];
+}
+
+/**
+ * Plato y nombres de ingredientes finales (con las correcciones aplicadas), solo para el
+ * índice de texto. Lo escribe el PATCH: solo lo tienen las comidas corregidas.
+ */
+export interface MealSearch {
+  dish: string;
+  items: string[];
 }
 
 export interface Correction {
@@ -43,6 +54,7 @@ export interface Meal {
   note?: string;
   analysis?: MealAnalysis;
   corrections: Correction[];
+  search?: MealSearch;
   comment?: { tone: string; text: string };
   attempts: number;
   error?: { code: MealErrorCode };
@@ -84,6 +96,7 @@ const analysisSchema = new Schema<MealAnalysis>(
     confidence: { type: Number, required: true, min: 0, max: 1 },
     promptVersion: { type: String, required: true },
     model: { type: String, required: true },
+    contextMealIds: { type: [Schema.Types.ObjectId], default: undefined },
   },
   { _id: false },
 );
@@ -118,6 +131,10 @@ const mealSchema = new Schema<Meal>(
       ],
       default: [],
     },
+    search: new Schema<MealSearch>(
+      { dish: { type: String, required: true }, items: { type: [String], default: [] } },
+      { _id: false },
+    ),
     comment: new Schema({ tone: String, text: String }, { _id: false }),
     attempts: { type: Number, required: true, default: 0 },
     error: new Schema(
@@ -128,8 +145,17 @@ const mealSchema = new Schema<Meal>(
   { collection: "meals" },
 );
 
+// Comidas corregidas parecidas. Con userId adelante, Mongo exige igualdad sobre él: la
+// búsqueda nunca sale del usuario. En español ("milanesas" encuentra "milanesa"); el plato pesa más.
+mealSchema.index(
+  { userId: 1, "search.dish": "text", "search.items": "text" },
+  {
+    name: "similar_meals",
+    default_language: "spanish",
+    weights: { "search.dish": 3, "search.items": 1 },
+  },
+);
 mealSchema.index({ userId: 1, capturedAt: -1 });
 // Historial del día (GET /meals) en orden y dashboard (prefijo { userId, localDate }).
 mealSchema.index({ userId: 1, localDate: 1, capturedAt: 1, _id: 1 });
-
 export const MealModel = model<Meal>("Meal", mealSchema);
