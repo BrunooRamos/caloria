@@ -2,7 +2,7 @@
 // los comentarios para revisarlos a mano (RNF-10). No va al CI: gasta llamadas a la API.
 //   OPENAI_API_KEY=sk-… npm run comments:check
 import { COMMENT_PROMPT_PATH, loadPrompt } from "../src/config/prompts";
-import { DEFAULT_OPENAI_TEXT_MODEL } from "../src/config/worker";
+import { DEFAULT_OPENAI_COMMENT_MODEL } from "../src/config/worker";
 import { createOpenAiCommenter, InvalidCommentResponseError } from "../src/services/comment";
 import type { CommentTone } from "../src/services/comment";
 import { isBlockedComment } from "../src/services/comment-safety";
@@ -17,7 +17,7 @@ async function main() {
     return;
   }
   const prompt = loadPrompt(COMMENT_PROMPT_PATH);
-  const model = process.env.OPENAI_TEXT_MODEL?.trim() || DEFAULT_OPENAI_TEXT_MODEL;
+  const model = process.env.OPENAI_COMMENT_MODEL?.trim() || DEFAULT_OPENAI_COMMENT_MODEL;
   const commenter = createOpenAiCommenter({ apiKey, model, prompt });
   console.log(`Modelo ${model} · roast.md ${prompt.version}\n`);
 

@@ -8,6 +8,7 @@ import {
   loadPrivateKey,
   loadPublicKey,
   loginSchema,
+  MAX_PUSH_TOKENS,
   refreshSchema,
   registerSchema,
   TONES,
@@ -203,27 +204,43 @@ describe("refreshSchema", () => {
 });
 
 describe("updateMeSchema", () => {
-  it("acepta perfil parcial, tono o los dos", () => {
-    for (const body of [
-      { profile: { weightKg: 58 } },
-      ...TONES.map((tone) => ({ tone })),
-      { profile: { goal: "lose" }, tone: "off" },
-    ]) {
-      assert.equal(updateMeSchema.safeParse(body).success, true, JSON.stringify(body));
-    }
-    assert.deepEqual(TONES, ["motivador", "neutro", "roast", "off"]);
+  const token = (id: string) => `ExponentPushToken[${id}]`;
+  const ok = (body: unknown) =>
+    assert.equal(updateMeSchema.safeParse(body).success, true, JSON.stringify(body));
+  const rejected = (body: unknown) =>
+    assert.equal(updateMeSchema.safeParse(body).success, false, JSON.stringify(body));
+
+  it("acepta perfil, tono, push tokens y avisos parciales, juntos o por separado", () => {
+    for (const tone of TONES) ok({ tone });
+    ok({ profile: { weightKg: 58 } });
+    ok({ profile: { weightKg: 58, goal: "lose" }, tone: "roast" });
+    ok({ tone: "neutro", pushTokens: [token("a")], notifications: { streakRisk: false } });
+    ok({ pushTokens: [token("abc_DEF-123"), "ExpoPushToken[xyz]"] });
+    ok({ pushTokens: Array.from({ length: MAX_PUSH_TOKENS }, (_, i) => token(`t${i}`)) });
+    ok({ notifications: { analysisReady: false } });
+    ok({ profile: { heightCm: 170 }, pushTokens: [], notifications: { wrappedReady: true } });
   });
 
-  it("rechaza body vacío, perfil vacío, tono inválido y campos desconocidos (pushTokens incluido)", () => {
+  it("rechaza body vacío, campos desconocidos, tonos, tokens y avisos inválidos", () => {
     for (const body of [
       {},
       { profile: {} },
+      { profile: {}, tone: "roast" },
       { tone: "sarcastico" },
+      { tone: "Motivador" },
       { tone: null },
-      { tone: "roast", plan: "premium" },
-      { pushTokens: ["ExponentPushToken[abc]"] },
+      { tone: "neutro", plan: "premium" },
+      { pushTokens: "ExponentPushToken[abc]" },
+      { pushTokens: ["no-es-un-token"] },
+      { pushTokens: ["ExponentPushToken[]"] },
+      { pushTokens: [token("a"), token("a")] },
+      { pushTokens: Array.from({ length: MAX_PUSH_TOKENS + 1 }, (_, i) => token(`t${i}`)) },
+      { notifications: {} },
+      { notifications: { promo: true } },
+      { notifications: { streakRisk: "no" } },
+      { notifications: null },
     ]) {
-      assert.equal(updateMeSchema.safeParse(body).success, false, JSON.stringify(body));
+      rejected(body);
     }
   });
 });

@@ -16,12 +16,18 @@ export type { RequestContextOptions } from "./request-context";
 export { errorHandler, notFoundHandler, toAppError } from "./error-handler";
 export {
   ageOn,
+  DEFAULT_NOTIFICATIONS,
   emailSchema,
+  expoPushTokenSchema,
   loginSchema,
+  MAX_PUSH_TOKENS,
+  NOTIFICATION_TYPES,
+  notificationsSchema,
   PASSWORD_MAX_BYTES,
   PASSWORD_MIN_CHARS,
   passwordSchema,
   profileSchema,
+  pushTokensSchema,
   refreshSchema,
   registerSchema,
   TONES,
@@ -31,6 +37,8 @@ export type {
   AuthResponse,
   LoginInput,
   MeResponse,
+  NotificationPreferences,
+  NotificationType,
   Profile,
   RefreshInput,
   RegisterInput,
@@ -49,10 +57,12 @@ export {
   detectPhotoType,
   ITEM_NAME_MAX_CHARS,
   ITEMS_MAX,
+  listMealsQuerySchema,
   MEAL_ERROR_CODES,
   MEAL_UPLOAD_FIELDS,
   MEAL_UPLOAD_LIMITS,
   mealIdParamsSchema,
+  MEALS_PAGE_SIZE,
   NOTE_MAX_CHARS,
   PHOTO_MAX_BYTES,
   PHOTO_TYPES,
@@ -66,7 +76,9 @@ export type {
   CorrectMealInput,
   CreateMealResponse,
   FailedMealResponse,
+  ListMealsQuery,
   MealErrorCode,
+  MealListResponse,
   MealResponse,
   MealUploadInput,
   PhotoType,
@@ -78,6 +90,19 @@ export type {
 } from "./meals";
 export { dailyDashboardQuerySchema } from "./dashboard";
 export type { DailyDashboardQuery, DailyDashboardResponse, DailyRange } from "./dashboard";
+export {
+  isoWeekOf,
+  isoWeekRange,
+  isoWeekSchema,
+  isoWeeksInYear,
+  parseIsoWeek,
+  previousIsoWeek,
+  weeklySummaryParamsSchema,
+  WRAPPED_INSIGHT_MAX_CHARS,
+  WRAPPED_INSIGHTS_MAX,
+  WRAPPED_INSIGHTS_MIN,
+} from "./summaries";
+export type { WeeklyMetrics, WeeklySummaryResponse } from "./summaries";
 export { ACCESS_TOKEN_TTL_SECONDS, JWT_ALGORITHM, verifyAccessToken } from "./auth/jwt";
 export type { AccessTokenClaims, PlanTier } from "./auth/jwt";
 export { loadPrivateKey, loadPublicKey } from "./auth/keys";

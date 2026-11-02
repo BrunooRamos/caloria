@@ -15,4 +15,6 @@ export interface DailyDashboardResponse {
   consumed: { kcal: DailyRange; protein: DailyRange; carbs: DailyRange; fat: DailyRange };
   targets: { kcal: number; proteinG: number; carbsG: number; fatG: number };
   meals: { ready: number; processing: number; failed: number };
+  /** `current` es 0 si el último registro fue antes de ayer; `best` es la histórica. */
+  streak: { current: number; best: number };
 }

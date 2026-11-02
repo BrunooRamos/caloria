@@ -4,6 +4,7 @@ import type { AppStateStatus, NativeEventSubscription } from "react-native";
 import { ApiError } from "@/services/api-error";
 import { getMeal } from "@/services/meals";
 import type { Meal } from "@/services/meals";
+import { MealCacheProvider } from "@/store/meals";
 import { POLLING } from "../polling";
 import { useMealPolling } from "../useMealPolling";
 
@@ -48,6 +49,7 @@ async function start(enabled = true) {
   // En RNTL 14 renderHook, act y rerender devuelven promesas: hay que esperarlas.
   const hook = await renderHook((props: { enabled: boolean }) => useMealPolling("m1", props), {
     initialProps: { enabled },
+    wrapper: MealCacheProvider,
   });
   await advance(0);
   return hook;

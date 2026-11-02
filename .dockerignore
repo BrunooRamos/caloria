@@ -6,6 +6,5 @@
 app
 docs
 infra
-# prompts/ de la raíz es el registro de prompts del equipo: no va a la imagen.
-# Los del Worker viven en back-service/prompts/ y entran con el resto de back-service/.
+# prompts/ de la raíz son los del repo; los del Worker están en back-service/src/prompts/.
 /prompts

@@ -1,7 +1,8 @@
+import { router } from "expo-router";
 import { StyleSheet, View } from "react-native";
-import { Card, ConfidenceBadge, Text } from "@/components";
+import { Button, Card, ConfidenceBadge, Text } from "@/components";
 import type { ReadyMeal } from "@/services/meals";
-import { spacing } from "@/theme";
+import { colors, radius, spacing } from "@/theme";
 import { confidenceLevel } from "../confidence";
 import { formatRange } from "../format";
 
@@ -54,12 +55,21 @@ export function ReadyState({ meal }: { meal: ReadyMeal }) {
       )}
 
       {meal.comment && (
-        <Text variant="small" color="inkMuted">
-          “{meal.comment.text}”
-        </Text>
+        // Aparte del análisis: es una opinión según el tono elegido, no un dato.
+        <View accessible style={styles.comment}>
+          <Text variant="caption" color="sageText">
+            Comentario
+          </Text>
+          <Text>“{meal.comment.text}”</Text>
+        </View>
       )}
 
-      {/* acá va el acceso para corregir el plato, los ingredientes, las kcal y los macros. */}
+      <Button
+        variant="secondary"
+        title="Corregir"
+        accessibilityHint="Cambiá el plato, los ingredientes, las kcal o los macros."
+        onPress={() => router.push({ pathname: "/meals/[id]/edit", params: { id: meal.id } })}
+      />
     </>
   );
 }
@@ -69,4 +79,11 @@ const styles = StyleSheet.create({
   macros: { flexDirection: "row", gap: spacing.sm },
   macro: { flex: 1, gap: spacing.xxs },
   item: { gap: spacing.xxs },
+  comment: {
+    backgroundColor: colors.sageSoft,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    gap: spacing.xxs,
+  },
 });

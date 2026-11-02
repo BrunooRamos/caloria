@@ -1,3 +1,5 @@
+export { Badge } from "./Badge";
+export type { BadgeProps } from "./Badge";
 export { Button } from "./Button";
 export type { ButtonProps, ButtonVariant } from "./Button";
 export { Card } from "./Card";
@@ -26,3 +28,5 @@ export type { SkeletonProps } from "./Skeleton";
 export type { SurfaceTone } from "./tone";
 export { Text } from "./Text";
 export type { TextProps } from "./Text";
+export { TextButton } from "./TextButton";
+export type { TextButtonProps } from "./TextButton";

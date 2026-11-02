@@ -63,27 +63,36 @@ Endpoints: `GET /users/me`, `PATCH /users/me`.
 
 #### RF-06 — Correcciones persistentes
 
-- [ ] El usuario puede corregir el plato, agregar / quitar / editar ingredientes y ajustar kcal y macros. (Servidor listo con `PATCH /meals/:id`; falta la pantalla, #25.)
+- [x] El usuario puede corregir el plato, agregar / quitar / editar ingredientes y ajustar kcal y macros, desde el detalle de una comida `ready` ("Corregir").
 - [x] Cada cambio se agrega a `meals.corrections` con campo, valor anterior, valor nuevo y fecha.
-- [ ] Después de corregir, el historial y el dashboard usan los valores corregidos. (El dashboard y `GET /meals/:id` sí; falta el listado, RF-08.)
+- [x] Después de corregir, el historial y el dashboard usan los valores corregidos.
 - [x] Una comida de otro usuario devuelve 404.
 
 Endpoint: `PATCH /meals/:id`.
 
+Cómo corrige la app (`app/features/meals/edit/`). Cada corrección alimenta el compounding (RF-07), así que solo se guarda lo que la persona tocó:
+
+- **Rangos:** cada valor es un solo campo numérico (enteros). Un valor exacto aparece escrito; un rango arranca vacío y se ve como placeholder (`150–190 g`). Escribir un número lo guarda como valor exacto (`min` igual a `max`: si la persona lo sabe, ya no hay incertidumbre). Dejarlo vacío deja el valor que había y no se registra corrección. "Rango" abre mínimo y máximo, cargados con el valor actual.
+- **Total de kcal** (`totalKcal`, en `totals.ts`): si la persona lo escribió, se respeta aunque cambien los ingredientes. Si no, y cambiaron las kcal de los ingredientes (se agregó, quitó o editó uno), es la suma de sus mínimos y de sus máximos. Si no cambiaron, o no queda ninguno con kcal, queda el total que había: no se recalcula, porque la IA puede contar cosas que no listó (el aceite, una salsa). Cambiar el nombre o los gramos no lo toca. Borrar el total vuelve a la suma.
+- **Macros:** se ajustan a mano; no se derivan de los ingredientes, que solo tienen gramos y kcal.
+- **Body** (`buildCorrection`): solo los campos que cambiaron, completos (`items` entero, `macros` con los tres). Como el Backend no recalcula, el total que salió de la suma viaja como `kcal`.
+- **Validación:** enteros no negativos, `min ≤ max`, nombres no vacíos y los topes de `correctMealSchema`. Un ingrediente nuevo necesita nombre, gramos y kcal. Los errores se ven en el campo.
+- Quitar un ingrediente se puede deshacer hasta guardar. Salir con cambios sin guardar pide confirmación. Al guardar, el detalle muestra la respuesta del PATCH sin volver a pedir la comida.
+
 #### RF-07 — Compounding
 
-- [ ] Antes de llamar a la IA, el Worker busca hasta 5 comidas del mismo usuario con plato o ingredientes similares que tengan correcciones.
-- [ ] Esas comidas (plato, valores finales y qué se corrigió) se incluyen en el prompt como contexto.
-- [ ] Primera versión: similitud por texto (nombre del plato e ingredientes, búsqueda full-text de Mongo). Embeddings solo si sobra tiempo.
+- [x] Antes de llamar a la IA, el Worker busca hasta 5 comidas del mismo usuario con plato o ingredientes similares que tengan correcciones. Como al buscar todavía no se sabe qué plato es, si el usuario tiene comidas corregidas se identifica con una llamada corta a la IA, en paralelo con la transcripción, y se busca con eso, la nota y la transcripción. Si la búsqueda falla, el análisis sigue sin contexto.
+- [x] Esas comidas (plato, valores finales y qué se corrigió) se incluyen en el prompt como contexto (`analisis-comida.md` 1.2.0), y sus ids quedan en `analysis.contextMealIds`.
+- [x] Primera versión: similitud por texto (nombre del plato e ingredientes, búsqueda full-text de Mongo). Embeddings solo si sobra tiempo. El índice cubre los valores **corregidos** (`meals.search`, ver [modelo-datos.md](modelo-datos.md#compounding-rf-07)).
 - [ ] Prueba de aceptación: corregir un plato y volver a registrar uno parecido da un rango más cercano a la corrección que el primer análisis.
 
 #### RF-08 — Historial por día
 
-- [ ] La app muestra las comidas de un día, ordenadas por hora, con navegación a días anteriores.
-- [ ] El "día" se calcula en la zona horaria del usuario.
-- [ ] Se puede ver el detalle, editar (RF-06) y eliminar una comida.
-- [ ] Eliminar borra el documento y su media del bucket (204).
-- [ ] La lista está paginada por cursor (20 por página).
+- [x] La app muestra las comidas de un día, ordenadas por hora, con navegación a días anteriores.
+- [x] El "día" se calcula en la zona horaria del usuario.
+- [x] Se puede ver el detalle, editar (RF-06) y eliminar una comida.
+- [x] Eliminar borra el documento y su media del bucket (204).
+- [x] La lista está paginada por cursor (20 por página).
 
 Endpoints: `GET /meals?date=&cursor=`, `GET /meals/:id`, `DELETE /meals/:id`.
 
@@ -109,26 +118,26 @@ Endpoints: `GET /meals?date=&cursor=`, `GET /meals/:id`, `DELETE /meals/:id`.
 
 #### RF-11 — Comentario con personalidad
 
-- [ ] El usuario elige el tono en su perfil: motivador, neutro, roast o desactivado. Default: motivador.
+- [x] El usuario elige el tono en su perfil: motivador, neutro, roast o desactivado. Default: motivador.
 - [x] Con un tono activo, cada análisis incluye un comentario corto (≤ 200 caracteres) en ese tono.
 - [x] Con el tono desactivado no se genera comentario (y no se gasta la llamada).
 - [x] El prompt prohíbe comentarios sobre el cuerpo, el peso o la apariencia, y no incentiva la restricción (RNF-10). Se prueba con un set de comidas "problemáticas".
 
 #### RF-12 — Wrapped semanal
 
-- [ ] Un cron corre los lunes a las 06:00 (zona del usuario o UTC-3 en v1) y genera el resumen de la semana anterior para cada usuario con al menos un registro.
-- [ ] Métricas: promedio de kcal, días registrados, racha, plato más frecuente.
-- [ ] La IA genera 3 a 5 insights sobre hábitos, con las mismas reglas de RNF-10.
-- [ ] Se guarda en `weekly_summaries`; si ya existe la semana, no se duplica.
+- [x] Un cron corre los lunes a las 06:00 (zona del usuario o UTC-3 en v1) y genera el resumen de la semana anterior para cada usuario con al menos un registro.
+- [x] Métricas: promedio de kcal, días registrados, racha, plato más frecuente.
+- [x] La IA genera 3 a 5 insights sobre hábitos, con las mismas reglas de RNF-10.
+- [x] Se guarda en `weekly_summaries`; si ya existe la semana, no se duplica.
 - [ ] La app lo muestra como tarjetas y permite compartir cada tarjeta como imagen.
-- [ ] Al terminar, se envía el push "Wrapped listo".
+- [x] Al terminar, se envía el push "Wrapped listo".
 
 #### RF-13 — Push notifications
 
 - [ ] La app pide permiso de notificaciones y registra el push token con `PATCH /users/me`.
 - [ ] Notificaciones: análisis listo, racha en riesgo (20:00 si no hubo registro en el día y la racha es ≥ 2) y Wrapped listo.
 - [ ] El usuario puede desactivar cada tipo de notificación.
-- [ ] Los tokens inválidos que devuelve Expo se eliminan del usuario.
+- [x] Los tokens inválidos que devuelve Expo se eliminan del usuario.
 
 ### Freemium
 
@@ -179,8 +188,8 @@ Endpoints: `GET /billing/plan`, `POST /billing/subscribe`.
 5. **Precio del premium** y proveedor de pagos sandbox (Stripe test mode, Mercado Pago sandbox).
 6. **Código HTTP para cupo agotado:** la presentación no lo define. Se propone 402.
 7. **Cancelar suscripción:** RF-16 lo pide, pero no hay endpoint. Se propone `POST /billing/cancel`.
-8. **Preferencias de notificaciones:** dónde se guardan (se propone `users.notifications`).
+8. ~~**Preferencias de notificaciones:** dónde se guardan (se propone `users.notifications`).~~ Resuelto en #38: `users.notifications`, un booleano por tipo (`analysisReady`, `streakRisk`, `wrappedReady`), todos en `true` por defecto. Un usuario sin el campo tiene todo prendido. Se cambian con `PATCH /users/me` y salen en `GET /users/me`.
 9. **mTLS entre Front y Backend:** la presentación lo plantea, pero el `docker-compose` actual usa HTTP. Decidir si se implementa o queda para producción.
 10. **Dominio y hosting:** el RFC dice "si conseguimos un dominio barato" y la presentación usa `api.caloria.app` y DigitalOcean. El despliegue está marcado como "a definir".
-11. ~~**Proveedor de IA:** qué modelos de visión, transcripción y texto se usan.~~ Resuelto en #18: OpenAI. Visión con la Responses API y structured outputs, modelo en `OPENAI_VISION_MODEL` (por defecto `gpt-6-luna`). Transcripción en `OPENAI_TRANSCRIPTION_MODEL` (por defecto `gpt-transcribe`, #23). Texto del comentario por tono (RF-11, #33) con la Responses API y structured outputs, modelo en `OPENAI_TEXT_MODEL` (por defecto `gpt-6-luna`, con `reasoning: "low"`).
+11. ~~**Proveedor de IA:** qué modelos de visión, transcripción y texto se usan.~~ Resuelto en #18: OpenAI. Visión con la Responses API y structured outputs, modelo en `OPENAI_VISION_MODEL` (por defecto `gpt-6-luna`). Transcripción en `OPENAI_TRANSCRIPTION_MODEL` (por defecto `gpt-transcribe`). Texto (insights del Wrapped, #36) con la Responses API y structured outputs, modelo en `OPENAI_TEXT_MODEL` (por defecto `gpt-6.1-terra`). Comentario por tono (RF-11, #33) con la Responses API y structured outputs, modelo en `OPENAI_COMMENT_MODEL` (por defecto `gpt-6-luna`, con `reasoning: "low"`).
 12. ~~**Storage:** qué bucket se usa (S3, DigitalOcean Spaces, MinIO en local).~~ Resuelto en #14: MinIO en local y bucket compatible con S3 en prod (DO Spaces previsto); el código usa el SDK de S3.
