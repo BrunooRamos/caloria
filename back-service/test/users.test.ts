@@ -88,7 +88,7 @@ describe("back-service: GET y PATCH /users/me", () => {
     assert.equal(me.email, "cami@example.com");
     assert.deepEqual(me.profile, profile);
     assert.deepEqual(me.targets, computeTargets(profile));
-    assert.equal(me.tone, "neutro");
+    assert.equal(me.tone, "motivador");
     assert.equal(me.plan.tier, "free");
     assert.ok(!Number.isNaN(Date.parse(me.plan.since)));
     assert.deepEqual(me.notifications, DEFAULT_NOTIFICATIONS);
@@ -163,14 +163,7 @@ describe("back-service: GET y PATCH /users/me", () => {
   });
 
   it("PATCH vacío, con campos desconocidos o sin JSON válido → 400", async () => {
-    for (const body of [
-      {},
-      { profile: {} },
-      { profile: { weight: 70 } },
-      { plan: "premium" },
-      // tone sigue siendo 400 en el Backend hasta RF-11.
-      { tone: "roast" },
-    ]) {
+    for (const body of [{}, { profile: {} }, { profile: { weight: 70 } }, { plan: "premium" }]) {
       const res = await patchMe(body);
       assert.equal(res.status, 400, JSON.stringify(body));
       assert.equal(await codeOf(res), "VALIDATION_ERROR");
@@ -200,6 +193,86 @@ describe("back-service: GET y PATCH /users/me", () => {
       goal: "gain",
       activity: "very_active",
     } as const;
+    assert.deepEqual(stored?.profile, expectedProfile);
+    assert.deepEqual(stored?.targets, computeTargets(expectedProfile));
+  });
+
+  it("un usuario nuevo arranca con el tono motivador", async () => {
+    assert.equal((await User.findById(userId).lean())?.tone, "motivador");
+  });
+
+  it("PATCH solo con tone guarda el tono sin tocar perfil ni metas", async () => {
+    const before = await User.findById(userId).lean();
+    const res = await patchMe({ tone: "roast" });
+    assert.equal(res.status, 200);
+    const me = (await res.json()) as MeResponse;
+    assert.equal(me.tone, "roast");
+    assert.deepEqual(me.profile, profile);
+    assert.deepEqual(me.targets, computeTargets(profile));
+    assert.deepEqual(Object.keys(me).sort(), [
+      "email",
+      "id",
+      "notifications",
+      "plan",
+      "profile",
+      "targets",
+      "tone",
+    ]);
+
+    const stored = await User.findById(userId).lean();
+    assert.equal(stored?.tone, "roast");
+    assert.deepEqual(stored?.profile, before?.profile);
+    assert.deepEqual(stored?.targets, before?.targets);
+    assert.deepEqual(await (await getMe()).json(), me);
+  });
+
+  it("PATCH con profile y tone guarda los dos y recalcula las metas", async () => {
+    const res = await patchMe({ profile: { weightKg: 80, goal: "lose" }, tone: "off" });
+    assert.equal(res.status, 200);
+    const me = (await res.json()) as MeResponse;
+    const expectedProfile = { ...profile, weightKg: 80, goal: "lose" } as const;
+    assert.equal(me.tone, "off");
+    assert.deepEqual(me.profile, expectedProfile);
+    assert.deepEqual(me.targets, computeTargets(expectedProfile));
+
+    const stored = await User.findById(userId).lean();
+    assert.equal(stored?.tone, "off");
+    assert.deepEqual(stored?.profile, expectedProfile);
+    assert.deepEqual(stored?.targets, me.targets);
+  });
+
+  it("PATCH con tono inválido → 400 y no toca nada, aunque venga con un perfil válido", async () => {
+    for (const body of [
+      { tone: "sarcastico" },
+      { tone: null },
+      { tone: "" },
+      { profile: { weightKg: 80 }, tone: "sarcastico" },
+      { tone: "roast", plan: "premium" },
+      { tone: "roast", pushTokens: ["no-es-un-token"] },
+    ]) {
+      const res = await patchMe(body);
+      assert.equal(res.status, 400, JSON.stringify(body));
+      assert.equal(await codeOf(res), "VALIDATION_ERROR");
+    }
+    const stored = await User.findById(userId).lean();
+    assert.equal(stored?.tone, "motivador");
+    assert.deepEqual(stored?.profile, profile);
+    assert.deepEqual(stored?.targets, computeTargets(profile));
+  });
+
+  it("PATCH de tono y de perfil simultáneos: se guardan los dos", async () => {
+    const responses = await Promise.all([
+      patchMe({ profile: { weightKg: 90 } }),
+      patchMe({ tone: "neutro" }),
+      patchMe({ profile: { goal: "gain" } }),
+    ]);
+    assert.deepEqual(
+      responses.map((res) => res.status),
+      [200, 200, 200],
+    );
+    const stored = await User.findById(userId).lean();
+    const expectedProfile = { ...profile, weightKg: 90, goal: "gain" } as const;
+    assert.equal(stored?.tone, "neutro");
     assert.deepEqual(stored?.profile, expectedProfile);
     assert.deepEqual(stored?.targets, computeTargets(expectedProfile));
   });
@@ -246,6 +319,9 @@ describe("back-service: GET y PATCH /users/me", () => {
     assert.equal(await codeOf(res), "UNAUTHORIZED");
     res = await patchMe({ profile: { weightKg: 80 } });
     assert.equal(res.status, 401);
+    res = await patchMe({ tone: "roast" });
+    assert.equal(res.status, 401);
+    assert.equal(await codeOf(res), "UNAUTHORIZED");
   });
 
   it("cada usuario ve y edita solo su propio perfil", async () => {

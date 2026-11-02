@@ -1,12 +1,15 @@
 import type { Logger, MealErrorCode } from "@caloria/shared";
 import { MealModel } from "../models/Meal";
 import type { Meal } from "../models/Meal";
+import type { DishIdentifier } from "../services/dish-identifier";
 import type { NotificationService } from "../services/notifications";
+import type { SimilarMealsFinder } from "../services/similar-meals";
 import type { TranscriptionService } from "../services/transcription";
 import { toVisionImage } from "../services/vision-image";
 import { InvalidVisionResponseError } from "../services/vision";
 import type { VisionService } from "../services/vision";
 import type { AnalyzeMeal } from "./meal-analysis-processor";
+import { lookupSimilarMeals } from "./similar-meals-lookup";
 
 /** `error.code` de una meal cuya foto no es comida. Termina sin reintento y no consume cupo. */
 export const NOT_FOOD = "NOT_FOOD" satisfies MealErrorCode;
@@ -14,6 +17,9 @@ export const NOT_FOOD = "NOT_FOOD" satisfies MealErrorCode;
 export interface AnalyzeMealDeps {
   vision: VisionService;
   transcriber: TranscriptionService;
+  /** Identifica el plato para buscar comidas corregidas parecidas. */
+  identifier: DishIdentifier;
+  similarMeals: SimilarMealsFinder;
   notifications: Pick<NotificationService, "notify">;
 }
 
@@ -58,40 +64,55 @@ async function transcribeOnce(
 }
 
 /**
- * Analiza la foto (más la transcripción y la nota, si hay) con la IA y deja la meal en `ready`
- * o en `failed` (NOT_FOOD). Si la transcripción falla o la respuesta no pasa zod, lanza:
- * BullMQ reintenta y la meal sigue en processing.
+ * Analiza la foto (más la transcripción, la nota y las comidas corregidas parecidas, si hay) con
+ * la IA y deja la meal en `ready` o en `failed` (NOT_FOOD). Si la transcripción falla o la
+ * respuesta no pasa zod, lanza: BullMQ reintenta y la meal sigue en processing.
  */
 export function createAnalyzeMeal({
   vision,
   transcriber,
+  identifier,
+  similarMeals,
   notifications,
 }: AnalyzeMealDeps): AnalyzeMeal {
   return async ({ meal, photo, audio }, log) => {
-    // La transcripción corre en paralelo con la conversión de la foto (RNF-01). allSettled
-    // espera a las dos: si la foto falla, la transcripción igual queda guardada para el reintento.
-    const [imageResult, transcriptResult] = await Promise.allSettled([
-      toVisionImage(photo),
-      transcribeOnce(meal, audio, transcriber, log),
-    ]);
+    // La transcripción corre en paralelo con la conversión de la foto y con la búsqueda de
+    // comidas similares (RNF-01). allSettled espera a las dos primeras: si la foto falla, la
+    // transcripción igual queda guardada para el reintento. La búsqueda nunca lanza.
+    const image = toVisionImage(photo);
+    const transcribed = transcribeOnce(meal, audio, transcriber, log);
+    // El rechazo de la transcripción lo maneja el job: a la búsqueda le llega undefined. El handler
+    // va acá y no adentro, para que el rechazo nunca quede sin manejar mientras se identifica.
+    const spoken = transcribed.then(
+      (result) => result.transcript,
+      () => undefined,
+    );
+    const similar = lookupSimilarMeals(
+      { meal, image, transcript: spoken },
+      { identifier, similarMeals },
+      log,
+    );
+    const [imageResult, transcriptResult] = await Promise.allSettled([image, transcribed]);
     if (transcriptResult.status === "rejected") throw transcriptResult.reason;
     if (imageResult.status === "rejected") throw imageResult.reason;
-    const image = imageResult.value;
     const { saved, transcript } = transcriptResult.value;
     if (!saved) {
       log.info("la comida cambió de estado durante la transcripción, no se pisa");
       return;
     }
     const note = meal.note?.trim() || undefined;
+    const similarMealsFound = await similar;
+    const contextMealIds = similarMealsFound.map(({ id }) => id);
 
     const started = performance.now();
     const durationMs = () => Math.round(performance.now() - started);
     let result;
     try {
       result = await vision.analyze({
-        image,
+        image: imageResult.value,
         ...(transcript && { transcript }),
         ...(note && { note }),
+        ...(similarMealsFound.length > 0 && { similarMeals: similarMealsFound }),
       });
     } catch (err) {
       // Solo los issues de zod: ni la respuesta cruda, ni la foto, ni la nota.
@@ -110,7 +131,7 @@ export function createAnalyzeMeal({
 
     const { model, promptVersion } = result;
     const update = result.isFood
-      ? { status: "ready", analysis: { ...result.analysis, promptVersion, model } }
+      ? { status: "ready", analysis: { ...result.analysis, promptVersion, model, contextMealIds } }
       : { status: "failed", error: { code: NOT_FOOD } };
     // Solo si sigue en processing: un job repetido no pisa una meal que ya cambió.
     const { matchedCount } = await MealModel.updateOne(
@@ -129,6 +150,7 @@ export function createAnalyzeMeal({
       // Si llevó contexto del usuario; el texto no va al log.
       withTranscript: Boolean(transcript),
       withNote: Boolean(note),
+      contextMeals: contextMealIds.length,
       saved: matchedCount === 1,
     });
     if (matchedCount === 0) {

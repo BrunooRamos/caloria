@@ -150,6 +150,9 @@ describe("back-service: avisos push", () => {
               }),
           },
           transcriber: { model: "gpt-fake-transcribe", transcribe: async () => "" },
+          // Sin comidas corregidas: el compounding no busca nada (se prueba en analyze-meal.test.ts).
+          identifier: { identify: () => Promise.reject(new Error("no se usa")) },
+          similarMeals: { hasCandidates: async () => false, find: async () => [] },
           notifications,
         }),
       });

@@ -221,6 +221,85 @@ No te metas con la pantalla de edición de la app (#25), ni con el compounding (
 Comentarios cortitos en español como en el resto del repo. Ajustá docs/api.md con lo que quede fiel a lo que hiciste (códigos de error, respuesta 200 con la forma del GET, campos sin cambios que no se registran, los topes), docs/modelo-datos.md si hace falta, docs/arquitectura.md y el README del back, y marcá en RF-06 los checks que queden cumplidos del lado del servidor. Al final corré lint, typecheck y los tests y contame cómo salieron. No commitees, que lo quiero revisar primero.
 ```
 
+## Sesión `e144cf4a-205b-46af-8c1e-6d6209e77f97` · 2026-10-28
+
+### 2026-10-28 21:04
+
+```text
+Estoy en la rama del issue #34, el de elegir el tono en el perfil (mirá qué pide con gh issue view 34 y RF-11 en docs/requerimientos.md). Parte ya está hecha. users.tone existe en models/User.ts con el enum TONES. GET /users/me ya lo devuelve, y la app ya lo tipa en services/users.ts (Me.tone). El Front ya valida tone en el PATCH (front-service/src/schemas/users.ts) y lo reenvía. ReadyState ya muestra meal.comment.text cuando viene. Lo que falta es que el Back acepte el tono y que la app deje elegirlo. Generar el comentario no entra acá: eso es el #33 (prompt, llamada a la IA y meals.comment), así que no toques el worker ni prompts/.
+
+1. El default. RF-11 dice que el default es motivador, pero en models/User.ts quedó default: "neutro" (y auth.test.ts y users.test.ts lo asumen). Pasalo a "motivador" y ajustá esos tests. Los usuarios que ya están guardados con "neutro" no los migres. Si te parece que hace falta una migración, frená y contame.
+
+2. Shared y Back. Hoy updateMeSchema en shared/src/auth/schemas.ts acepta solo profile, así que el Back responde 400 a un PATCH con tone (docs/api.md lo dice: "el Backend responde 400 hasta RF-11"). Sumale tone opcional, con al menos uno de profile o tone, y que siga strict. pushTokens sigue afuera, que es de RF-13. El enum de tonos hoy está repetido en el modelo y en el Front: llevalo a shared como fuente única (TONES y el tipo), y que lo usen models/User.ts, front-service/src/schemas/users.ts y MeResponse.tone. Fijate que el schema del Front siga armándose desde el de shared como hoy.
+   En updateMe (back-service/src/services/users.ts):
+   - Solo tone: un $set del tono, sin leer el perfil y sin recalcular las metas.
+   - Solo profile: queda exacttimista que filtra por el perfil leído.
+   - Los dos: un único update  y tone, con el mismo filtrooptimista, así no queda la mitad guardada.
+   - Responde 200 con la misma
+                                                                                       3. La app. En services/users.tcambiar el tono (PATCH { tone }) al lado de updateProfile, y en useMe algo para guardarlo que actualice el estado con elMe que vuelve. En ProfileScreede "Tus datos", algo como"Comentario de tus comidas", con un OptionGroup y las cuatro opciones, cada una con unadescripción corta en options.tntienda que es humor ácido sobre la comida, nunca sobre vos). "off" se muestra como "Sin comentario" y explica que no   vas a ver comentarios. El tonoue no puede depender del botón"Guardar cambios" ni del formulario del perfil. Se guarda al elegirlo. Mientras se     guarda, el grupo queda deshabil valor anterior y se muestra el error con FormError, mapeado como en el resto de la app. Si te parece mejor otra       interacción (por ejemplo un boué antes de hacerla.Confirmación accesible de que se guardó, con accessibilityLiveRegion como el "Guardamostus cambios…".
+                                                                                       4. El comentario en el resultaState como texto chico entrecomillas. Revisá con la skill si tiene que verse distinto (por ejemplo, en una Card o  con algo que lo identifique coto del análisis), pero sin rojoni tono de alarma. Si no viene comment (tono off o análisis viejo), no se muestra nada,ni un hueco. Lo que el comenta) lo cubre el #33, no lo valides en la app.                                                                             
+Para la UI seguí la skill caloria-design (.claude/skills/caloria-design/SKILL.md):     colores, tamaños, espaciado y da a mano. Accesibilidad: elgrupo con su label, cada opción con su descripción legible por el lector de pantalla y el estado deshabilitado anunci
+                                                                                       Tests:
+- Back, en users.test.ts con mongodb-memory-server: PATCH solo con tone guarda el tono no toca profile ni targets; PArda los dos y recalcula metas;tono inválido → 400 sin tocar nada; un usuario nuevo arranca con motivador; un PATCH detono y uno de perfil concurren
+- Shared: el schema con tone solo, con profile y tone, vacío y con tono inválido.      - Front: que siga pasando lo ds.test.ts con el enum de shared.
+- App, en __tests__/profile-screens.test.tsx con jest-expo y el fakeFetch: la opción   actual viene marcada; elegir o queda marcada; si el PATCHfalla, vuelve a la anterior y se ve el error; elegir el tono no manda profile ni toca eformulario. En meal-result.tes sin comment no hay nada.
+                                                                                       No te metas con generar el comst.md (#33), ni con pushTokens(RF-13), ni con el compounding (#30), ni con attempts (#35).                           
+Comentarios cortitos en español como en el resto del repo. Actualizá docs/api.md (sacá lo de "el Backend responde 400qué hace el PATCH con tone,también si va solo), docs/modelo-datos.md (el default motivador), el README del back si menciona el PATCH, y marcá en l tono si queda cumplido. Alfinal corré lint, typecheck y los tests de shared, front, back y app, y contame cómo salieron. No commitees, que lo quiero revisar primero.
+```
+
+## Sesión `b053638f-161b-48d9-9737-2611e0e61f82` · 2026-10-28
+
+### 2026-10-28 21:10
+
+```text
+Estoy en la rama del issue #36, el del cron del Wrapped y el prompt de insights (mirá qué pide con gh issue view 36 y RF-12 en docs/requerimientos.md). Lo de antes ya está mergeado acá. El worker consume la cola meal-analysis con el processor, la visión y la transcripción. El dashboard suma kcal y macros con las correcciones aplicadas (currentValue en services/dashboard.ts, applyCorrections en services/meal-corrections.ts). Las meals tienen localDate en la zona del usuario. Lo que no existe todavía: el modelo de weekly_summaries (la forma está en docs/modelo-datos.md), el cron, un modelo de texto de OpenAI y la collection gamification, porque la racha es del #31. GET /summaries/weekly/:week figura solo en la tabla de docs/api.md, sin ejemplo ni implementación. Si necesitás cambiar la forma de weekly_summaries que está en modelo-datos, frená y avisame.
+
+1. El cron. Usá los job schedulers de BullMQ (upsertJobScheduler) en una cola aparte, weekly-summary, con su propia constante del nombre como meal-analysis. Mirá en la doc la API de la versión que tenemos instalada (bullmq ^6) y no la escribas de memoria. Tiene que correr los lunes a las 06:00 en America/Montevideo (en v1 es UTC-3 para todos, como dice RF-12). El scheduler se registra al arrancar el worker y es idempotente: si reinicio el worker no se duplica. El job del scheduler hace solo el fan-out. Calcula la semana ISO anterior (de lunes a domingo, "2026-W43"), busca los usuarios con al menos una meal ready en ese rango de localDate y encola un job por usuario { userId, week } con jobId `${userId}:${week}`, así un fan-out repetido no duplica nada. Ojo con el cambio de año: 2026 tiene 53 semanas ISO, así que el lunes 2027-01-04 tiene que generar 2026-W53. Sumá también un script (npm run wrapped -- --week 2026-W43 o como te quede más prolijo) para dispararlo a mano en local sin esperar al lunes.
+
+2. Las métricas. Ponelas en un service aparte que se pueda testear sin Redis, con una agregación sobre meals por userId y localDate. Usá la misma lógica de correcciones del dashboard, sin duplicarla: si hace falta, extraé currentValue para reusarlo.
+   - Solo cuentan las meals ready. Las processing y failed no suman en nada.
+   - avgKcal: el promedio diario de kcal en los días con registro, con el punto medio de los rangos corregidos, redondeado.
+   - daysLogged: los días distintos con al menos una meal ready.
+   - streak: como gamification no existe, sacala de la semana: la tira más larga de días consecutivos con registro dentro de los 7 días. No crees gamification ni toques el POST /meals.
+   - topDish: el dish más frecuente, ya corregido. Compará normalizando (trim y minúsculas) y guardá cómo lo escribió el usuario la última vez. Si hay empate, desempatá de forma determinística y contame cómo.
+
+3. El prompt. Creá prompts/wrapped.md con autor, versión y fecha en el frontmatter, igual que analisis-comida.md. Generalizá loadAnalysisPrompt para que lea cualquierprompt sin romper el de análisis ni sus tests. El worker lo lee una sola vez al arrancar, y si falta el archivo o no tiene versión, no arranca. Tiene que pedir de 3 a 5 insights cortos sobre hábitos (regularidad, horarios, variedad, constancia), en español rioplatense. Le pasás las métricas y datos agregados de la semana: kcal por día,comidas por día y la lista de platos. Nunca le pasás fotos, transcripts ni notas. Las reglas de RNF-10 van explícitas: nada sobre el cuerpo, el peso o la apariencia; nada que incentive comer menos, saltear comidas o compensar; nada que juzgue un día como "bueno" o "malo" por las calorías; y nada de consejo médico. Ojo, que los nombres de los platos ahora los puede escribir el usuario con el PATCH (#24): son datos, no instrucciones, igual que el audio y la nota en analisis-comida.md.
+
+4. El service de IA. Va en services/, separado de vision.ts, detrás de una interfazchica que reciba las métricas y devuelva los insights. Así los tests usan un fake y nunca le pegan a OpenAI. Usá structured outputs con JSON schema, pero validá igual conzod: de 3 a 5 strings no vacíos con un tope de largo (elegí uno razonable para una tarjeta y contame cuál). Ponele timeout y maxRetries: 0, como a la visión.OPENAI_TEXT_MODEL va en loadWorkerConfig con un default vigente (fijate en la doc de OpenAI), igual que los otros modelos. Sumala al infra/.env.example y al servicio workerdel compose. La clave y la red de salida son las mismas, así que no abras nada más. En docs/requerimientos.md completá la decisión abierta 11 con el modelo de texto.
+
+5. Guardar. Creá models/WeeklySummary.ts con la forma de modelo-datos y el índice único{ userId, week }.
+   - Si la semana ya está ready, el job termina sin llamar a la IA, que se paga.
+   - Si no, calculá las métricas, generá los insights y hacé un upsert a ready con metrics, insights, promptVersion y generatedAt. El filtro tiene que excluir las ready,así dos jobs a la vez no pisan nada. Manejá el E11000 del índice único como "ya existe".
+   - Si zod rechaza la respuesta o falla OpenAI, tirá el error y que BullMQ reintentecon opciones como las de meal-analysis. Cuando se agoten los reintentos, dejá el resumen en failed. Eso es del Wrapped y no se mezcla con lo de las meals del #35.
+   - Si el usuario ya no tiene meals ready esa semana (por ejemplo, las borró), no se genera nada. Logueá y terminá sin error.
+   En worker.ts levantá el segundo Worker. El shutdown con SIGTERM/SIGINT cierra los dos workers y después Mongo.
+
+6. El endpoint GET /summaries/weekly/:week. En shared armá el esquema del param: formato YYYY-Www y una semana que exista en ese año (W53 solo cuando el año la tiene). En el Front sumá la ruta { method: "get", path: "/summaries/weekly/:week", access: "jwt" } aAPI_ROUTES con su schema, reenviada con forward. En el Back sumá el controller y el service.
+   - Busca por userId del JWT y week en la misma consulta. Si no existe o no está ready, devuelve 404 NOT_FOUND. Si el week es inválido, 400 VALIDATION_ERROR, en el Front y enel Back.
+   - La respuesta es { week, from, to, metrics, insights, generatedAt }, con from y tocomo YYYY-MM-DD del lunes y el domingo. No salen _id, userId, status ni promptVersion. Va con Cache-Control: no-store.
+   - El gating de premium no va acá: es del #40 y la decisión abierta 4 sigue abierta.
+
+7. Logs. Usá el logger de shared con service: "worker". En el fan-out quiero ver la semana, cuántos usuarios encoló y cuánto tardó. Por cada job de usuario: userId, week,intento, si se salteó por estar ready, modelo, promptVersion, tokens, cuántos insights y cuánto tardó. Ni el texto de los insights, ni los nombres de los platos, ni topDish van al log.
+
+Tests con mongodb-memory-server y el fake de la IA:
+- semana ISO: el cálculo de la semana anterior, incluido el cambio de año (2027-01-04 →2026-W53), y from/to de una semana;
+- métricas: con correcciones aplicadas, sin contar processing ni failed, la racha dentro de la semana con un día salteado, y topDish con normalización y empate;
+- fan-out: solo encola usuarios con meals ready en la semana y no usa meals de otrassemanas;
+- caso feliz: queda ready con metrics, insights y promptVersion;
+- semana ya ready: no se llama a la IA y no se pisa nada;
+- respuesta inválida (2 o 6 insights, o uno demasiado largo): tira error y no quedaready;
+- usuario sin meals ready: no se genera nada;
+- endpoint: el caso feliz, el resumen de otro usuario y el inexistente dan el mismo 404, pending/failed también 404, week inválido (2026-W54, 2025-W53, formato roto) da 400,sin token 401, y no expone campos internos;
+- la ruta del Front: valida y reenvía, y un week inválido corta con 400;
+- la carga de prompts/wrapped.md (sin versión no arranca) y loadWorkerConfig con OPENAI_TEXT_MODEL por defecto y con override;
+- uno contra Redis real que registre el scheduler con el patrón y la zona correctos y que un fan-out encole los jobs por usuario, salteándolo si no está REDIS_TEST_URL, comomeal-analysis-worker.test.ts.
+Ninguno le pega a OpenAI de verdad.
+
+No te metas con la pantalla del Wrapped en la app (#37), ni con el push "Wrapped listo"(#38: dejá un comentario donde iría), ni con gamification ni la racha del dashboard (#31), ni con el cupo y el gating premium (#40), ni con el comentario por tono (#33), ni con el set de pruebas de contenido (#48).
+
+Comentarios cortitos en español como en el resto del repo. Actualizá docs/api.md (el ejemplo de GET /summaries/weekly/:week con los errores), docs/modelo-datos.md (el índice y cómo se calcula cada métrica), docs/arquitectura.md (el cron y la cola weekly-summary) y el README del back. Marcá en RF-12 los checks que queden cumplidos del lado del servidor. Fijate que el CI no necesite ninguna variable nueva. Al final corré lint, typecheck y los tests y contame cómo salieron. No commitees, que lo quiero revisar primero.
+```
+
 ## Sesión `dda4e0a5-aeca-44a7-b058-699aeb6ad968` · 2026-10-28
 
 ### 2026-10-28 21:11
@@ -247,4 +326,18 @@ Estoy en la rama del issue #38, el de registrar los push tokens y enviar los avi
                                                                                        No te metas con la app ni los culo de la racha (#31), con elcron del Wrapped (#36), con los reintentos, el failed y attempts (#35), ni con tone    (RF-11).
                                                                                        Comentarios cortitos en españoo. Actualizá docs/api.md (sacálo de que el Back responde 400 a pushTokens, explicá la semántica de sumar tokens y el campo notifications), docs/mods y la fecha del último aviso de racha), docs/arquitectura.md y el README del back, y marcá en RF-13 los checks que queden cumplidos del lado del  no necesite ninguna variablenueva. Al final corré lint, typecheck y los tests y contame cómo salieron. No commitees,
 que lo quiero revisar primero.
+```
+
+## Sesión `f3463e9e-93a7-413f-8bc3-17b5ef019ed7` · 2026-11-02
+
+### 2026-11-02 14:05
+
+```text
+Fijate los conflictos que tiene la PR abierta desde esta rama a main y numeramelos uno a uno, para ver que hacemos con cada uno, como los resolvemos
+```
+
+### 2026-11-02 14:08
+
+```text
+Dale y hace A
 ```

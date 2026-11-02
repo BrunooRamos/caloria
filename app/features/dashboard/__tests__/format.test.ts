@@ -1,4 +1,11 @@
-import { formatDailyRange, formatNumber, mealsCount, progressOf } from "../format";
+import {
+  daysCount,
+  dayUnit,
+  formatDailyRange,
+  formatNumber,
+  mealsCount,
+  progressOf,
+} from "../format";
 
 describe("formatNumber", () => {
   it("separa los miles con punto, también con cuatro cifras", () => {
@@ -47,5 +54,15 @@ describe("mealsCount", () => {
   it("singular y plural", () => {
     expect(mealsCount(1)).toBe("1 comida");
     expect(mealsCount(2)).toBe("2 comidas");
+  });
+});
+
+describe("daysCount", () => {
+  it("singular y plural", () => {
+    expect(daysCount(1)).toBe("1 día");
+    expect(daysCount(4)).toBe("4 días");
+    expect(daysCount(0)).toBe("0 días");
+    expect(dayUnit(1)).toBe("día");
+    expect(dayUnit(12)).toBe("días");
   });
 });

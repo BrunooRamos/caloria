@@ -1,4 +1,5 @@
 import type { Profile } from "@/services/auth";
+import type { Tone } from "@/services/users";
 
 export interface Option<T extends string> {
   value: T;
@@ -27,4 +28,19 @@ export const GOAL_OPTIONS: Option<Profile["goal"]>[] = [
   { value: "lose", label: "Bajar de peso" },
   { value: "maintain", label: "Mantener mi peso" },
   { value: "gain", label: "Subir de peso" },
+];
+
+export const TONE_OPTIONS: Option<Tone>[] = [
+  {
+    value: "motivador",
+    label: "Motivador",
+    description: "Te alienta y destaca lo bueno del plato.",
+  },
+  { value: "neutro", label: "Neutro", description: "Un dato breve sobre la comida, sin opinar." },
+  { value: "roast", label: "Roast", description: "Humor ácido sobre la comida, nunca sobre vos." },
+  {
+    value: "off",
+    label: "Sin comentario",
+    description: "No vas a ver comentarios en tus análisis.",
+  },
 ];

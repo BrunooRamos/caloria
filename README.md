@@ -10,7 +10,7 @@ App móvil con IA para registrar y analizar lo que comés (proyecto ING0265).
 - **Capa 2 · DMZ** — nginx + Front Service (BFF, :3000): `infra/nginx/`, `front-service/`
 - **Capa 3 · Red segura** — Back Service (:4000), worker de IA, MongoDB, Redis y MinIO (media): `back-service/`
 
-Infraestructura en `infra/`, prompts de IA en `prompts/`, documentación en `docs/`.
+Infraestructura en `infra/`, prompts del repo en `prompts/` (los de la app, en `back-service/src/prompts/`), documentación en `docs/`.
 
 ## Levantar localmente
 

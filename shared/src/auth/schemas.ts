@@ -4,6 +4,10 @@ import { z } from "zod";
 export const PASSWORD_MAX_BYTES = 72;
 export const PASSWORD_MIN_CHARS = 8;
 
+/** Tono del comentario de cada análisis (RF-11). "off" no genera comentario. */
+export const TONES = ["motivador", "neutro", "roast", "off"] as const;
+export type Tone = (typeof TONES)[number];
+
 /** trim + minúsculas antes de validar, así lo que se guarda y se compara es siempre lo mismo. */
 export const emailSchema = z.preprocess(
   (value) => (typeof value === "string" ? value.trim().toLowerCase() : value),
@@ -123,6 +127,7 @@ export const updateMeSchema = z
         message: "Indicá al menos un dato del perfil",
       })
       .optional(),
+    tone: z.enum(TONES).optional(),
     // Los tokens se suman a los que ya hay: cada dispositivo manda solo el suyo.
     pushTokens: pushTokensSchema.optional(),
     notifications: notificationsSchema
@@ -155,7 +160,7 @@ export interface MeResponse {
   email: string;
   profile: Profile;
   targets: { kcal: number; proteinG: number; carbsG: number; fatG: number };
-  tone: "motivador" | "neutro" | "roast" | "off";
+  tone: Tone;
   plan: { tier: "free" | "premium"; since: string; renewsAt?: string };
   notifications: NotificationPreferences;
 }

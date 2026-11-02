@@ -64,9 +64,11 @@ export function createUserService(): UserService {
       return toMe(user);
     },
 
-    async updateMe(userId, { profile: changes, pushTokens = [], notifications = {} }) {
-      // Avisos y tokens no dependen de lo que hay guardado: van igual en cada intento.
+    async updateMe(userId, { profile: changes, tone, pushTokens = [], notifications = {} }) {
+      // Tono, avisos y tokens no dependen de lo que hay guardado: van igual en cada intento.
+      // Sin perfil no se lee nada ni se recalculan las metas.
       const fixed: Record<string, unknown> = {};
+      if (tone) fixed.tone = { $literal: tone };
       for (const [type, enabled] of Object.entries(notifications)) {
         fixed[`notifications.${type}`] = enabled;
       }

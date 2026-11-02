@@ -5,6 +5,8 @@ export const DEFAULT_WORKER_CONCURRENCY = 2;
 export const DEFAULT_OPENAI_VISION_MODEL = "gpt-6-luna";
 // El speech-to-text vigente para audios grabados; acepta M4A.
 export const DEFAULT_OPENAI_TRANSCRIPTION_MODEL = "gpt-transcribe";
+// Texto del Wrapped: el rápido y eficiente de la familia vigente, con structured outputs.
+export const DEFAULT_OPENAI_TEXT_MODEL = "gpt-6.1-terra";
 
 /**
  * Config del Worker. Aparte de `loadConfig` para que la clave privada de JWT no le llegue
@@ -27,6 +29,7 @@ export function loadWorkerConfig(env = process.env) {
       visionModel: env.OPENAI_VISION_MODEL?.trim() || DEFAULT_OPENAI_VISION_MODEL,
       transcriptionModel:
         env.OPENAI_TRANSCRIPTION_MODEL?.trim() || DEFAULT_OPENAI_TRANSCRIPTION_MODEL,
+      textModel: env.OPENAI_TEXT_MODEL?.trim() || DEFAULT_OPENAI_TEXT_MODEL,
     },
     // Opcional: solo si el proyecto tiene activada la seguridad de push en EAS.
     expo: { accessToken: env.EXPO_ACCESS_TOKEN?.trim() || undefined },

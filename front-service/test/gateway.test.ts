@@ -497,6 +497,78 @@ describe("front-service: gateway de /api/v1", () => {
     });
   });
 
+  describe("GET /meals", () => {
+    const list = { items: [], nextCursor: null };
+
+    it("reenvía date y cursor validados y devuelve la respuesta del Backend sin caché", async () => {
+      back.respondWith((_req, res) => void res.set("Cache-Control", "no-store").json(list));
+      const res = await call("get", "/meals?date=2026-10-06&cursor=MTc5MDAwMC42NmYx", valid);
+      assert.equal(res.status, 200);
+      assert.deepEqual(res.body, list);
+      assert.equal(res.headers["cache-control"], "no-store");
+      assert.equal(back.received.length, 1);
+      assert.equal(back.received[0].method, "GET");
+      assert.equal(back.received[0].path, "/api/v1/meals");
+      assert.deepEqual(back.received[0].query, {
+        date: "2026-10-06",
+        cursor: "MTc5MDAwMC42NmYx",
+      });
+      assert.equal(back.received[0].authorization, `Bearer ${valid}`);
+    });
+
+    it("sin cursor → llega al Backend solo con la fecha", async () => {
+      back.respondWith((_req, res) => void res.json(list));
+      await call("get", "/meals?date=2026-10-06", valid);
+      assert.deepEqual(back.received[0].query, { date: "2026-10-06" });
+    });
+
+    for (const [caso, query] of [
+      ["sin date", ""],
+      ["date con otro formato", "date=06-10-2026"],
+      ["un día que no existe", "date=2026-02-30"],
+      ["date repetida", "date=2026-10-06&date=2026-10-07"],
+      ["cursor vacío", "date=2026-10-06&cursor="],
+      ["cursor con caracteres fuera de base64url", "date=2026-10-06&cursor=a%2Bb%2F"],
+      ["cursor con un operador", "date=2026-10-06&cursor[$gt]="],
+      ["con el usuario en la query", "date=2026-10-06&userId=66f1a0000000000000000002"],
+    ] as const) {
+      it(`query inválida (${caso}) → 400 VALIDATION_ERROR sin llegar al Backend`, async () => {
+        expectEnvelope(await call("get", `/meals?${query}`, valid), 400, "VALIDATION_ERROR");
+        assertNotForwarded();
+      });
+    }
+  });
+
+  describe("DELETE /meals/:id", () => {
+    const MEAL_ID = "66f1a0000000000000000099";
+
+    it("reenvía al Backend y devuelve su 204 sin cuerpo", async () => {
+      back.respondWith((_req, res) => void res.status(204).end());
+      const res = await call("delete", `/meals/${MEAL_ID}`, valid);
+      assert.equal(res.status, 204);
+      assert.equal(res.text, "");
+      assert.equal(back.received.length, 1);
+      assert.equal(back.received[0].method, "DELETE");
+      assert.equal(back.received[0].path, `/api/v1/meals/${MEAL_ID}`);
+      assert.equal(back.received[0].authorization, `Bearer ${valid}`);
+    });
+
+    it("el 404 del Backend llega sin modificar", async () => {
+      back.respondWith(
+        (req, res) =>
+          void res.status(404).json({
+            error: { code: "NOT_FOUND", message: "Recurso inexistente", requestId: req.requestId },
+          }),
+      );
+      expectEnvelope(await call("delete", `/meals/${MEAL_ID}`, valid), 404, "NOT_FOUND");
+    });
+
+    it("id inválido → 400 VALIDATION_ERROR sin llegar al Backend", async () => {
+      expectEnvelope(await call("delete", "/meals/123", valid), 400, "VALIDATION_ERROR");
+      assertNotForwarded();
+    });
+  });
+
   describe("PATCH /meals/:id", () => {
     const MEAL_ID = "66f1a0000000000000000099";
     const r = (min: number, max: number) => ({ min, max });
@@ -621,6 +693,60 @@ describe("front-service: gateway de /api/v1", () => {
         assertNotForwarded();
       });
     }
+  });
+
+  describe("GET /summaries/weekly/:week", () => {
+    const summary = {
+      week: "2026-W43",
+      from: "2026-10-19",
+      to: "2026-10-25",
+      metrics: { avgKcal: 1840, daysLogged: 6, streak: 5, topDish: "Milanesa con puré" },
+      insights: ["Uno.", "Dos.", "Tres."],
+      generatedAt: "2026-10-26T09:00:12.000Z",
+    };
+
+    it("valida la semana, la reenvía en la ruta y devuelve la respuesta sin caché", async () => {
+      back.respondWith((_req, res) => void res.set("Cache-Control", "no-store").json(summary));
+      const res = await call("get", "/summaries/weekly/2026-W43", valid);
+      assert.equal(res.status, 200);
+      assert.deepEqual(res.body, summary);
+      assert.equal(res.headers["cache-control"], "no-store");
+      assert.equal(back.received.length, 1);
+      assert.equal(back.received[0].method, "GET");
+      assert.equal(back.received[0].path, "/api/v1/summaries/weekly/2026-W43");
+      assert.deepEqual(back.received[0].query, {});
+      assert.equal(back.received[0].authorization, `Bearer ${valid}`);
+    });
+
+    it("una W53 de un año que la tiene pasa", async () => {
+      back.respondWith((_req, res) => void res.json(summary));
+      assert.equal((await call("get", "/summaries/weekly/2026-W53", valid)).status, 200);
+    });
+
+    it("el 404 del Backend llega sin modificar", async () => {
+      back.respondWith(() => {
+        throw new AppError("NOT_FOUND");
+      });
+      expectEnvelope(await call("get", "/summaries/weekly/2026-W43", valid), 404, "NOT_FOUND");
+    });
+
+    for (const [caso, path] of [
+      ["W54", "/summaries/weekly/2026-W54"],
+      ["W53 en un año de 52", "/summaries/weekly/2025-W53"],
+      ["formato roto", "/summaries/weekly/2026-43"],
+      ["con un operador", `/summaries/weekly/${encodeURIComponent('{"$gt":""}')}`],
+      ["con query string", "/summaries/weekly/2026-W43?userId=66f1a0000000000000000002"],
+    ] as const) {
+      it(`week inválido (${caso}) → 400 VALIDATION_ERROR sin llegar al Backend`, async () => {
+        expectEnvelope(await call("get", path, valid), 400, "VALIDATION_ERROR");
+        assertNotForwarded();
+      });
+    }
+
+    it("sin token, un week inválido es 401 y no 400: el JWT va primero", async () => {
+      expectEnvelope(await call("get", "/summaries/weekly/2026-W54"), 401, "UNAUTHORIZED");
+      assertNotForwarded();
+    });
   });
 
   describe("X-Request-Id", () => {
