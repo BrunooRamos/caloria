@@ -6,10 +6,9 @@ import { MealModel } from "../models/Meal";
 import { UserModel } from "../models/User";
 import type { User } from "../models/User";
 import { localDateIn } from "./local-date";
+import { currentValue, MACROS } from "./meal-corrections";
 import { createStreakService } from "./streak";
 import type { StreakService } from "./streak";
-
-const MACROS = ["protein", "carbs", "fat"] as const;
 
 export interface DashboardService {
   daily(userId: string, date?: string): Promise<DailyDashboardResponse>;
@@ -48,40 +47,6 @@ const EMPTY_TOTALS: DailyTotals = {
   processing: 0,
   failed: 0,
 };
-
-/** Lo mismo que `rangeSchema`: números, sin negativos, finitos y con min ≤ max. */
-const validRange = (path: string) => ({
-  $and: [
-    { $isNumber: `${path}.min` },
-    { $isNumber: `${path}.max` },
-    { $gte: [`${path}.min`, 0] },
-    { $lte: [`${path}.min`, `${path}.max`] },
-    { $lt: [`${path}.max`, Infinity] },
-  ],
-});
-
-function currentValue(field: "kcal" | "macros") {
-  const valid =
-    field === "kcal"
-      ? validRange("$$c.to")
-      : { $and: MACROS.map((macro) => validRange(`$$c.to.${macro}`)) };
-  return {
-    $let: {
-      vars: {
-        last: {
-          $last: {
-            $filter: {
-              input: "$corrections",
-              as: "c",
-              cond: { $and: [{ $eq: ["$$c.field", field] }, valid] },
-            },
-          },
-        },
-      },
-      in: { $ifNull: ["$$last.to", `$analysis.${field}`] },
-    },
-  };
-}
 
 const countStatus = (status: string) => ({
   $sum: { $cond: [{ $eq: ["$status", status] }, 1, 0] },

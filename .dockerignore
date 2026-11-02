@@ -6,7 +6,5 @@
 app
 docs
 infra
-# De prompts/ solo entran los que usa el Worker.
-prompts/*
-!prompts/analisis-comida.md
-!prompts/identificar-plato.md
+# prompts/ de la raíz son los del repo; los del Worker están en back-service/src/prompts/.
+/prompts

@@ -693,6 +693,60 @@ describe("front-service: gateway de /api/v1", () => {
     }
   });
 
+  describe("GET /summaries/weekly/:week", () => {
+    const summary = {
+      week: "2026-W43",
+      from: "2026-10-19",
+      to: "2026-10-25",
+      metrics: { avgKcal: 1840, daysLogged: 6, streak: 5, topDish: "Milanesa con puré" },
+      insights: ["Uno.", "Dos.", "Tres."],
+      generatedAt: "2026-10-26T09:00:12.000Z",
+    };
+
+    it("valida la semana, la reenvía en la ruta y devuelve la respuesta sin caché", async () => {
+      back.respondWith((_req, res) => void res.set("Cache-Control", "no-store").json(summary));
+      const res = await call("get", "/summaries/weekly/2026-W43", valid);
+      assert.equal(res.status, 200);
+      assert.deepEqual(res.body, summary);
+      assert.equal(res.headers["cache-control"], "no-store");
+      assert.equal(back.received.length, 1);
+      assert.equal(back.received[0].method, "GET");
+      assert.equal(back.received[0].path, "/api/v1/summaries/weekly/2026-W43");
+      assert.deepEqual(back.received[0].query, {});
+      assert.equal(back.received[0].authorization, `Bearer ${valid}`);
+    });
+
+    it("una W53 de un año que la tiene pasa", async () => {
+      back.respondWith((_req, res) => void res.json(summary));
+      assert.equal((await call("get", "/summaries/weekly/2026-W53", valid)).status, 200);
+    });
+
+    it("el 404 del Backend llega sin modificar", async () => {
+      back.respondWith(() => {
+        throw new AppError("NOT_FOUND");
+      });
+      expectEnvelope(await call("get", "/summaries/weekly/2026-W43", valid), 404, "NOT_FOUND");
+    });
+
+    for (const [caso, path] of [
+      ["W54", "/summaries/weekly/2026-W54"],
+      ["W53 en un año de 52", "/summaries/weekly/2025-W53"],
+      ["formato roto", "/summaries/weekly/2026-43"],
+      ["con un operador", `/summaries/weekly/${encodeURIComponent('{"$gt":""}')}`],
+      ["con query string", "/summaries/weekly/2026-W43?userId=66f1a0000000000000000002"],
+    ] as const) {
+      it(`week inválido (${caso}) → 400 VALIDATION_ERROR sin llegar al Backend`, async () => {
+        expectEnvelope(await call("get", path, valid), 400, "VALIDATION_ERROR");
+        assertNotForwarded();
+      });
+    }
+
+    it("sin token, un week inválido es 401 y no 400: el JWT va primero", async () => {
+      expectEnvelope(await call("get", "/summaries/weekly/2026-W54"), 401, "UNAUTHORIZED");
+      assertNotForwarded();
+    });
+  });
+
   describe("X-Request-Id", () => {
     it("el Front genera el suyo, ignora el del cliente y lo propaga al Backend y a sus logs", async () => {
       const clientId = "22222222-2222-4222-8222-222222222222";

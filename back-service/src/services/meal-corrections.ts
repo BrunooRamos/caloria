@@ -25,6 +25,56 @@ export function applyCorrections(
   return values;
 }
 
+export const MACROS = ["protein", "carbs", "fat"] as const;
+
+/** Lo mismo que `rangeSchema`: números, sin negativos, finitos y con min ≤ max. */
+const validRange = (path: string) => ({
+  $and: [
+    { $isNumber: `${path}.min` },
+    { $isNumber: `${path}.max` },
+    { $gte: [`${path}.min`, 0] },
+    { $lte: [`${path}.min`, `${path}.max`] },
+    { $lt: [`${path}.max`, Infinity] },
+  ],
+});
+
+// Lo que acepta correctableFieldsSchema para cada campo. $and corta en el primer false: $trim
+// solo ve strings.
+const VALID: Record<"dish" | "kcal" | "macros", object> = {
+  dish: {
+    $and: [
+      { $eq: [{ $type: "$$c.to" }, "string"] },
+      { $gt: [{ $strLenCP: { $trim: { input: "$$c.to" } } }, 0] },
+    ],
+  },
+  kcal: validRange("$$c.to"),
+  macros: { $and: MACROS.map((macro) => validRange(`$$c.to.${macro}`)) },
+};
+
+/**
+ * `applyCorrections` para un campo dentro de una agregación: la última corrección válida del
+ * campo gana; si no hay, queda el del análisis. La usan el dashboard y el Wrapped, y un test
+ * compara las dos. `dish` sale sin recortar: el que lo muestre hace el trim.
+ */
+export function currentValue(field: "dish" | "kcal" | "macros") {
+  return {
+    $let: {
+      vars: {
+        last: {
+          $last: {
+            $filter: {
+              input: "$corrections",
+              as: "c",
+              cond: { $and: [{ $eq: ["$$c.field", field] }, VALID[field]] },
+            },
+          },
+        },
+      },
+      in: { $ifNull: ["$$last.to", `$analysis.${field}`] },
+    },
+  };
+}
+
 /** Lo que indexa la búsqueda de comidas similares, sacado de los valores finales. */
 export function toMealSearch({
   dish,

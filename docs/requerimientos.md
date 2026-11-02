@@ -125,10 +125,10 @@ Endpoints: `GET /meals?date=&cursor=`, `GET /meals/:id`, `DELETE /meals/:id`.
 
 #### RF-12 — Wrapped semanal
 
-- [ ] Un cron corre los lunes a las 06:00 (zona del usuario o UTC-3 en v1) y genera el resumen de la semana anterior para cada usuario con al menos un registro.
-- [ ] Métricas: promedio de kcal, días registrados, racha, plato más frecuente.
-- [ ] La IA genera 3 a 5 insights sobre hábitos, con las mismas reglas de RNF-10.
-- [ ] Se guarda en `weekly_summaries`; si ya existe la semana, no se duplica.
+- [x] Un cron corre los lunes a las 06:00 (zona del usuario o UTC-3 en v1) y genera el resumen de la semana anterior para cada usuario con al menos un registro.
+- [x] Métricas: promedio de kcal, días registrados, racha, plato más frecuente.
+- [x] La IA genera 3 a 5 insights sobre hábitos, con las mismas reglas de RNF-10.
+- [x] Se guarda en `weekly_summaries`; si ya existe la semana, no se duplica.
 - [ ] La app lo muestra como tarjetas y permite compartir cada tarjeta como imagen.
 - [ ] Al terminar, se envía el push "Wrapped listo".
 
@@ -191,5 +191,5 @@ Endpoints: `GET /billing/plan`, `POST /billing/subscribe`.
 8. **Preferencias de notificaciones:** dónde se guardan (se propone `users.notifications`).
 9. **mTLS entre Front y Backend:** la presentación lo plantea, pero el `docker-compose` actual usa HTTP. Decidir si se implementa o queda para producción.
 10. **Dominio y hosting:** el RFC dice "si conseguimos un dominio barato" y la presentación usa `api.caloria.app` y DigitalOcean. El despliegue está marcado como "a definir".
-11. ~~**Proveedor de IA:** qué modelos de visión, transcripción y texto se usan.~~ Resuelto en #18: OpenAI. Visión con la Responses API y structured outputs, modelo en `OPENAI_VISION_MODEL` (por defecto `gpt-6-luna`). Los modelos de transcripción y texto se eligen en sus issues.
+11. ~~**Proveedor de IA:** qué modelos de visión, transcripción y texto se usan.~~ Resuelto en #18: OpenAI. Visión con la Responses API y structured outputs, modelo en `OPENAI_VISION_MODEL` (por defecto `gpt-6-luna`). Transcripción en `OPENAI_TRANSCRIPTION_MODEL` (por defecto `gpt-transcribe`). Texto (insights del Wrapped, #36) con la Responses API y structured outputs, modelo en `OPENAI_TEXT_MODEL` (por defecto `gpt-6.1-terra`).
 12. ~~**Storage:** qué bucket se usa (S3, DigitalOcean Spaces, MinIO en local).~~ Resuelto en #14: MinIO en local y bucket compatible con S3 en prod (DO Spaces previsto); el código usa el SDK de S3.
