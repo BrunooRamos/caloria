@@ -31,6 +31,7 @@ export default function AppLayout() {
           />
           <Stack.Screen name="meals/[id]" options={{ title: "Tu comida" }} />
           <Stack.Screen name="meals/[id]/edit" options={{ title: "Corregir comida" }} />
+          <Stack.Screen name="history" options={{ title: "Historial" }} />
         </Stack.Protected>
       </Stack>
     </MealCacheProvider>

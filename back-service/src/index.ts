@@ -5,11 +5,13 @@ import { connectMongo, mongoStatus } from "./config/db";
 import { createMealAnalysisQueue } from "./jobs/meal-analysis";
 import { MealModel } from "./models/Meal";
 import { UserModel } from "./models/User";
+import { WeeklySummaryModel } from "./models/WeeklySummary";
 import { apiRouter } from "./routes";
 import { createAuthService } from "./services/auth";
 import { createDashboardService } from "./services/dashboard";
 import { createMealService } from "./services/meals";
 import { createMediaService } from "./services/media";
+import { createSummaryService } from "./services/summaries";
 import { createUserService } from "./services/users";
 
 const logger = createLogger({ service: "back" });
@@ -26,6 +28,7 @@ async function main() {
     users: createUserService(),
     meals,
     dashboard: createDashboardService(),
+    summaries: createSummaryService(),
     publicKey: config.jwtPublicKey,
   });
   createApp({ logger, api, mongoStatus }).listen(config.port, () => {
@@ -36,6 +39,7 @@ async function main() {
   await connectMongo(config.mongoUri);
   await UserModel.syncIndexes();
   await MealModel.syncIndexes();
+  await WeeklySummaryModel.syncIndexes();
 }
 
 main().catch((err: unknown) => {

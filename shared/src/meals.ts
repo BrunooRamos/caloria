@@ -135,6 +135,31 @@ export interface FailedMealResponse extends MealResponseBase {
 /** `GET /meals/:id` y cada comida del historial. */
 export type MealResponse = ProcessingMealResponse | ReadyMealResponse | FailedMealResponse;
 
+// RF-08: comidas por página del historial.
+export const MEALS_PAGE_SIZE = 20;
+
+/**
+ * Query de `GET /meals`: el día (`localDate`, en la zona del usuario) y el cursor opaco que devolvió
+ * la página anterior. El Front solo valida que el cursor tenga forma de base64url; lo decodifica
+ * el Backend, que responde 400 si no es uno suyo.
+ */
+export const listMealsQuerySchema = z
+  .object({
+    date: z.iso.date(),
+    cursor: z
+      .string()
+      .regex(/^[A-Za-z0-9_-]{1,128}$/)
+      .optional(),
+  })
+  .strict();
+export type ListMealsQuery = z.infer<typeof listMealsQuerySchema>;
+
+/** `GET /meals?date=`: las comidas del día por hora ascendente. `nextCursor` es null en la última página. */
+export interface MealListResponse {
+  items: MealResponse[];
+  nextCursor: string | null;
+}
+
 interface Ftyp {
   major: string;
   compatible: string[];
