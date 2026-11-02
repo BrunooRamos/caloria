@@ -9,7 +9,7 @@ import IORedis from "ioredis";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import mongoose, { Types } from "mongoose";
 import { DEFAULT_OPENAI_TEXT_MODEL, loadWorkerConfig } from "../src/config/worker";
-import { loadWrappedPrompt, WRAPPED_PROMPT_PATH } from "../src/config/wrapped-prompt";
+import { loadPrompt, WRAPPED_PROMPT_PATH } from "../src/config/prompts";
 import {
   createWeeklySummaryQueue,
   WEEKLY_FAN_OUT_JOB,
@@ -684,7 +684,7 @@ describe("back-service: prompt del Wrapped", () => {
   after(() => rmSync(dir, { recursive: true, force: true }));
 
   it("el prompt del repo tiene autor, versión, fecha y las reglas de RNF-10", () => {
-    const prompt = loadWrappedPrompt(WRAPPED_PROMPT_PATH);
+    const prompt = loadPrompt(WRAPPED_PROMPT_PATH, "del Wrapped");
     assert.ok(prompt.version);
     assert.ok(prompt.author);
     assert.match(prompt.date ?? "", /^\d{4}-\d{2}-\d{2}$/);
@@ -696,11 +696,14 @@ describe("back-service: prompt del Wrapped", () => {
   it("sin versión no arranca", () => {
     const file = path.join(dir, "sin-version.md");
     writeFileSync(file, "---\nautor: Ana\nfecha: 2026-10-28\n---\nSos.\n");
-    assert.throws(() => loadWrappedPrompt(file), /prompt del Wrapped no tiene versión/);
+    assert.throws(() => loadPrompt(file, "del Wrapped"), /prompt del Wrapped no tiene versión/);
   });
 
   it("sin archivo no arranca", () => {
-    assert.throws(() => loadWrappedPrompt(path.join(dir, "no-existe.md")), /No se pudo leer/);
+    assert.throws(
+      () => loadPrompt(path.join(dir, "no-existe.md"), "del Wrapped"),
+      /No se pudo leer/,
+    );
   });
 });
 

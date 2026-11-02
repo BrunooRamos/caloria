@@ -1,8 +1,12 @@
 import mongoose from "mongoose";
 import { createLogger, serializeError } from "@caloria/shared";
-import { ANALYSIS_PROMPT_PATH, IDENTIFY_PROMPT_PATH, loadPrompt } from "./config/prompts";
+import {
+  ANALYSIS_PROMPT_PATH,
+  IDENTIFY_PROMPT_PATH,
+  loadPrompt,
+  WRAPPED_PROMPT_PATH,
+} from "./config/prompts";
 import { loadWorkerConfig } from "./config/worker";
-import { loadWrappedPrompt } from "./config/wrapped-prompt";
 import { connectMongo } from "./config/db";
 import { createAnalyzeMeal } from "./jobs/analyze-meal";
 import { MEAL_ANALYSIS_QUEUE } from "./jobs/meal-analysis";
@@ -36,7 +40,7 @@ async function main() {
   // Se leen una sola vez: sin archivo o sin versión, el worker no arranca.
   const prompt = loadPrompt(ANALYSIS_PROMPT_PATH, "de análisis");
   const identifyPrompt = loadPrompt(IDENTIFY_PROMPT_PATH, "de identificación");
-  const wrappedPrompt = loadWrappedPrompt();
+  const wrappedPrompt = loadPrompt(WRAPPED_PROMPT_PATH, "del Wrapped");
   await connectMongo(config.mongoUri);
   // El índice único { userId, week } es el que evita duplicar un Wrapped.
   await WeeklySummaryModel.syncIndexes();

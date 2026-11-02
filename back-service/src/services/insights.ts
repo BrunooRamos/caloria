@@ -5,7 +5,7 @@ import {
   WRAPPED_INSIGHTS_MAX,
   WRAPPED_INSIGHTS_MIN,
 } from "@caloria/shared";
-import type { Prompt } from "../config/prompt";
+import type { Prompt } from "../config/prompts";
 import type { TokenUsage } from "./vision";
 import type { WeeklyData } from "./weekly-metrics";
 
