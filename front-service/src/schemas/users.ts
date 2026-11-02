@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { updateMeSchema } from "@caloria/shared";
 
-export const TONES = ["motivador", "neutro", "roast", "off"] as const;
 export const MAX_PUSH_TOKENS = 10;
 
 const expoPushToken = z.string().regex(/^Expo(nent)?PushToken\[[A-Za-z0-9_-]{1,256}\]$/);
@@ -9,7 +8,7 @@ const expoPushToken = z.string().regex(/^Expo(nent)?PushToken\[[A-Za-z0-9_-]{1,2
 export const updateMeRequestSchema = z
   .object({
     profile: updateMeSchema.shape.profile.optional(),
-    tone: z.enum(TONES).optional(),
+    tone: updateMeSchema.shape.tone,
     pushTokens: z
       .array(expoPushToken)
       .max(MAX_PUSH_TOKENS)

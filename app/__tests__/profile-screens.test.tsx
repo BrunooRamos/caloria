@@ -413,4 +413,95 @@ describe("perfil", () => {
     );
     expect(screen.getByText("2093")).toBeOnTheScreen();
   });
+
+  describe("tono del comentario", () => {
+    const toneRadio = (name: string) => screen.getByRole("radio", { name });
+
+    it("viene marcado el tono guardado y cada opción explica qué hace", async () => {
+      await start(profileBackend(), "/profile", NEW_TOKENS);
+
+      expect(await screen.findByText("Comentario de tus comidas")).toBeOnTheScreen();
+      expect(screen.getByLabelText("Tono del comentario")).toHaveProp(
+        "accessibilityRole",
+        "radiogroup",
+      );
+      expect(toneRadio("Neutro")).toBeChecked();
+      for (const name of ["Motivador", "Roast", "Sin comentario"]) {
+        expect(toneRadio(name)).not.toBeChecked();
+      }
+      expect(toneRadio("Roast")).toHaveProp(
+        "accessibilityHint",
+        "Humor ácido sobre la comida, nunca sobre vos.",
+      );
+      expect(toneRadio("Sin comentario")).toHaveProp(
+        "accessibilityHint",
+        "No vas a ver comentarios en tus análisis.",
+      );
+    });
+
+    it("al elegir, lo guarda solo, bloquea el grupo mientras tanto y queda marcado", async () => {
+      const response = deferred<Response>();
+      await start(
+        profileBackend(() => response.promise),
+        "/profile",
+        NEW_TOKENS,
+      );
+
+      // Un cambio sin guardar en el formulario no viaja con el tono ni se pierde.
+      await fireEvent.changeText(await screen.findByLabelText("Peso (kg)"), "58");
+      await fireEvent.press(toneRadio("Roast"));
+
+      expect(toneRadio("Roast")).toBeChecked();
+      expect(toneRadio("Roast")).toBeDisabled();
+      expect(toneRadio("Neutro")).toBeDisabled();
+      expect(screen.getByText("Guardando tu elección…")).toBeOnTheScreen();
+      await fireEvent.press(toneRadio("Motivador"));
+      expect(patches()).toHaveLength(1);
+      expect(sentBody("/users/me", "PATCH")).toEqual({ tone: "roast" });
+
+      await act(async () => response.resolve(json(200, me({ tone: "roast" }))));
+
+      expect(
+        await screen.findByText("Guardamos tu elección. Se usa desde tu próximo análisis."),
+      ).toBeOnTheScreen();
+      expect(toneRadio("Roast")).toBeChecked();
+      expect(toneRadio("Roast")).toBeEnabled();
+      expect(screen.queryByText("Guardando tu elección…")).not.toBeOnTheScreen();
+      // El formulario sigue como estaba: el peso sin guardar y el botón activo.
+      expect(screen.getByLabelText("Peso (kg)")).toHaveProp("value", "58");
+      expect(screen.getByRole("button", { name: "Guardar cambios" })).toBeEnabled();
+      expect(
+        screen.queryByText("Guardamos tus cambios y tus metas ya están actualizadas."),
+      ).not.toBeOnTheScreen();
+    });
+
+    it("elegir el tono que ya está no manda nada", async () => {
+      await start(profileBackend(), "/profile", NEW_TOKENS);
+
+      await fireEvent.press(await screen.findByRole("radio", { name: "Neutro" }));
+      expect(patches()).toHaveLength(0);
+    });
+
+    it("si el PATCH falla, vuelve al tono anterior y muestra el error", async () => {
+      await start(
+        profileBackend(() => {
+          throw new TypeError("Network request failed");
+        }),
+        "/profile",
+        NEW_TOKENS,
+      );
+
+      await fireEvent.press(await screen.findByRole("radio", { name: "Sin comentario" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "No hay conexión. Revisá tu internet y probá de nuevo.",
+      );
+      expect(toneRadio("Neutro")).toBeChecked();
+      expect(toneRadio("Sin comentario")).not.toBeChecked();
+      expect(toneRadio("Sin comentario")).toBeEnabled();
+      expect(
+        screen.queryByText("Guardamos tu elección. Se usa desde tu próximo análisis."),
+      ).not.toBeOnTheScreen();
+    });
+  });
 });

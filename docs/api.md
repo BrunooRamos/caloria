@@ -115,7 +115,7 @@ Authorization: Bearer <accessToken>
   "profile": { "sex": "female", "birthDate": "2002-04-10", "heightCm": 165, "weightKg": 60,
                "activity": "moderate", "goal": "maintain", "timezone": "America/Montevideo" },
   "targets": { "kcal": 2093, "proteinG": 108, "carbsG": 285, "fatG": 58 },
-  "tone": "neutro",
+  "tone": "motivador",
   "plan": { "tier": "free", "since": "2026-10-14T19:00:00.000Z" }
 }
 ```
@@ -128,13 +128,14 @@ Content-Type: application/json
 { "profile": { "weightKg": 58, "goal": "lose" }, "tone": "roast" }
 ```
 
-Devuelve 200 con la misma forma que `GET`, con las metas ya recalculadas.
+Devuelve 200 con la misma forma que `GET`, con lo que quedó guardado.
 
 - El body lleva al menos uno de `profile`, `tone` y `pushTokens`.
 - En `profile` van solo los campos que cambian, con los mismos rangos que el registro. Fuera de rango, sin ningún campo o con un campo desconocido → 400 `VALIDATION_ERROR`.
-- `tone`: `motivador`, `neutro`, `roast` u `off` (RF-11). `pushTokens`: hasta 10 tokens de Expo sin repetir, `ExponentPushToken[…]` o `ExpoPushToken[…]` (RF-13).
-- Por ahora el Backend implementa solo `profile`: a `tone` y `pushTokens` el Front los valida y los reenvía, y el Backend responde 400 hasta RF-11 y RF-13.
-- Las metas se recalculan en cada PATCH con la fórmula de [modelo-datos.md](modelo-datos.md#cálculo-de-metas-rf-02). Si dos PATCH llegan a la vez, ninguno pisa los cambios del otro y las metas guardadas corresponden siempre al perfil guardado.
+- `tone`: `motivador` (el default de una cuenta nueva), `neutro`, `roast` u `off` (RF-11). Con `off` los análisis no traen `comment`. Otro valor → 400 `VALIDATION_ERROR` y no se guarda nada, aunque venga un `profile` válido.
+- `tone` solo cambia el tono: no toca el perfil ni recalcula las metas. Con `profile` y `tone` juntos se guardan en un único update, o los dos o ninguno.
+- `pushTokens`: hasta 10 tokens de Expo sin repetir, `ExponentPushToken[…]` o `ExpoPushToken[…]` (RF-13). Por ahora el Front lo valida y lo reenvía, y el Backend responde 400 hasta RF-13.
+- Con `profile`, las metas se recalculan con la fórmula de [modelo-datos.md](modelo-datos.md#cálculo-de-metas-rf-02). Si dos PATCH llegan a la vez (de perfil o de tono), ninguno pisa los cambios del otro y las metas guardadas corresponden siempre al perfil guardado.
 - El Backend re-verifica el JWT: sin token o inválido → 401 `UNAUTHORIZED`, vencido → 401 `TOKEN_EXPIRED`. Un token válido de una cuenta que ya no existe también es 401.
 
 ### Registrar una comida (endpoint central)

@@ -24,6 +24,7 @@ export {
   profileSchema,
   refreshSchema,
   registerSchema,
+  TONES,
   updateMeSchema,
 } from "./auth/schemas";
 export type {
@@ -33,6 +34,7 @@ export type {
   Profile,
   RefreshInput,
   RegisterInput,
+  Tone,
   UpdateMeInput,
 } from "./auth/schemas";
 export {

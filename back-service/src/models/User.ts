@@ -1,9 +1,10 @@
 import { Schema, model, type Types } from "mongoose";
+import { TONES } from "@caloria/shared";
+import type { Tone } from "@caloria/shared";
 
 export const SEXES = ["female", "male"] as const;
 export const ACTIVITIES = ["sedentary", "light", "moderate", "active", "very_active"] as const;
 export const GOALS = ["lose", "maintain", "gain"] as const;
-export const TONES = ["motivador", "neutro", "roast", "off"] as const;
 export const TIERS = ["free", "premium"] as const;
 
 export interface Profile {
@@ -49,7 +50,7 @@ export interface User {
   passwordHash: string;
   profile: Profile;
   targets: Targets;
-  tone: (typeof TONES)[number];
+  tone: Tone;
   plan: Plan;
   usage: Usage;
   pushTokens: string[];
@@ -113,7 +114,7 @@ const userSchema = new Schema<User>(
     passwordHash: { type: String, required: true },
     profile: { type: profileSchema, required: true },
     targets: { type: targetsSchema, required: true },
-    tone: { type: String, enum: TONES, required: true, default: "neutro" },
+    tone: { type: String, enum: TONES, required: true, default: "motivador" },
     plan: { type: planSchema, required: true, default: () => ({}) },
     usage: {
       type: usageSchema,

@@ -118,7 +118,7 @@ Endpoints: `GET /meals?date=&cursor=`, `GET /meals/:id`, `DELETE /meals/:id`.
 
 #### RF-11 — Comentario con personalidad
 
-- [ ] El usuario elige el tono en su perfil: motivador, neutro, roast o desactivado. Default: motivador.
+- [x] El usuario elige el tono en su perfil: motivador, neutro, roast o desactivado. Default: motivador.
 - [ ] Con un tono activo, cada análisis incluye un comentario corto (≤ 200 caracteres) en ese tono.
 - [ ] Con el tono desactivado no se genera comentario (y no se gasta la llamada).
 - [ ] El prompt prohíbe comentarios sobre el cuerpo, el peso o la apariencia, y no incentiva la restricción (RNF-10). Se prueba con un set de comidas "problemáticas".
