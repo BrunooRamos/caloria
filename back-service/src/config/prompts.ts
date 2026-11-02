@@ -9,3 +9,5 @@ export const ANALYSIS_PROMPT_PATH = path.join(PROMPTS_DIR, "analisis-comida.md")
 export const IDENTIFY_PROMPT_PATH = path.join(PROMPTS_DIR, "identificar-plato.md");
 // Los insights del Wrapped semanal.
 export const WRAPPED_PROMPT_PATH = path.join(PROMPTS_DIR, "wrapped.md");
+// El comentario de la comida según el tono del usuario (RF-11).
+export const COMMENT_PROMPT_PATH = path.join(PROMPTS_DIR, "roast.md");

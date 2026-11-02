@@ -71,7 +71,7 @@ search?: {                    // RF-07: solo para el índice de texto; lo escrib
   dish: string                // plato final, con las correcciones aplicadas
   items: string[]             // nombres finales de los ingredientes
 }
-comment?: { tone: string; text: string }   // ausente con el tono "off"
+comment?: { tone: string; text: string }   // tono con que se generó y texto ≤ 200; ausente con "off", NOT_FOOD o si falló
 attempts: number              // reintentos del job de análisis
 error?: { code: "ENQUEUE_FAILED" | "NOT_FOOD" | "ANALYSIS_FAILED" }   // solo con status "failed"
 ```

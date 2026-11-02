@@ -5,12 +5,21 @@ import path from "node:path";
 import { after, before, beforeEach, describe, it } from "node:test";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import mongoose from "mongoose";
-import { ANALYSIS_PROMPT_PATH, IDENTIFY_PROMPT_PATH, loadPrompt } from "../src/config/prompts";
+import {
+  ANALYSIS_PROMPT_PATH,
+  COMMENT_PROMPT_PATH,
+  IDENTIFY_PROMPT_PATH,
+  loadPrompt,
+} from "../src/config/prompts";
 import { loadWorkerConfig } from "../src/config/worker";
 import { createAnalyzeMeal, NOT_FOOD } from "../src/jobs/analyze-meal";
 import { createMealAnalysisProcessor } from "../src/jobs/meal-analysis-processor";
 import { createMealAnalysisHandler } from "../src/jobs/meal-analysis-worker";
 import { MealModel } from "../src/models/Meal";
+import { UserModel } from "../src/models/User";
+import type { User } from "../src/models/User";
+import { COMMENT_MAX_CHARS, parseCommentResponse } from "../src/services/comment";
+import type { CommentInput, CommentService } from "../src/services/comment";
 import type { DishIdentifier, IdentifiedDish } from "../src/services/dish-identifier";
 import type { MediaService } from "../src/services/media";
 import { createMongoSimilarMealsFinder } from "../src/services/similar-meals";
@@ -35,6 +44,7 @@ import {
 } from "../src/services/vision";
 import type { VisionInput, VisionService } from "../src/services/vision";
 import { toVisionImage } from "../src/services/vision-image";
+import { PROBLEMATIC_MEALS } from "./fixtures/comidas-problematicas";
 import type { VisionImage } from "../src/services/vision-image";
 import { captureLogger, fixtures, storageEnv } from "./helpers";
 
@@ -89,6 +99,23 @@ function fakeTranscriber(respond: () => string | Promise<string> = () => TRANSCR
   return { transcriber, calls };
 }
 
+const COMMENT = "Milanesa con puré: un clásico de los que no fallan.";
+const COMMENT_USAGE = { input: 400, output: 30, total: 430 };
+
+/** Comentador falso: valida con el mismo zod que el service real y nunca sale a la red. */
+function fakeCommenter(respond: () => string | Promise<string> = () => COMMENT) {
+  const calls: CommentInput[] = [];
+  const commenter: CommentService = {
+    model: "gpt-fake-text",
+    promptVersion: "1.0.0-test",
+    async comment(input) {
+      calls.push(input);
+      return parseCommentResponse(JSON.stringify({ text: await respond() }), COMMENT_USAGE);
+    },
+  };
+  return { commenter, calls };
+}
+
 /** Identificador falso: devuelve `respond()` (o lanza) y nunca sale a la red. */
 function fakeIdentifier(
   respond: () => IdentifiedDish | Promise<IdentifiedDish> = () => ({
@@ -115,6 +142,26 @@ function fakeMedia(photo: Uint8Array): MediaService {
     removeUserMedia: fail,
     signedUrl: fail,
   };
+}
+
+/** Dueño de la meal con el tono pedido. Sin tono: la meal es de un usuario que no existe. */
+async function createUser(tone: User["tone"]) {
+  const user = await UserModel.create({
+    email: `${new mongoose.Types.ObjectId()}@example.com`,
+    passwordHash: "x",
+    profile: {
+      sex: "female",
+      birthDate: "2002-04-10",
+      heightCm: 165,
+      weightKg: 60,
+      activity: "moderate",
+      goal: "maintain",
+      timezone: "America/Montevideo",
+    },
+    targets: { kcal: 2093, proteinG: 108, carbsG: 285, fatG: 58 },
+    tone,
+  });
+  return user._id;
 }
 
 async function createMeal({
@@ -144,7 +191,12 @@ function setup(
   {
     id = fakeIdentifier(),
     finder = createMongoSimilarMealsFinder(),
-  }: { id?: ReturnType<typeof fakeIdentifier>; finder?: SimilarMealsFinder } = {},
+    writer = fakeCommenter(),
+  }: {
+    id?: ReturnType<typeof fakeIdentifier>;
+    finder?: SimilarMealsFinder;
+    writer?: ReturnType<typeof fakeCommenter>;
+  } = {},
 ) {
   const ai = fakeVision(respond);
   const processor = createMealAnalysisProcessor({
@@ -152,13 +204,14 @@ function setup(
     analyze: createAnalyzeMeal({
       vision: ai.vision,
       transcriber: stt.transcriber,
+      commenter: writer.commenter,
       identifier: id.identifier,
       // Los avisos se prueban en notifications.test.ts.
       notifications: { notify: async () => "noDevices" },
       similarMeals: finder,
     }),
   });
-  return { ai, stt, id, processor, ...captureLogger("worker") };
+  return { ai, stt, id, writer, processor, ...captureLogger("worker") };
 }
 
 /** Una comida ya corregida, como la deja el PATCH: con `corrections` y `search`. */
@@ -193,6 +246,7 @@ describe("back-service: análisis con IA", () => {
   });
   beforeEach(async () => {
     await MealModel.deleteMany({});
+    await UserModel.deleteMany({});
   });
 
   it("si es comida, guarda el análisis con promptVersion y model y queda ready", async () => {
@@ -300,6 +354,171 @@ describe("back-service: análisis con IA", () => {
       assert.equal(lines.find((line) => line.msg === "análisis de la IA")?.saved, false);
     });
   }
+
+  describe("comentario por tono", () => {
+    const savedMeal = (id: string) => MealModel.findById(id).lean();
+    const commentLog = (lines: Record<string, unknown>[]) =>
+      lines.find((line) => line.msg === "comentario de la IA");
+
+    for (const tone of ["motivador", "neutro", "roast"] as const) {
+      it(`con tono ${tone}, queda ready con comment y el comentador recibe solo el análisis`, async () => {
+        const meal = await createMeal({ audio: true, userId: await createUser(tone) });
+        const { processor, writer, logger, lines } = setup(() => foodResponse());
+
+        assert.equal(
+          await processor({ mealId: meal.id, requestId: REQUEST_ID }, logger),
+          "analyzed",
+        );
+        const saved = await savedMeal(meal.id);
+        assert.equal(saved?.status, "ready");
+        assert.deepEqual(saved?.comment, { tone, text: COMMENT });
+
+        assert.equal(writer.calls.length, 1);
+        const { dish, items, kcal, macros } = foodResponse().analysis;
+        // Ni la confianza, ni la foto, ni la nota, ni el transcript, ni el perfil.
+        assert.deepEqual(writer.calls[0], { tone, analysis: { dish, items, kcal, macros } });
+        const sent = JSON.stringify(writer.calls[0]);
+        for (const leak of [NOTE, TRANSCRIPT, "weightKg", "confidence"]) {
+          assert.ok(!sent.includes(leak), leak);
+        }
+
+        const log = commentLog(lines);
+        assert.ok(log, JSON.stringify(lines));
+        assert.equal(log.level, "info");
+        assert.equal(log.tone, tone);
+        assert.equal(log.model, "gpt-fake-text");
+        assert.equal(log.promptVersion, "1.0.0-test");
+        assert.equal(typeof log.durationMs, "number");
+        assert.deepEqual(log.usage, COMMENT_USAGE);
+        assert.equal(log.chars, COMMENT.length);
+        assert.equal(log.result, "ok");
+        // El texto del comentario no va al log.
+        assert.ok(!JSON.stringify(lines).includes(COMMENT));
+      });
+    }
+
+    it("con tono off, no se llama al comentador y no hay comment", async () => {
+      const meal = await createMeal({ userId: await createUser("off") });
+      const { processor, writer, logger, lines } = setup(() => foodResponse());
+
+      await processor({ mealId: meal.id, requestId: REQUEST_ID }, logger);
+      assert.equal(writer.calls.length, 0);
+      const saved = await savedMeal(meal.id);
+      assert.equal(saved?.status, "ready");
+      assert.equal(saved?.comment, undefined);
+      assert.deepEqual(
+        { tone: commentLog(lines)?.tone, result: commentLog(lines)?.result },
+        { tone: "off", result: "off" },
+      );
+    });
+
+    it("si el dueño de la meal no aparece, no se llama al comentador", async () => {
+      const meal = await createMeal();
+      const { processor, writer, logger, lines } = setup(() => foodResponse());
+
+      await processor({ mealId: meal.id, requestId: REQUEST_ID }, logger);
+      assert.equal(writer.calls.length, 0);
+      assert.equal((await savedMeal(meal.id))?.comment, undefined);
+      assert.equal(commentLog(lines)?.result, "off");
+    });
+
+    it("con NOT_FOOD no se llama al comentador", async () => {
+      const meal = await createMeal({ userId: await createUser("roast") });
+      const { processor, writer, logger, lines } = setup(() => ({ isFood: false, analysis: null }));
+
+      await processor({ mealId: meal.id, requestId: REQUEST_ID }, logger);
+      assert.equal(writer.calls.length, 0);
+      const saved = await savedMeal(meal.id);
+      assert.equal(saved?.status, "failed");
+      assert.equal(saved?.comment, undefined);
+      assert.equal(commentLog(lines)?.result, "not_food");
+    });
+
+    for (const [name, respond, result] of [
+      [
+        "el comentador falla",
+        () => {
+          throw new Error("timeout del comentario");
+        },
+        "failed",
+      ],
+      ["devuelve más de 200 caracteres", () => "a".repeat(COMMENT_MAX_CHARS + 1), "invalid"],
+      ["devuelve un texto vacío", () => "   ", "invalid"],
+      ["menciona el peso", () => "Con este plato la balanza ni se entera del peso.", "blocked"],
+    ] as const) {
+      it(`si ${name}, queda ready sin comment, con un warn y sin reintento`, async () => {
+        const meal = await createMeal({ userId: await createUser("roast") });
+        const { processor, ai, logger, lines } = setup(
+          () => foodResponse(),
+          PHOTO,
+          fakeTranscriber(),
+          { writer: fakeCommenter(respond) },
+        );
+        const handle = createMealAnalysisHandler(processor, logger);
+
+        // El job termina bien: BullMQ no reintenta y la visión no se vuelve a pagar.
+        await handle({
+          data: { mealId: meal.id, requestId: REQUEST_ID },
+          attemptsMade: 0,
+          opts: { attempts: 4 },
+        });
+        assert.equal(ai.calls.length, 1);
+        const saved = await savedMeal(meal.id);
+        assert.equal(saved?.status, "ready");
+        assert.ok(saved?.analysis);
+        assert.equal(saved?.comment, undefined);
+
+        const log = commentLog(lines);
+        assert.ok(log, JSON.stringify(lines));
+        assert.equal(log.level, "warn");
+        assert.equal(log.result, result);
+        assert.equal(log.tone, "roast");
+        assert.equal(log.model, "gpt-fake-text");
+        assert.equal(log.promptVersion, "1.0.0-test");
+        assert.equal(typeof log.durationMs, "number");
+        if (result === "invalid") assert.ok(Array.isArray(log.issues));
+        if (result === "blocked") assert.ok(!JSON.stringify(lines).includes("balanza"));
+        assert.ok(!lines.some((line) => line.msg === "job de análisis falló"));
+      });
+    }
+
+    it("si la meal cambió de estado mientras se comentaba, no se pisa", async () => {
+      const meal = await createMeal({ userId: await createUser("motivador") });
+      const writer = fakeCommenter(async () => {
+        await MealModel.updateOne(
+          { _id: meal._id },
+          { $set: { status: "failed", error: { code: "OTRO" } } },
+        );
+        return COMMENT;
+      });
+      const { processor, logger, lines } = setup(() => foodResponse(), PHOTO, fakeTranscriber(), {
+        writer,
+      });
+
+      await processor({ mealId: meal.id, requestId: REQUEST_ID }, logger);
+      const saved = await savedMeal(meal.id);
+      assert.equal(saved?.status, "failed");
+      assert.deepEqual(saved?.error, { code: "OTRO" });
+      assert.equal(saved?.analysis, undefined);
+      assert.equal(saved?.comment, undefined);
+      assert.equal(lines.find((line) => line.msg === "análisis de la IA")?.saved, false);
+    });
+
+    it("el set de comidas problemáticas llega tal cual al comentador en los tres tonos", async () => {
+      for (const { case: name, analysis } of PROBLEMATIC_MEALS) {
+        for (const tone of ["motivador", "neutro", "roast"] as const) {
+          const meal = await createMeal({ userId: await createUser(tone) });
+          const { processor, writer, logger } = setup(() => foodResponse(analysis));
+
+          await processor({ mealId: meal.id, requestId: REQUEST_ID }, logger);
+          assert.deepEqual(writer.calls, [{ tone, analysis }], `${name} · ${tone}`);
+          const saved = await savedMeal(meal.id);
+          assert.equal(saved?.status, "ready", `${name} · ${tone}`);
+          assert.deepEqual(saved?.comment, { tone, text: COMMENT });
+        }
+      }
+    });
+  });
 
   it("una foto HEIC le llega a la IA como JPEG", async () => {
     const meal = await createMeal();
@@ -653,6 +872,21 @@ describe("back-service: prompt de análisis", () => {
     assert.match(prompt.system, /dish/);
   });
 
+  it("roast.md tiene autor, versión, fecha y cubre los tres tonos y RNF-10", () => {
+    const prompt = loadPrompt(COMMENT_PROMPT_PATH);
+    assert.match(prompt.version, /^\d+\.\d+\.\d+$/);
+    assert.ok(prompt.author);
+    assert.match(prompt.date ?? "", /^\d{4}-\d{2}-\d{2}$/);
+    for (const tone of ["motivador", "neutro", "roast"]) {
+      assert.ok(prompt.system.includes(`\`${tone}\``), tone);
+    }
+    assert.match(prompt.system, /200 caracteres/);
+    assert.match(prompt.system, /rioplatense/);
+    assert.match(prompt.system, /Nada sobre el cuerpo, el peso o la apariencia/);
+    assert.match(prompt.system, /Nada que incentive la restricción/);
+    assert.match(prompt.system, /consejos médicos/);
+  });
+
   it("lee la versión del frontmatter y el cuerpo como prompt de sistema", () => {
     const file = write(
       "ok.md",
@@ -666,9 +900,16 @@ describe("back-service: prompt de análisis", () => {
     });
   });
 
-  it("sin versión no arranca", () => {
+  it("sin versión no arranca, y el error nombra el archivo", () => {
     const file = write("sin-version.md", "---\nautor: Ana\nfecha: 2026-10-25\n---\nSos.\n");
-    assert.throws(() => loadPrompt(file), /no tiene versión/);
+    assert.throws(() => loadPrompt(file), /no tiene versión \(.*sin-version\.md\)/);
+    const roast = write("roast.md", "---\nautor: Ana\nversion:\n---\nSos.\n");
+    assert.throws(() => loadPrompt(roast), /no tiene versión \(.*roast\.md\)/);
+  });
+
+  it("sin cuerpo no arranca", () => {
+    const file = write("vacio.md", "---\nversion: 1.0.0\n---\n  \n");
+    assert.throws(() => loadPrompt(file), /está vacío/);
   });
 
   it("sin frontmatter no arranca", () => {
@@ -676,7 +917,7 @@ describe("back-service: prompt de análisis", () => {
   });
 
   it("sin archivo no arranca", () => {
-    assert.throws(() => loadPrompt(path.join(dir, "no-existe.md")), /No se pudo leer/);
+    assert.throws(() => loadPrompt(path.join(dir, "roast.md.bak")), /No se pudo leer/);
   });
 });
 

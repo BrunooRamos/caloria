@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { createLogger, serializeError } from "@caloria/shared";
 import {
   ANALYSIS_PROMPT_PATH,
+  COMMENT_PROMPT_PATH,
   IDENTIFY_PROMPT_PATH,
   loadPrompt,
   WRAPPED_PROMPT_PATH,
@@ -27,6 +28,7 @@ import {
 } from "./jobs/weekly-summary-processor";
 import { createWeeklySummaryWorker } from "./jobs/weekly-summary-worker";
 import { WeeklySummaryModel } from "./models/WeeklySummary";
+import { createOpenAiCommenter } from "./services/comment";
 import { createOpenAiInsights } from "./services/insights";
 import { createOpenAiDishIdentifier } from "./services/dish-identifier";
 import { createMediaService } from "./services/media";
@@ -44,6 +46,7 @@ async function main() {
   // Se leen una sola vez: sin archivo o sin versión, el worker no arranca.
   const prompt = loadPrompt(ANALYSIS_PROMPT_PATH, "de análisis");
   const identifyPrompt = loadPrompt(IDENTIFY_PROMPT_PATH, "de identificación");
+  const commentPrompt = loadPrompt(COMMENT_PROMPT_PATH, "del comentario");
   const wrappedPrompt = loadPrompt(WRAPPED_PROMPT_PATH, "del Wrapped");
   await connectMongo(config.mongoUri);
   // El índice único { userId, week } es el que evita duplicar un Wrapped.
@@ -57,6 +60,11 @@ async function main() {
   const transcriber = createOpenAiTranscription({
     apiKey: config.openai.apiKey,
     model: config.openai.transcriptionModel,
+  });
+  const commenter = createOpenAiCommenter({
+    apiKey: config.openai.apiKey,
+    model: config.openai.commentModel,
+    prompt: commentPrompt,
   });
   const identifier = createOpenAiDishIdentifier({
     apiKey: config.openai.apiKey,
@@ -81,6 +89,7 @@ async function main() {
         vision,
         transcriber,
         identifier,
+        commenter,
         notifications,
         similarMeals: createMongoSimilarMealsFinder(),
       }),
@@ -135,6 +144,8 @@ async function main() {
     transcriptionModel: config.openai.transcriptionModel,
     promptVersion: prompt.version,
     identifyPromptVersion: identifyPrompt.version,
+    commentModel: config.openai.commentModel,
+    commentPromptVersion: commentPrompt.version,
     expoAuth: Boolean(config.expo.accessToken),
   });
 

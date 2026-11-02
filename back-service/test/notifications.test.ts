@@ -153,6 +153,12 @@ describe("back-service: avisos push", () => {
           // Sin comidas corregidas: el compounding no busca nada (se prueba en analyze-meal.test.ts).
           identifier: { identify: () => Promise.reject(new Error("no se usa")) },
           similarMeals: { hasCandidates: async () => false, find: async () => [] },
+          // El comentario se prueba en analyze-meal.test.ts.
+          commenter: {
+            model: "gpt-fake-text",
+            promptVersion: "1.0.0",
+            comment: async () => ({ text: "Buen plato." }),
+          },
           notifications,
         }),
       });

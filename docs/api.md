@@ -138,6 +138,7 @@ Devuelve 200 con la misma forma que `GET`, con lo que quedó guardado.
 - En `profile` van solo los campos que cambian, con los mismos rangos que el registro. Fuera de rango, sin ningún campo o con un campo desconocido → 400 `VALIDATION_ERROR`.
 - `tone`: `motivador` (el default de una cuenta nueva), `neutro`, `roast` u `off` (RF-11). Con `off` los análisis no traen `comment`. Otro valor → 400 `VALIDATION_ERROR` y no se guarda nada, aunque venga un `profile` válido.
 - `tone` solo cambia el tono: no toca el perfil ni recalcula las metas. Si viene con otros campos, va en el mismo update.
+- El tono vale para las comidas que se analicen después: no se regeneran los comentarios de antes.
 - `pushTokens` (RF-13): hasta 10 tokens de Expo sin repetir, `ExponentPushToken[…]` o `ExpoPushToken[…]`. **Se suman** a los que ya tiene el usuario, no los reemplazan: cada dispositivo manda solo el suyo. Un token que ya estaba pasa a ser el más nuevo, y quedan como mucho 10 (se descartan los más viejos). Si el token estaba en otra cuenta (el mismo teléfono con otro usuario), se le saca a esa cuenta. Los tokens que Expo marca como inválidos (`DeviceNotRegistered`) se borran solos.
 - `notifications` (RF-13): parcial, con solo los tipos que cambian (`analysisReady`, `streakRisk`, `wrappedReady`), cada uno un booleano. Vacío, con un tipo desconocido o un valor que no es booleano → 400 `VALIDATION_ERROR`.
 - Todo el PATCH se aplica en un solo update: o se guarda todo o nada.
@@ -199,7 +200,7 @@ GET /api/v1/meals/66f1a…
 La forma depende del `status`:
 
 - `processing`: solo `id`, `status`, `capturedAt` y `photoUrl`.
-- `ready`: además `dish`, `items`, `kcal`, `macros`, `confidence` y `comment`, como en el ejemplo. Los valores son los del análisis **con las correcciones aplicadas** (ver [modelo de datos](modelo-datos.md#meals)), los mismos que suma el dashboard. Si no hay comentario (tono `off`), `comment` no viene: nunca es `null`.
+- `ready`: además `dish`, `items`, `kcal`, `macros`, `confidence` y `comment`, como en el ejemplo. Los valores son los del análisis **con las correcciones aplicadas** (ver [modelo de datos](modelo-datos.md#meals)), los mismos que suma el dashboard. Si no hay comentario, `comment` no viene: nunca es `null`. Puede faltar aunque el tono esté activo: si la IA del comentario falla, devuelve algo inválido o el filtro de seguridad lo descarta, la comida igual queda `ready`, sin comentario. `comment.tone` es el tono con el que se generó, y `text` tiene hasta 200 caracteres. Corregir la comida con `PATCH /meals/:id` no regenera el comentario.
 - `failed`: además `error.code`, sin análisis. La API no manda un mensaje para el usuario: la app lo arma a partir del código.
 
 | `error.code` | Quién lo escribe y cuándo | Mensaje que muestra la app |

@@ -172,10 +172,17 @@ describe("front-service: JWT, refresh, logout y /users/me", () => {
     });
   });
 
+  it("PATCH /users/me con solo el tono lo reenvía tal cual", async () => {
+    const res = await call("PATCH", "/users/me", { token: valid, body: { tone: "roast" } });
+    assert.equal(res.status, 200);
+    assert.deepEqual(back.received[0].body, { tone: "roast" });
+  });
+
   for (const [caso, body] of [
     ["campo desconocido", { profile: { weightKg: 58 }, plan: "premium" }],
     ["perfil vacío", { profile: {} }],
     ["fuera de rango", { profile: { heightCm: 20 } }],
+    ["tono inválido", { tone: "sarcastico" }],
   ]) {
     it(`PATCH /users/me con ${caso} → 400 sin llegar al Backend`, async () => {
       const res = await call("PATCH", "/users/me", { token: valid, body });
