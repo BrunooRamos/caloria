@@ -327,17 +327,3 @@ Estoy en la rama del issue #38, el de registrar los push tokens y enviar los avi
                                                                                        Comentarios cortitos en españoo. Actualizá docs/api.md (sacálo de que el Back responde 400 a pushTokens, explicá la semántica de sumar tokens y el campo notifications), docs/mods y la fecha del último aviso de racha), docs/arquitectura.md y el README del back, y marcá en RF-13 los checks que queden cumplidos del lado del  no necesite ninguna variablenueva. Al final corré lint, typecheck y los tests y contame cómo salieron. No commitees,
 que lo quiero revisar primero.
 ```
-
-## Sesión `f3463e9e-93a7-413f-8bc3-17b5ef019ed7` · 2026-11-02
-
-### 2026-11-02 14:05
-
-```text
-Fijate los conflictos que tiene la PR abierta desde esta rama a main y numeramelos uno a uno, para ver que hacemos con cada uno, como los resolvemos
-```
-
-### 2026-11-02 14:08
-
-```text
-Dale y hace A
-```
