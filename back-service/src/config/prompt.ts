@@ -16,18 +16,19 @@ export interface Prompt {
 const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/;
 
 /**
- * Lee un prompt de `prompts/` una vez al arrancar. `label` nombra el prompt en los errores
+ * Lee un prompt de `prompts/` una vez al arrancar. `label`, si viene, nombra el prompt en los errores
  * ("de análisis", "del Wrapped"). Lanza si falta el archivo, la versión o el cuerpo.
  */
-export function loadPrompt(file: string, label: string): Prompt {
+export function loadPrompt(file: string, label?: string): Prompt {
+  const name = label ? `prompt ${label}` : "prompt";
   let raw: string;
   try {
     raw = readFileSync(file, "utf8");
   } catch (err) {
-    throw new Error(`No se pudo leer el prompt ${label} (${file})`, { cause: err });
+    throw new Error(`No se pudo leer el ${name} (${file})`, { cause: err });
   }
   const match = FRONTMATTER.exec(raw);
-  if (!match) throw new Error(`El prompt ${label} no tiene frontmatter (${file})`);
+  if (!match) throw new Error(`El ${name} no tiene frontmatter (${file})`);
 
   // Frontmatter plano: una clave `clave: valor` por línea.
   const meta: Record<string, string> = {};
@@ -36,7 +37,7 @@ export function loadPrompt(file: string, label: string): Prompt {
     if (key) meta[key] = value.replace(/^(["'])(.*)\1$/, "$2").trim();
   }
   const system = match[2].trim();
-  if (!meta.version) throw new Error(`El prompt ${label} no tiene versión (${file})`);
-  if (!system) throw new Error(`El prompt ${label} está vacío (${file})`);
+  if (!meta.version) throw new Error(`El ${name} no tiene versión (${file})`);
+  if (!system) throw new Error(`El ${name} está vacío (${file})`);
   return { version: meta.version, author: meta.autor, date: meta.fecha, system };
 }

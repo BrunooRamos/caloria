@@ -65,7 +65,7 @@ Endpoints: `GET /users/me`, `PATCH /users/me`.
 
 - [x] El usuario puede corregir el plato, agregar / quitar / editar ingredientes y ajustar kcal y macros, desde el detalle de una comida `ready` ("Corregir").
 - [x] Cada cambio se agrega a `meals.corrections` con campo, valor anterior, valor nuevo y fecha.
-- [ ] Después de corregir, el historial y el dashboard usan los valores corregidos. (El detalle, el dashboard y `GET /meals/:id` sí; falta el listado, RF-08.)
+- [x] Después de corregir, el historial y el dashboard usan los valores corregidos.
 - [x] Una comida de otro usuario devuelve 404.
 
 Endpoint: `PATCH /meals/:id`.
@@ -81,18 +81,18 @@ Cómo corrige la app (`app/features/meals/edit/`). Cada corrección alimenta el 
 
 #### RF-07 — Compounding
 
-- [ ] Antes de llamar a la IA, el Worker busca hasta 5 comidas del mismo usuario con plato o ingredientes similares que tengan correcciones.
-- [ ] Esas comidas (plato, valores finales y qué se corrigió) se incluyen en el prompt como contexto.
-- [ ] Primera versión: similitud por texto (nombre del plato e ingredientes, búsqueda full-text de Mongo). Embeddings solo si sobra tiempo.
+- [x] Antes de llamar a la IA, el Worker busca hasta 5 comidas del mismo usuario con plato o ingredientes similares que tengan correcciones. Como al buscar todavía no se sabe qué plato es, si el usuario tiene comidas corregidas se identifica con una llamada corta a la IA, en paralelo con la transcripción, y se busca con eso, la nota y la transcripción. Si la búsqueda falla, el análisis sigue sin contexto.
+- [x] Esas comidas (plato, valores finales y qué se corrigió) se incluyen en el prompt como contexto (`analisis-comida.md` 1.2.0), y sus ids quedan en `analysis.contextMealIds`.
+- [x] Primera versión: similitud por texto (nombre del plato e ingredientes, búsqueda full-text de Mongo). Embeddings solo si sobra tiempo. El índice cubre los valores **corregidos** (`meals.search`, ver [modelo-datos.md](modelo-datos.md#compounding-rf-07)).
 - [ ] Prueba de aceptación: corregir un plato y volver a registrar uno parecido da un rango más cercano a la corrección que el primer análisis.
 
 #### RF-08 — Historial por día
 
-- [ ] La app muestra las comidas de un día, ordenadas por hora, con navegación a días anteriores.
-- [ ] El "día" se calcula en la zona horaria del usuario.
-- [ ] Se puede ver el detalle, editar (RF-06) y eliminar una comida.
-- [ ] Eliminar borra el documento y su media del bucket (204).
-- [ ] La lista está paginada por cursor (20 por página).
+- [x] La app muestra las comidas de un día, ordenadas por hora, con navegación a días anteriores.
+- [x] El "día" se calcula en la zona horaria del usuario.
+- [x] Se puede ver el detalle, editar (RF-06) y eliminar una comida.
+- [x] Eliminar borra el documento y su media del bucket (204).
+- [x] La lista está paginada por cursor (20 por página).
 
 Endpoints: `GET /meals?date=&cursor=`, `GET /meals/:id`, `DELETE /meals/:id`.
 

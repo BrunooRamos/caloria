@@ -7,7 +7,7 @@ ENV MONGOMS_DISABLE_POSTINSTALL=1
 RUN npm install
 COPY shared/ /repo/shared/
 COPY back-service/ ./
-# El Worker lee los prompts de análisis y del Wrapped al arrancar (../prompts/*.md).
+# El Worker lee los prompts al arrancar (../prompts/analisis-comida.md, identificar-plato.md y wrapped.md).
 COPY prompts/ /repo/prompts/
 RUN npm run build
 CMD ["npm", "start"]

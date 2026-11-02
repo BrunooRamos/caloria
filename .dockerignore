@@ -10,3 +10,4 @@ infra
 prompts/*
 !prompts/analisis-comida.md
 !prompts/wrapped.md
+!prompts/identificar-plato.md

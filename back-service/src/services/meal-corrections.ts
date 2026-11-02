@@ -1,6 +1,6 @@
 import { correctableFieldsSchema } from "@caloria/shared";
 import type { CorrectableFields } from "@caloria/shared";
-import type { Correction } from "../models/Meal";
+import type { Correction, MealSearch } from "../models/Meal";
 
 // Una corrección es un único campo con su valor completo: un campo desconocido no pasa.
 const correctionSchema = correctableFieldsSchema.partial().strict();
@@ -73,4 +73,12 @@ export function currentValue(field: "dish" | "kcal" | "macros") {
       in: { $ifNull: ["$$last.to", `$analysis.${field}`] },
     },
   };
+}
+
+/** Lo que indexa la búsqueda de comidas similares, sacado de los valores finales. */
+export function toMealSearch({
+  dish,
+  items,
+}: Pick<CorrectableFields, "dish" | "items">): MealSearch {
+  return { dish, items: items.map(({ name }) => name) };
 }
