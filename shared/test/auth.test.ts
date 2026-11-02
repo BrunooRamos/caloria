@@ -8,6 +8,7 @@ import {
   loadPrivateKey,
   loadPublicKey,
   loginSchema,
+  MAX_PUSH_TOKENS,
   refreshSchema,
   registerSchema,
   TONES,
@@ -105,33 +106,6 @@ describe("loginSchema", () => {
   });
 });
 
-describe("updateMeSchema", () => {
-  const ok = (body: unknown) => assert.equal(updateMeSchema.safeParse(body).success, true);
-  const rejected = (body: unknown) =>
-    assert.equal(updateMeSchema.safeParse(body).success, false, JSON.stringify(body));
-
-  it("acepta el tono solo, el perfil solo o los dos juntos", () => {
-    for (const tone of TONES) ok({ tone });
-    ok({ profile: { weightKg: 58 } });
-    ok({ profile: { weightKg: 58, goal: "lose" }, tone: "roast" });
-  });
-
-  it("rechaza body vacío, perfil vacío, tonos inválidos y campos que no son de RF-11", () => {
-    for (const body of [
-      {},
-      { profile: {} },
-      { profile: {}, tone: "roast" },
-      { tone: "sarcastico" },
-      { tone: "Motivador" },
-      { tone: null },
-      { tone: "neutro", pushTokens: [] },
-      { tone: "neutro", plan: "premium" },
-    ]) {
-      rejected(body);
-    }
-  });
-});
-
 describe("claves RS256 por variable de entorno", () => {
   it("carga PEM con saltos de línea reales o escapados", () => {
     const escaped = privatePem.replace(/\n/g, "\\n");
@@ -225,6 +199,48 @@ describe("refreshSchema", () => {
       { refreshToken: "abc", otro: 1 },
     ]) {
       assert.equal(refreshSchema.safeParse(body).success, false, JSON.stringify(body));
+    }
+  });
+});
+
+describe("updateMeSchema", () => {
+  const token = (id: string) => `ExponentPushToken[${id}]`;
+  const ok = (body: unknown) =>
+    assert.equal(updateMeSchema.safeParse(body).success, true, JSON.stringify(body));
+  const rejected = (body: unknown) =>
+    assert.equal(updateMeSchema.safeParse(body).success, false, JSON.stringify(body));
+
+  it("acepta perfil, tono, push tokens y avisos parciales, juntos o por separado", () => {
+    for (const tone of TONES) ok({ tone });
+    ok({ profile: { weightKg: 58 } });
+    ok({ profile: { weightKg: 58, goal: "lose" }, tone: "roast" });
+    ok({ tone: "neutro", pushTokens: [token("a")], notifications: { streakRisk: false } });
+    ok({ pushTokens: [token("abc_DEF-123"), "ExpoPushToken[xyz]"] });
+    ok({ pushTokens: Array.from({ length: MAX_PUSH_TOKENS }, (_, i) => token(`t${i}`)) });
+    ok({ notifications: { analysisReady: false } });
+    ok({ profile: { heightCm: 170 }, pushTokens: [], notifications: { wrappedReady: true } });
+  });
+
+  it("rechaza body vacío, campos desconocidos, tonos, tokens y avisos inválidos", () => {
+    for (const body of [
+      {},
+      { profile: {} },
+      { profile: {}, tone: "roast" },
+      { tone: "sarcastico" },
+      { tone: "Motivador" },
+      { tone: null },
+      { tone: "neutro", plan: "premium" },
+      { pushTokens: "ExponentPushToken[abc]" },
+      { pushTokens: ["no-es-un-token"] },
+      { pushTokens: ["ExponentPushToken[]"] },
+      { pushTokens: [token("a"), token("a")] },
+      { pushTokens: Array.from({ length: MAX_PUSH_TOKENS + 1 }, (_, i) => token(`t${i}`)) },
+      { notifications: {} },
+      { notifications: { promo: true } },
+      { notifications: { streakRisk: "no" } },
+      { notifications: null },
+    ]) {
+      rejected(body);
     }
   });
 });

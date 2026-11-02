@@ -4,7 +4,8 @@ import { z } from "zod";
 import { schemas } from "../src/schemas";
 import type { RouteSchema } from "../src/schemas";
 import { MAX_DEPTH, withoutOperatorKeys } from "../src/schemas/safe-keys";
-import { MAX_PUSH_TOKENS, updateMeRequestSchema } from "../src/schemas/users";
+import { MAX_PUSH_TOKENS } from "@caloria/shared";
+import { updateMeRequestSchema } from "../src/schemas/users";
 
 const token = (id: string) => `ExponentPushToken[${id}]`;
 
@@ -29,11 +30,17 @@ const rejected = (schema: z.ZodType, value: unknown) =>
   assert.equal(schema.safeParse(value).success, false, JSON.stringify(value));
 
 describe("PATCH /users/me: updateMeRequestSchema", () => {
-  it("acepta cambios parciales de perfil, tono y push tokens, juntos o por separado", () => {
+  it("acepta cambios parciales de perfil, tono, push tokens y avisos, juntos o por separado", () => {
     ok(updateMeRequestSchema, { profile: { weightKg: 58, goal: "lose" } });
     ok(updateMeRequestSchema, { tone: "roast" });
     ok(updateMeRequestSchema, { pushTokens: [token("abc_DEF-123"), "ExpoPushToken[xyz]"] });
-    ok(updateMeRequestSchema, { profile: { heightCm: 170 }, tone: "off", pushTokens: [] });
+    ok(updateMeRequestSchema, { notifications: { streakRisk: false } });
+    ok(updateMeRequestSchema, {
+      profile: { heightCm: 170 },
+      tone: "off",
+      pushTokens: [],
+      notifications: { analysisReady: true, wrappedReady: false },
+    });
   });
 
   it("rechaza body vacío, perfil vacío, campos desconocidos y fuera de rango", () => {
@@ -52,7 +59,7 @@ describe("PATCH /users/me: updateMeRequestSchema", () => {
     }
   });
 
-  it("rechaza tonos y push tokens inválidos", () => {
+  it("rechaza tonos, push tokens y avisos inválidos", () => {
     for (const body of [
       { tone: "sarcastico" },
       { tone: null },
@@ -61,6 +68,9 @@ describe("PATCH /users/me: updateMeRequestSchema", () => {
       { pushTokens: ["ExponentPushToken[]"] },
       { pushTokens: [token("a"), token("a")] },
       { pushTokens: Array.from({ length: MAX_PUSH_TOKENS + 1 }, (_, i) => token(`t${i}`)) },
+      { notifications: {} },
+      { notifications: { mealReminder: true } },
+      { notifications: { streakRisk: "false" } },
     ]) {
       rejected(updateMeRequestSchema, body);
     }

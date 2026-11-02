@@ -130,14 +130,14 @@ Endpoints: `GET /meals?date=&cursor=`, `GET /meals/:id`, `DELETE /meals/:id`.
 - [x] La IA genera 3 a 5 insights sobre hábitos, con las mismas reglas de RNF-10.
 - [x] Se guarda en `weekly_summaries`; si ya existe la semana, no se duplica.
 - [ ] La app lo muestra como tarjetas y permite compartir cada tarjeta como imagen.
-- [ ] Al terminar, se envía el push "Wrapped listo".
+- [x] Al terminar, se envía el push "Wrapped listo".
 
 #### RF-13 — Push notifications
 
 - [ ] La app pide permiso de notificaciones y registra el push token con `PATCH /users/me`.
 - [ ] Notificaciones: análisis listo, racha en riesgo (20:00 si no hubo registro en el día y la racha es ≥ 2) y Wrapped listo.
 - [ ] El usuario puede desactivar cada tipo de notificación.
-- [ ] Los tokens inválidos que devuelve Expo se eliminan del usuario.
+- [x] Los tokens inválidos que devuelve Expo se eliminan del usuario.
 
 ### Freemium
 
@@ -188,7 +188,7 @@ Endpoints: `GET /billing/plan`, `POST /billing/subscribe`.
 5. **Precio del premium** y proveedor de pagos sandbox (Stripe test mode, Mercado Pago sandbox).
 6. **Código HTTP para cupo agotado:** la presentación no lo define. Se propone 402.
 7. **Cancelar suscripción:** RF-16 lo pide, pero no hay endpoint. Se propone `POST /billing/cancel`.
-8. **Preferencias de notificaciones:** dónde se guardan (se propone `users.notifications`).
+8. ~~**Preferencias de notificaciones:** dónde se guardan (se propone `users.notifications`).~~ Resuelto en #38: `users.notifications`, un booleano por tipo (`analysisReady`, `streakRisk`, `wrappedReady`), todos en `true` por defecto. Un usuario sin el campo tiene todo prendido. Se cambian con `PATCH /users/me` y salen en `GET /users/me`.
 9. **mTLS entre Front y Backend:** la presentación lo plantea, pero el `docker-compose` actual usa HTTP. Decidir si se implementa o queda para producción.
 10. **Dominio y hosting:** el RFC dice "si conseguimos un dominio barato" y la presentación usa `api.caloria.app` y DigitalOcean. El despliegue está marcado como "a definir".
 11. ~~**Proveedor de IA:** qué modelos de visión, transcripción y texto se usan.~~ Resuelto en #18: OpenAI. Visión con la Responses API y structured outputs, modelo en `OPENAI_VISION_MODEL` (por defecto `gpt-6-luna`). Transcripción en `OPENAI_TRANSCRIPTION_MODEL` (por defecto `gpt-transcribe`). Texto (insights del Wrapped, #36) con la Responses API y structured outputs, modelo en `OPENAI_TEXT_MODEL` (por defecto `gpt-6.1-terra`).

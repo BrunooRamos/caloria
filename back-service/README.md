@@ -15,7 +15,7 @@ REDIS_TEST_URL=redis://127.0.0.1:6379 npm test
 
 ## Worker de análisis
 
-`src/worker.ts` consume la cola `meal-analysis` con un Worker de BullMQ (`src/jobs/meal-analysis-worker.ts`) y la cola `weekly-summary` del Wrapped (ver más abajo). Usa su propia config (`src/config/worker.ts`): `MONGO_URI`, `REDIS_URL`, `S3_*`, `OPENAI_API_KEY` (obligatoria), `OPENAI_VISION_MODEL` (por defecto `gpt-6-luna`), `OPENAI_TRANSCRIPTION_MODEL` (por defecto `gpt-transcribe`), `OPENAI_TEXT_MODEL` (por defecto `gpt-6.1-terra`) y `WORKER_CONCURRENCY` (entero positivo, por defecto 2; cualquier otro valor no arranca). No recibe `JWT_PRIVATE_KEY`, y el Back (`loadConfig`) no recibe la clave de OpenAI.
+`src/worker.ts` consume la cola `meal-analysis` con un Worker de BullMQ (`src/jobs/meal-analysis-worker.ts`) y la cola `weekly-summary` del Wrapped (ver más abajo). Usa su propia config (`src/config/worker.ts`): `MONGO_URI`, `REDIS_URL`, `S3_*`, `OPENAI_API_KEY` (obligatoria), `OPENAI_VISION_MODEL` (por defecto `gpt-6-luna`), `OPENAI_TRANSCRIPTION_MODEL` (por defecto `gpt-transcribe`), `OPENAI_TEXT_MODEL` (por defecto `gpt-6.1-terra`), `EXPO_ACCESS_TOKEN` (opcional, ver abajo) y `WORKER_CONCURRENCY` (entero positivo, por defecto 2; cualquier otro valor no arranca). No recibe `JWT_PRIVATE_KEY`, y el Back (`loadConfig`) no recibe la clave de OpenAI ni la de Expo.
 
 Al arrancar lee una sola vez los prompts `src/prompts/analisis-comida.md`, `identificar-plato.md` y `wrapped.md` (`loadPrompt` y las rutas, en `src/config/prompts.ts`): el frontmatter tiene `autor`, `version` y `fecha`, y el cuerpo es el prompt de sistema. La `version` del de análisis es el `promptVersion` que se guarda en cada meal, y la del Wrapped, el de cada Wrapped. Si falta un archivo o no tiene versión, el worker no arranca. Entran en la imagen de Docker con el resto de `back-service/`.
 
@@ -52,13 +52,28 @@ El `PATCH /meals/:id` escribe `search` (plato y nombres de ingredientes finales)
 docker compose -f infra/docker-compose.yml run --rm back node dist/scripts/backfill-meal-search.js
 ```
 
-Cada job loguea `mealId`, `requestId`, intento y `durationMs`; si falla, el error y `willRetry`. Cada transcripción loguea `model`, `durationMs`, `reused` y `chars` (el largo del texto); si se reusó, solo `reused` y `chars`. Cada llamada a la IA loguea `model`, `promptVersion`, `durationMs`, `usage` (tokens `input`, `output` y `total`), `result` (`ready` o `NOT_FOOD`) si llevó `withTranscript` y `withNote`, y `contextMeals` (cuántas comidas corregidas recibió). La búsqueda de similares loguea `candidates`, `identified`, `identifyMs`, `identifyUsage`, `searchMs`, `found` y `contextMealIds`, sin el plato identificado ni los nombres. Si zod rechaza, solo los `issues` (path, código y mensaje): ni la foto, ni el audio, ni la respuesta cruda, ni el texto transcripto, ni la nota van al log. Con `SIGTERM`/`SIGINT` cierra los dos workers (esperan los jobs en curso) y después Mongo.
+Cada job loguea `mealId`, `requestId`, intento y `durationMs`; si falla, el error y `willRetry`. Cada transcripción loguea `model`, `durationMs`, `reused` y `chars` (el largo del texto); si se reusó, solo `reused` y `chars`. Cada llamada a la IA loguea `model`, `promptVersion`, `durationMs`, `usage` (tokens `input`, `output` y `total`), `result` (`ready` o `NOT_FOOD`) si llevó `withTranscript` y `withNote`, y `contextMeals` (cuántas comidas corregidas recibió). La búsqueda de similares loguea `candidates`, `identified`, `identifyMs`, `identifyUsage`, `searchMs`, `found` y `contextMealIds`, sin el plato identificado ni los nombres. Si zod rechaza, solo los `issues` (path, código y mensaje): ni la foto, ni el audio, ni la respuesta cruda, ni el texto transcripto, ni la nota van al log. Con `SIGTERM`/`SIGINT` cierra los tres workers (análisis, receipts y Wrapped; esperan los jobs en curso), después las colas de receipts y del Wrapped y al final Mongo.
 
 Los tests usan una IA y un transcriptor falsos (la IA pasa por el mismo zod), y los services de OpenAI se prueban con un `fetch` falso: ninguno sale a la red.
 
 ```sh
 npm run dev:worker   # necesita MONGO_URI, REDIS_URL, S3_* y OPENAI_API_KEY en el entorno
 ```
+
+## Avisos push (RF-13)
+
+`PATCH /users/me` guarda los push tokens de Expo en `users.pushTokens` y las preferencias en `users.notifications` (`src/services/users.ts`). Todo va en un solo update con pipeline, igual de optimista que el perfil: los tokens se suman al final sin repetir (uno que ya estaba pasa al final) y quedan los últimos 10. Después, con un `$pull`, se le sacan esos tokens a cualquier otra cuenta que los tuviera. Un usuario sin `notifications` (creado antes de RF-13) se lee con todo en `true`.
+
+Los avisos los manda el Worker:
+
+- `src/services/push.ts`: la interfaz `PushService` recibe los tokens y el mensaje y devuelve cuántos salieron bien o mal, los tokens inválidos y los tickets para consultar después. La de Expo usa `fetch` directo contra `https://exp.host/--/api/v2/push/send` (un mensaje por token, de a 100 por request) y `…/getReceipts` (de a 1000 ids), con un timeout de 10 s y sin reintentos. Si falla toda la request (red, 4xx, 5xx o `errors` en el body, p. ej. `TOO_MANY_REQUESTS`), lanza `PushRequestError` con los códigos de Expo. Un ticket o receipt con `DeviceNotRegistered` devuelve su token como inválido. `EXPO_ACCESS_TOKEN` es opcional: solo hace falta si el proyecto tiene activada la seguridad de push en EAS, y va como `Authorization: Bearer`.
+- `src/services/notifications.ts`: `notify(userId, aviso, log)` lee los tokens y las preferencias; si el tipo está apagado o no hay tokens no manda nada. Si no, manda, borra con `$pull` los tokens inválidos del ticket y encola los receipts. Nunca lanza: si algo falla, lo loguea y devuelve `"failed"`. Los textos son cortos, en español y sin kcal ni el plato (se ven con la pantalla bloqueada). `data` lleva el `type` y el id para abrir la pantalla: `mealId` en análisis listo y `week` en Wrapped listo.
+- Análisis listo: `analyze` lo llama solo si el update a `ready` matcheó (un job repetido no avisa dos veces). Con `NOT_FOOD` no se avisa.
+- Wrapped listo: el job `summary` llama a `notifyWrappedReady(userId, week)` solo si el upsert lo dejó `ready`. Si ya estaba `ready` (`skipped`), si lo guardó otro job (`exists`), si no hubo comidas o si falló la IA, no se avisa.
+- Receipts: `DeviceNotRegistered` puede llegar recién en el receipt. Por eso cada aviso encola en la cola `push-receipts` (`src/jobs/push-receipts.ts`) un job demorado 15 min (lo que recomienda Expo; los receipts duran 24 h) con 3 intentos y backoff exponencial. Lo procesa `src/jobs/push-receipts-worker.ts`, que saca del usuario los tokens inválidos. Un receipt que todavía no está no se reintenta.
+- Racha en riesgo: todavía no está. La racha (#31) ya existe, pero el aviso va en otra PR.
+
+Cada aviso loguea `userId`, `type`, `devices` (a cuántos dispositivos), `ok`, `failed`, `removed` (tokens borrados) y `durationMs`, con los ids del job. Si se saltea, loguea `reason` (`disabled` o `noDevices`). Los tokens nunca van al log (y los campos no se llaman "token", porque el logger redacta esas claves). Los tests usan un `PushService` falso; el de Expo se prueba con un `fetch` falso: ninguno sale a la red.
 
 ## Wrapped semanal (cron)
 

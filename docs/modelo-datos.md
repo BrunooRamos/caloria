@@ -26,10 +26,13 @@ targets: { kcal: number; proteinG: number; carbsG: number; fatG: number }   // r
 tone: "motivador" | "neutro" | "roast" | "off"   // default "motivador"; "off" no genera comentario (RF-11)
 plan: { tier: "free" | "premium"; since: Date; renewsAt?: Date }
 usage: { month: string; analyses: number }   // "2026-10"; se reinicia al cambiar de mes
-pushTokens: string[]
+pushTokens: string[]          // tokens de Expo, del más viejo al más nuevo; hasta 10; índice
+notifications?: { analysisReady: boolean; streakRisk: boolean; wrappedReady: boolean }   // sin el campo: todo true
 sessions: { tokenHash: string; family: string; expiresAt: Date; rotatedAt?: Date; revokedAt?: Date }[]
 ```
 
+- `pushTokens` nunca sale de la API. `PATCH /users/me` suma tokens (un token repetido pasa al final y se descartan los más viejos por encima de 10) y se lo saca a cualquier otra cuenta que lo tuviera; por eso tiene índice. El Worker borra con `$pull` los que Expo marca como `DeviceNotRegistered`.
+- `notifications` son las preferencias de avisos push (RF-13). Los usuarios creados antes no lo tienen: se leen como todo `true`, sin migración.
 - `tone` arranca en `motivador`. Las cuentas creadas antes con `neutro` (el default anterior) no se migran: es un tono válido y se cambia desde el perfil.
 - `sessions.tokenHash` es el SHA-256 del refresh (nunca el token) y tiene índice: `/auth/refresh` y `/auth/logout` buscan por ahí.
 - Los refresh rotados (`rotatedAt`) y revocados (`revokedAt`) no se borran hasta que vencen: así un reuso se distingue de un token inventado.

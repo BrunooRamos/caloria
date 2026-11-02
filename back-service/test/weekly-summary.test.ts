@@ -69,6 +69,21 @@ const analysisOf = (dish: string, kcal: Range): MealAnalysis => ({
   model: "modelo",
 });
 
+/** Avisos falsos: registra los "Wrapped listo" pedidos. Los reales se prueban en notifications.test.ts. */
+function fakeNotifications() {
+  const calls: { userId: string; week: string }[] = [];
+  return {
+    calls,
+    service: {
+      async notifyWrappedReady(userId: string, week: string) {
+        calls.push({ userId, week });
+        return "sent" as const;
+      },
+    },
+  };
+}
+let push = fakeNotifications();
+
 let hour = 0;
 async function createMeal(userId: Types.ObjectId, localDate: string, fields: Partial<Meal> = {}) {
   const _id = new Types.ObjectId();
@@ -360,6 +375,7 @@ describe("back-service: Wrapped semanal", () => {
     const NOW = new Date("2026-10-26T09:00:05Z");
     beforeEach(async () => {
       userId = new Types.ObjectId();
+      push = fakeNotifications();
       await seedWeek(userId);
     });
     const job = () => ({ userId: userId.toString(), week: WEEK });
@@ -368,7 +384,12 @@ describe("back-service: Wrapped semanal", () => {
     it("caso feliz: queda ready con metrics, insights y promptVersion", async () => {
       const ai = fakeInsights();
       const { logger, lines } = captureLogger("worker");
-      const run = createWeeklySummaryProcessor({ metrics, insights: ai.service, now: () => NOW });
+      const run = createWeeklySummaryProcessor({
+        metrics,
+        notifications: push.service,
+        insights: ai.service,
+        now: () => NOW,
+      });
 
       assert.equal(await run(job(), logger), "generated");
       const summary = await stored();
@@ -382,6 +403,8 @@ describe("back-service: Wrapped semanal", () => {
       assert.deepEqual(summary?.insights, INSIGHTS);
       assert.equal(summary?.promptVersion, "1.0.0");
       assert.deepEqual(summary?.generatedAt, NOW);
+      // Recién guardado, avisa "Wrapped listo" una vez.
+      assert.deepEqual(push.calls, [{ userId: userId.toString(), week: WEEK }]);
 
       // A la IA le llegan solo datos agregados: ni fotos, ni transcripciones, ni notas.
       assert.equal(ai.calls.length, 1);
@@ -416,7 +439,11 @@ describe("back-service: Wrapped semanal", () => {
       };
       await WeeklySummaryModel.create(previous);
       const ai = fakeInsights();
-      const run = createWeeklySummaryProcessor({ metrics, insights: ai.service });
+      const run = createWeeklySummaryProcessor({
+        metrics,
+        notifications: push.service,
+        insights: ai.service,
+      });
       const { logger, lines } = captureLogger("worker");
 
       assert.equal(await run(job(), logger), "skipped");
@@ -425,6 +452,8 @@ describe("back-service: Wrapped semanal", () => {
       assert.deepEqual(summary?.metrics, previous.metrics);
       assert.deepEqual(summary?.insights, previous.insights);
       assert.equal(summary?.promptVersion, "0.9.0");
+      // Un job repetido no avisa dos veces.
+      assert.deepEqual(push.calls, []);
       assert.ok(lines.some((line) => line.msg === "el Wrapped ya está ready, se saltea"));
     });
 
@@ -445,17 +474,27 @@ describe("back-service: Wrapped semanal", () => {
           return ai.service.generate(data);
         },
       };
-      const run = createWeeklySummaryProcessor({ metrics, insights: racing });
+      const run = createWeeklySummaryProcessor({
+        metrics,
+        notifications: push.service,
+        insights: racing,
+      });
       assert.equal(await run(job(), captureLogger("worker").logger), "exists");
       const summary = await stored();
       assert.equal(summary?.promptVersion, "otro");
+      // El aviso lo manda el job que lo guardó, no este.
+      assert.deepEqual(push.calls, []);
       assert.equal(await WeeklySummaryModel.countDocuments(), 1);
     });
 
     it("pasa un resumen failed a ready en el siguiente intento", async () => {
       await markWeeklySummaryFailed(job());
       assert.equal((await stored())?.status, "failed");
-      const run = createWeeklySummaryProcessor({ metrics, insights: fakeInsights().service });
+      const run = createWeeklySummaryProcessor({
+        metrics,
+        notifications: push.service,
+        insights: fakeInsights().service,
+      });
       assert.equal(await run(job(), captureLogger("worker").logger), "generated");
       assert.equal((await stored())?.status, "ready");
       assert.equal(await WeeklySummaryModel.countDocuments(), 1);
@@ -471,7 +510,11 @@ describe("back-service: Wrapped semanal", () => {
     for (const [caso, response] of invalid) {
       it(`respuesta inválida (${caso}): lanza y no queda ready`, async () => {
         const ai = fakeInsights(() => response);
-        const run = createWeeklySummaryProcessor({ metrics, insights: ai.service });
+        const run = createWeeklySummaryProcessor({
+          metrics,
+          notifications: push.service,
+          insights: ai.service,
+        });
         const { logger, lines } = captureLogger("worker");
         await assert.rejects(run(job(), logger), InvalidInsightsResponseError);
         assert.equal(await stored(), null);
@@ -484,21 +527,28 @@ describe("back-service: Wrapped semanal", () => {
     it("si falla la IA, el error se propaga y no queda nada", async () => {
       const run = createWeeklySummaryProcessor({
         metrics,
+        notifications: push.service,
         insights: { generate: () => Promise.reject(new Error("OpenAI caído")) },
       });
       await assert.rejects(run(job(), captureLogger("worker").logger), /OpenAI caído/);
       assert.equal(await stored(), null);
+      assert.deepEqual(push.calls, []);
     });
 
     it("si el usuario ya no tiene comidas ready esa semana, no genera nada y termina sin error", async () => {
       await MealModel.deleteMany({ userId, status: "ready" });
       const ai = fakeInsights();
-      const run = createWeeklySummaryProcessor({ metrics, insights: ai.service });
+      const run = createWeeklySummaryProcessor({
+        metrics,
+        notifications: push.service,
+        insights: ai.service,
+      });
       const { logger, lines } = captureLogger("worker");
       assert.equal(await run(job(), logger), "no-meals");
       assert.equal(ai.calls.length, 0);
       assert.equal(await stored(), null);
       assert.ok(lines.some((line) => String(line.msg).startsWith("sin comidas ready")));
+      assert.deepEqual(push.calls, []);
     });
   });
 
@@ -513,7 +563,11 @@ describe("back-service: Wrapped semanal", () => {
       const handle = createWeeklySummaryHandler(
         {
           fanOut: noFanOut,
-          summary: createWeeklySummaryProcessor({ metrics, insights: fakeInsights().service }),
+          summary: createWeeklySummaryProcessor({
+            metrics,
+            notifications: push.service,
+            insights: fakeInsights().service,
+          }),
           markFailed: markWeeklySummaryFailed,
         },
         logger,
@@ -539,6 +593,7 @@ describe("back-service: Wrapped semanal", () => {
           fanOut: noFanOut,
           summary: createWeeklySummaryProcessor({
             metrics,
+            notifications: push.service,
             insights: fakeInsights(() => ({ insights: ["uno"] })).service,
           }),
           markFailed: markWeeklySummaryFailed,

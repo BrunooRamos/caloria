@@ -2,6 +2,7 @@ import type { Logger, MealErrorCode } from "@caloria/shared";
 import { MealModel } from "../models/Meal";
 import type { Meal } from "../models/Meal";
 import type { DishIdentifier } from "../services/dish-identifier";
+import type { NotificationService } from "../services/notifications";
 import type { SimilarMealsFinder } from "../services/similar-meals";
 import type { TranscriptionService } from "../services/transcription";
 import { toVisionImage } from "../services/vision-image";
@@ -19,6 +20,7 @@ export interface AnalyzeMealDeps {
   /** Identifica el plato para buscar comidas corregidas parecidas. */
   identifier: DishIdentifier;
   similarMeals: SimilarMealsFinder;
+  notifications: Pick<NotificationService, "notify">;
 }
 
 /** `saved: false` si la meal dejó de estar en processing mientras se transcribía. */
@@ -71,6 +73,7 @@ export function createAnalyzeMeal({
   transcriber,
   identifier,
   similarMeals,
+  notifications,
 }: AnalyzeMealDeps): AnalyzeMeal {
   return async ({ meal, photo, audio }, log) => {
     // La transcripción corre en paralelo con la conversión de la foto y con la búsqueda de
@@ -152,6 +155,16 @@ export function createAnalyzeMeal({
     });
     if (matchedCount === 0) {
       log.info("la comida cambió de estado durante el análisis, no se pisa");
+      return;
+    }
+    // Solo si este job la dejó en ready: un job repetido no avisa dos veces. NOT_FOOD no avisa
+    // acá (#35). notify no lanza: si el push falla, la meal ya está ready y el job termina bien.
+    if (result.isFood) {
+      await notifications.notify(
+        meal.userId.toString(),
+        { type: "analysisReady", mealId: meal._id.toString() },
+        log,
+      );
     }
   };
 }

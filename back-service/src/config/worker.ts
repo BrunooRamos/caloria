@@ -31,6 +31,8 @@ export function loadWorkerConfig(env = process.env) {
         env.OPENAI_TRANSCRIPTION_MODEL?.trim() || DEFAULT_OPENAI_TRANSCRIPTION_MODEL,
       textModel: env.OPENAI_TEXT_MODEL?.trim() || DEFAULT_OPENAI_TEXT_MODEL,
     },
+    // Opcional: solo si el proyecto tiene activada la seguridad de push en EAS.
+    expo: { accessToken: env.EXPO_ACCESS_TOKEN?.trim() || undefined },
   };
 }
 

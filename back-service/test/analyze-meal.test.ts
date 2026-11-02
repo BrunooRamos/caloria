@@ -153,6 +153,8 @@ function setup(
       vision: ai.vision,
       transcriber: stt.transcriber,
       identifier: id.identifier,
+      // Los avisos se prueban en notifications.test.ts.
+      notifications: { notify: async () => "noDevices" },
       similarMeals: finder,
     }),
   });

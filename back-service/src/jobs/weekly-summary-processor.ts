@@ -4,6 +4,7 @@ import type { Logger } from "@caloria/shared";
 import { WeeklySummaryModel } from "../models/WeeklySummary";
 import { InvalidInsightsResponseError } from "../services/insights";
 import type { InsightsService } from "../services/insights";
+import type { NotificationService } from "../services/notifications";
 import { localDateIn } from "../services/local-date";
 import type { WeeklyMetricsService } from "../services/weekly-metrics";
 import { WEEKLY_SUMMARY_TZ } from "./weekly-summary";
@@ -54,6 +55,7 @@ export type WeeklySummaryProcessor = (
 export interface WeeklySummaryProcessorDeps {
   metrics: Pick<WeeklyMetricsService, "compute">;
   insights: InsightsService;
+  notifications: Pick<NotificationService, "notifyWrappedReady">;
   now?: () => Date;
 }
 
@@ -67,6 +69,7 @@ const isDuplicateKey = (err: unknown) =>
 export function createWeeklySummaryProcessor({
   metrics,
   insights,
+  notifications,
   now = () => new Date(),
 }: WeeklySummaryProcessorDeps): WeeklySummaryProcessor {
   return async ({ userId, week }, log) => {
@@ -140,7 +143,9 @@ export function createWeeklySummaryProcessor({
       log.info("otro job dejó el Wrapped ready primero, no se pisa");
       return "exists";
     }
-    // #38: acá va el push "Wrapped listo".
+    // Solo si este job lo dejó ready: un job repetido se saltea antes y no avisa dos veces.
+    // notifyWrappedReady no lanza: si el push falla, el Wrapped ya está guardado.
+    await notifications.notifyWrappedReady(userId, week, log);
     return "generated";
   };
 }
