@@ -53,7 +53,7 @@ analysis?: {
   kcal: Range
   macros: { protein: Range; carbs: Range; fat: Range }
   confidence: number          // 0 a 1
-  promptVersion: string       // `version` del frontmatter de prompts/analisis-comida.md
+  promptVersion: string       // `version` del frontmatter de back-service/src/prompts/analisis-comida.md
   model: string               // el modelo que devolvió OpenAI
   contextMealIds?: ObjectId[] // RF-07: comidas corregidas que la IA recibió como contexto ([] si ninguna)
 }
@@ -89,7 +89,7 @@ Antes de llamar a la IA, el Worker busca hasta 5 comidas `ready` y corregidas de
 - **Qué se busca:** como el PATCH no toca `analysis`, un índice sobre `analysis.dish` vería lo que dijo la IA y no la corrección. Por eso el PATCH guarda en `search` el plato y los nombres de los ingredientes **finales** (los de `applyCorrections`), en el mismo update atómico que agrega las correcciones. Solo las comidas corregidas tienen `search`, y el índice de texto deja afuera las que no lo tienen.
 - **El índice:** de texto en español (`"milanesas"` encuentra `"milanesa"`, sin distinguir tildes ni mayúsculas), compuesto con `userId` adelante para que la búsqueda siempre quede dentro del usuario. El plato pesa 3 y los ingredientes, 1.
 - **La consulta:** `userId`, `status: "ready"`, al menos una corrección y `_id` distinto de la comida que se analiza; ordena por relevancia (`textScore`) y corta en 5. La hace `createMongoSimilarMealsFinder` (`back-service/src/services/similar-meals.ts`), detrás de la interfaz `SimilarMealsFinder`.
-- **Con qué texto se busca:** al momento de buscar todavía no se sabe qué plato es. Si el usuario tiene alguna comida corregida, el Worker hace una llamada corta a la IA que solo nombra el plato y sus ingredientes principales (foto en baja resolución, `prompts/identificar-plato.md`), en paralelo con la transcripción. Busca con eso, la nota y la transcripción. Si la identificación falla o tarda más de 6 s, busca con la nota y la transcripción.
+- **Con qué texto se busca:** al momento de buscar todavía no se sabe qué plato es. Si el usuario tiene alguna comida corregida, el Worker hace una llamada corta a la IA que solo nombra el plato y sus ingredientes principales (foto en baja resolución, `back-service/src/prompts/identificar-plato.md`), en paralelo con la transcripción. Busca con eso, la nota y la transcripción. Si la identificación falla o tarda más de 6 s, busca con la nota y la transcripción.
 - **Trazabilidad:** `analysis.contextMealIds` guarda qué comidas fueron contexto de ese análisis, para entender después por qué dio lo que dio. Si alguna de esas comidas se borra, el id queda como registro. Los análisis previos a RF-07 no tienen el campo.
 - **Las comidas corregidas antes de RF-07** no tienen `search`: se completan una vez con `back-service/src/scripts/backfill-meal-search.ts`, que se puede repetir.
 
@@ -112,7 +112,7 @@ week: string                  // ISO week, ej. "2026-W43"; índice único con us
 status: "pending" | "ready" | "failed"
 metrics?: { avgKcal: number; daysLogged: number; streak: number; topDish: string }
 insights?: string[]           // generados por IA: de 3 a 5, de hasta 140 caracteres
-promptVersion?: string        // `version` del frontmatter de prompts/wrapped.md
+promptVersion?: string        // `version` del frontmatter de back-service/src/prompts/wrapped.md
 generatedAt?: Date
 ```
 

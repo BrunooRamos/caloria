@@ -1,8 +1,9 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
-// Misma profundidad desde src/config y dist/config: apunta a prompts/ en la raíz del repo.
-export const PROMPTS_DIR = path.resolve(__dirname, "../../../prompts");
+// Misma profundidad desde src/config y dist/config: apunta a back-service/src/prompts/
+// (tsc no copia los .md a dist/, así que se leen siempre de src/).
+export const PROMPTS_DIR = path.resolve(__dirname, "../../src/prompts");
 
 export interface Prompt {
   /** `version` del frontmatter; se guarda como `promptVersion` en lo que genera. */
