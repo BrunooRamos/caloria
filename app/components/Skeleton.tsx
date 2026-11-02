@@ -5,7 +5,7 @@ import { colors, motion, opacity, radius } from "@/theme";
 import { useReduceMotion } from "./useReduceMotion";
 
 export interface SkeletonProps {
-  height: number;
+  height: DimensionValue;
   width?: DimensionValue;
   rounded?: keyof typeof radius;
 }

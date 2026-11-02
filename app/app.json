@@ -53,7 +53,8 @@
           "enableBackgroundPlayback": false,
           "enableBackgroundRecording": false
         }
-      ]
+      ],
+      "expo-sharing"
     ]
   }
 }
