@@ -24,7 +24,7 @@ REST + JSON, versionada en `/api/v1`. El Front Service expone los mismos endpoin
 | PATCH | `/meals/:id` | JWT | Corrección del usuario; persiste para compounding | 200 | RF-06, RF-07 |
 | DELETE | `/meals/:id` | JWT | Elimina la comida y su media | 204 | RF-08 |
 | GET | `/dashboard/daily?date=` | JWT | Consumido vs. meta del día (la racha llega con RF-10) | 200 | RF-09, RF-10 |
-| GET | `/summaries/weekly/:week` | JWT | Wrapped de la semana (`2026-W38`) | 200 | RF-12 |
+| GET | `/summaries/weekly/:week` | JWT | Wrapped de la semana ISO (`2026-W43`): métricas e insights | 200 | RF-12 |
 | GET | `/billing/plan` | JWT | Plan vigente y análisis restantes del mes | 200 | RF-14, RF-16 |
 | POST | `/billing/subscribe` | JWT | Alta premium (pago sandbox) | 200 | RF-16 |
 
@@ -115,26 +115,34 @@ Authorization: Bearer <accessToken>
   "profile": { "sex": "female", "birthDate": "2002-04-10", "heightCm": 165, "weightKg": 60,
                "activity": "moderate", "goal": "maintain", "timezone": "America/Montevideo" },
   "targets": { "kcal": 2093, "proteinG": 108, "carbsG": 285, "fatG": 58 },
-  "tone": "neutro",
-  "plan": { "tier": "free", "since": "2026-10-14T19:00:00.000Z" }
+  "tone": "motivador",
+  "plan": { "tier": "free", "since": "2026-10-14T19:00:00.000Z" },
+  "notifications": { "analysisReady": true, "streakRisk": true, "wrappedReady": true }
 }
 ```
+
+`notifications` son las preferencias de avisos push (RF-13); un usuario que nunca las cambió tiene todo en `true`. Los push tokens nunca salen en la respuesta.
 
 ```http
 PATCH /api/v1/users/me
 Authorization: Bearer <accessToken>
 Content-Type: application/json
 
-{ "profile": { "weightKg": 58, "goal": "lose" }, "tone": "roast" }
+{ "profile": { "weightKg": 58, "goal": "lose" }, "pushTokens": ["ExponentPushToken[xxxx]"],
+  "notifications": { "streakRisk": false } }
 ```
 
-Devuelve 200 con la misma forma que `GET`, con las metas ya recalculadas.
+Devuelve 200 con la misma forma que `GET`, con lo que quedó guardado.
 
-- El body lleva al menos uno de `profile`, `tone` y `pushTokens`.
+- El body lleva al menos uno de `profile`, `tone`, `pushTokens` y `notifications`.
 - En `profile` van solo los campos que cambian, con los mismos rangos que el registro. Fuera de rango, sin ningún campo o con un campo desconocido → 400 `VALIDATION_ERROR`.
-- `tone`: `motivador`, `neutro`, `roast` u `off` (RF-11). `pushTokens`: hasta 10 tokens de Expo sin repetir, `ExponentPushToken[…]` o `ExpoPushToken[…]` (RF-13).
-- Por ahora el Backend implementa solo `profile`: a `tone` y `pushTokens` el Front los valida y los reenvía, y el Backend responde 400 hasta RF-11 y RF-13.
-- Las metas se recalculan en cada PATCH con la fórmula de [modelo-datos.md](modelo-datos.md#cálculo-de-metas-rf-02). Si dos PATCH llegan a la vez, ninguno pisa los cambios del otro y las metas guardadas corresponden siempre al perfil guardado.
+- `tone`: `motivador` (el default de una cuenta nueva), `neutro`, `roast` u `off` (RF-11). Con `off` los análisis no traen `comment`. Otro valor → 400 `VALIDATION_ERROR` y no se guarda nada, aunque venga un `profile` válido.
+- `tone` solo cambia el tono: no toca el perfil ni recalcula las metas. Si viene con otros campos, va en el mismo update.
+- El tono vale para las comidas que se analicen después: no se regeneran los comentarios de antes.
+- `pushTokens` (RF-13): hasta 10 tokens de Expo sin repetir, `ExponentPushToken[…]` o `ExpoPushToken[…]`. **Se suman** a los que ya tiene el usuario, no los reemplazan: cada dispositivo manda solo el suyo. Un token que ya estaba pasa a ser el más nuevo, y quedan como mucho 10 (se descartan los más viejos). Si el token estaba en otra cuenta (el mismo teléfono con otro usuario), se le saca a esa cuenta. Los tokens que Expo marca como inválidos (`DeviceNotRegistered`) se borran solos.
+- `notifications` (RF-13): parcial, con solo los tipos que cambian (`analysisReady`, `streakRisk`, `wrappedReady`), cada uno un booleano. Vacío, con un tipo desconocido o un valor que no es booleano → 400 `VALIDATION_ERROR`.
+- Todo el PATCH se aplica en un solo update: o se guarda todo o nada.
+- Con `profile`, las metas se recalculan con la fórmula de [modelo-datos.md](modelo-datos.md#cálculo-de-metas-rf-02). Si dos PATCH llegan a la vez (por ejemplo, uno de perfil y otro de un dispositivo registrando su token), ninguno pisa los cambios del otro y las metas guardadas corresponden siempre al perfil guardado.
 - El Backend re-verifica el JWT: sin token o inválido → 401 `UNAUTHORIZED`, vencido → 401 `TOKEN_EXPIRED`. Un token válido de una cuenta que ya no existe también es 401.
 
 ### Registrar una comida (endpoint central)
@@ -160,6 +168,10 @@ note:  "milanesa con puré"
 - El Backend lee la duración del audio del propio archivo (`moov/mvhd`); si no la puede leer o pasa de 60 s → 400.
 - Orden en el Backend: genera el `mealId`, sube la media a `users/{userId}/meals/{mealId}/photo.{jpg|png|heic}` (y `audio.m4a`), crea la comida con `status: "processing"` y `localDate` (el día en la zona del perfil al llegar el pedido) y encola el job `{ mealId, requestId }` con `jobId = mealId`. Responde 202 sin esperar al Worker: con el Worker apagado el job queda en espera.
 - Si falla la subida → 503 `SERVICE_UNAVAILABLE` y no queda nada. Si falla crear la comida → 500 `INTERNAL_ERROR` y se borra la media subida. Si falla encolar (Redis caído) → 503 `SERVICE_UNAVAILABLE`; la comida y la media quedan, con `status: "failed"` y `error.code: "ENQUEUE_FAILED"` para reprocesarla.
+- **Racha (RF-10):** con la comida ya creada, y en paralelo con el encolado, se cuenta el `localDate` en `gamification` (se crea con un upsert la primera vez). Cuenta el registro, no el análisis: vale aunque después el análisis falle. Contra `streak.lastLogDate`: el mismo día no cambia nada; el día anterior (calculado con el calendario sobre `YYYY-MM-DD`, no restando 24 h) suma 1; sin registro previo o con algún día salteado vuelve a 1; un día anterior a `lastLogDate` (cambio de zona) no toca nada. Después se actualiza `best` y `lastLogDate`.
+  - Es una sola escritura atómica, condicionada a que `localDate` sea posterior a `lastLogDate`: dos comidas a la vez el mismo día suman una vez. Si el upsert choca con el índice único (dos primeras comidas a la vez), se reintenta una vez.
+  - La racha nunca rompe el registro: si falla se loguea con el `requestId` y se responde 202 igual. Se espera como mucho 300 ms; si tarda más, se responde sin esperarla (la escritura sigue).
+  - Borrar comidas no recalcula la racha: un día que queda sin comidas ya está contado.
 
 ### Consultar el análisis
 
@@ -188,7 +200,7 @@ GET /api/v1/meals/66f1a…
 La forma depende del `status`:
 
 - `processing`: solo `id`, `status`, `capturedAt` y `photoUrl`.
-- `ready`: además `dish`, `items`, `kcal`, `macros`, `confidence` y `comment`, como en el ejemplo. Los valores son los del análisis **con las correcciones aplicadas** (ver [modelo de datos](modelo-datos.md#meals)), los mismos que suma el dashboard. Si no hay comentario (tono `off`), `comment` no viene: nunca es `null`.
+- `ready`: además `dish`, `items`, `kcal`, `macros`, `confidence` y `comment`, como en el ejemplo. Los valores son los del análisis **con las correcciones aplicadas** (ver [modelo de datos](modelo-datos.md#meals)), los mismos que suma el dashboard. Si no hay comentario, `comment` no viene: nunca es `null`. Puede faltar aunque el tono esté activo: si la IA del comentario falla, devuelve algo inválido o el filtro de seguridad lo descarta, la comida igual queda `ready`, sin comentario. `comment.tone` es el tono con el que se generó, y `text` tiene hasta 200 caracteres. Corregir la comida con `PATCH /meals/:id` no regenera el comentario.
 - `failed`: además `error.code`, sin análisis. La API no manda un mensaje para el usuario: la app lo arma a partir del código.
 
 | `error.code` | Quién lo escribe y cuándo | Mensaje que muestra la app |
@@ -284,7 +296,8 @@ Authorization: Bearer <accessToken>
     "fat":     { "min": 45,   "max": 60,   "mid": 53 }
   },
   "targets": { "kcal": 2100, "proteinG": 120, "carbsG": 240, "fatG": 70 },
-  "meals": { "ready": 3, "processing": 1, "failed": 0 }
+  "meals": { "ready": 3, "processing": 1, "failed": 0 },
+  "streak": { "current": 4, "best": 12 }
 }
 ```
 
@@ -297,7 +310,45 @@ Authorization: Bearer <accessToken>
 - Solo números: la respuesta no dice si lo consumido está por encima o por debajo de la meta (RNF-10). Cómo se muestra lo decide la app.
 - Una sola agregación sobre el índice `{ userId, localDate, capturedAt, _id }` (usa el prefijo `{ userId, localDate }`); con `date`, la meta se busca en paralelo (RNF-01, < 1 s).
 - La respuesta lleva `Cache-Control: no-store`: la app lo vuelve a pedir al volver a la pantalla.
-- La racha (RF-10) todavía no viene: se agrega cuando exista la collection `gamification`.
+- `streak` es la racha de días con al menos un registro (RF-10), leída de `gamification`. Siempre es respecto de **hoy** en la zona del perfil, aunque se pida otra `date`.
+  - `current` es la racha guardada solo si el último registro fue hoy o ayer; si es más viejo, 0 (la racha guardada solo se actualiza al registrar, así que en la base puede seguir la vieja).
+  - `best` es la máxima histórica, tal cual está guardada.
+  - Un usuario que todavía no registró ninguna comida no tiene documento: las dos en 0.
+
+### Wrapped semanal
+
+```http
+GET /api/v1/summaries/weekly/2026-W43
+Authorization: Bearer <accessToken>
+```
+```json
+{
+  "week": "2026-W43",
+  "from": "2026-10-19",
+  "to": "2026-10-25",
+  "metrics": { "avgKcal": 1840, "daysLogged": 6, "streak": 5, "topDish": "Milanesa con puré" },
+  "insights": [
+    "Registraste 6 de los 7 días: la app ya es parte de tu semana.",
+    "De martes a sábado no cortaste: 5 días seguidos.",
+    "La milanesa con puré fue la que más se repitió."
+  ],
+  "generatedAt": "2026-10-26T09:00:12.000Z"
+}
+```
+
+- `week` es una semana ISO 8601 (`YYYY-Www`, de lunes a domingo) que exista en ese año: `W53` solo en los años que la tienen (2026 sí, 2025 no). Otro formato, `W00`, `W54`, una `W53` que no existe o cualquier query → 400 `VALIDATION_ERROR`, en el Front y en el Backend (`weeklySummaryParamsSchema`, en `shared`).
+- `from` y `to` son el lunes y el domingo de la semana (`YYYY-MM-DD`); se calculan de `week`, no se guardan.
+- El resumen se busca por `userId` del token y `week` en la misma consulta. Uno de otro usuario, uno inexistente y uno que todavía no está `ready` (`pending` o `failed`) responden el mismo 404 `NOT_FOUND`.
+- Las métricas se explican en [modelo-datos.md](modelo-datos.md#weekly_summaries). `insights` son de 3 a 5 textos de hasta 140 caracteres. No salen `_id`, `userId`, `status` ni `promptVersion`.
+- Lo genera el cron del Worker los lunes a las 06:00 (UTC-3) para la semana anterior; este endpoint solo lee. La respuesta lleva `Cache-Control: no-store`.
+- Qué ve el plan free todavía no está definido (decisión abierta 4): el gating de premium llega con #40.
+
+```json
+{ "error": { "code": "NOT_FOUND", "message": "Recurso inexistente", "requestId": "a81f…" } }
+```
+```json
+{ "error": { "code": "VALIDATION_ERROR", "message": "La solicitud no es válida", "requestId": "a81f…" } }
+```
 
 ## Códigos HTTP
 

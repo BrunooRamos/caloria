@@ -9,6 +9,8 @@
     "dev": "tsx watch src/index.ts",
     "predev:worker": "npm run build:shared",
     "dev:worker": "tsx watch src/worker.ts",
+    "prewrapped": "npm run build:shared",
+    "wrapped": "tsx src/scripts/wrapped.ts",
     "prebuild": "npm run build:shared",
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/index.js",
@@ -17,6 +19,7 @@
     "typecheck": "tsc --noEmit",
     "pretest": "npm run build:shared",
     "test": "node --import tsx --test test/*.test.ts",
+    "comments:check": "tsx scripts/check-comments.ts",
     "format": "prettier --write . --ignore-path ../.prettierignore",
     "format:check": "prettier --check . --ignore-path ../.prettierignore"
   },

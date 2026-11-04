@@ -6,14 +6,16 @@ import { MealModel } from "../models/Meal";
 import { UserModel } from "../models/User";
 import type { User } from "../models/User";
 import { localDateIn } from "./local-date";
-
-const MACROS = ["protein", "carbs", "fat"] as const;
+import { currentValue, MACROS } from "./meal-corrections";
+import { createStreakService } from "./streak";
+import type { StreakService } from "./streak";
 
 export interface DashboardService {
   daily(userId: string, date?: string): Promise<DailyDashboardResponse>;
 }
 
 export interface DashboardServiceDeps {
+  streak?: StreakService;
   now?: () => Date;
 }
 
@@ -45,40 +47,6 @@ const EMPTY_TOTALS: DailyTotals = {
   processing: 0,
   failed: 0,
 };
-
-/** Lo mismo que `rangeSchema`: números, sin negativos, finitos y con min ≤ max. */
-const validRange = (path: string) => ({
-  $and: [
-    { $isNumber: `${path}.min` },
-    { $isNumber: `${path}.max` },
-    { $gte: [`${path}.min`, 0] },
-    { $lte: [`${path}.min`, `${path}.max`] },
-    { $lt: [`${path}.max`, Infinity] },
-  ],
-});
-
-function currentValue(field: "kcal" | "macros") {
-  const valid =
-    field === "kcal"
-      ? validRange("$$c.to")
-      : { $and: MACROS.map((macro) => validRange(`$$c.to.${macro}`)) };
-  return {
-    $let: {
-      vars: {
-        last: {
-          $last: {
-            $filter: {
-              input: "$corrections",
-              as: "c",
-              cond: { $and: [{ $eq: ["$$c.field", field] }, valid] },
-            },
-          },
-        },
-      },
-      in: { $ifNull: ["$$last.to", `$analysis.${field}`] },
-    },
-  };
-}
 
 const countStatus = (status: string) => ({
   $sum: { $cond: [{ $eq: ["$status", status] }, 1, 0] },
@@ -123,6 +91,7 @@ function dailyRange(min: number, max: number): DailyRange {
 }
 
 export function createDashboardService({
+  streak = createStreakService(),
   now = () => new Date(),
 }: DashboardServiceDeps = {}): DashboardService {
   type UserFields = Pick<User, "profile" | "targets">;
@@ -144,20 +113,30 @@ export function createDashboardService({
         user = await findUser(userId);
       }
       if (!user) throw new AppError("UNAUTHORIZED");
-      const date = requestedDate ?? localDateIn(user.profile.timezone, now());
-      totals ??= await sumDay(userId, date);
+      // La racha es siempre respecto de hoy, aunque se pida otro día.
+      const today = localDateIn(user.profile.timezone, now());
+      const date = requestedDate ?? today;
+      const [dayTotals, streakSummary] = await Promise.all([
+        totals ?? sumDay(userId, date),
+        streak.summary(userId, today),
+      ]);
 
       const { kcal, proteinG, carbsG, fatG } = user.targets;
       return {
         date,
         consumed: {
-          kcal: dailyRange(totals.kcalMin, totals.kcalMax),
-          protein: dailyRange(totals.proteinMin, totals.proteinMax),
-          carbs: dailyRange(totals.carbsMin, totals.carbsMax),
-          fat: dailyRange(totals.fatMin, totals.fatMax),
+          kcal: dailyRange(dayTotals.kcalMin, dayTotals.kcalMax),
+          protein: dailyRange(dayTotals.proteinMin, dayTotals.proteinMax),
+          carbs: dailyRange(dayTotals.carbsMin, dayTotals.carbsMax),
+          fat: dailyRange(dayTotals.fatMin, dayTotals.fatMax),
         },
         targets: { kcal, proteinG, carbsG, fatG },
-        meals: { ready: totals.ready, processing: totals.processing, failed: totals.failed },
+        meals: {
+          ready: dayTotals.ready,
+          processing: dayTotals.processing,
+          failed: dayTotals.failed,
+        },
+        streak: streakSummary,
       };
     },
   };

@@ -81,9 +81,9 @@ Cómo corrige la app (`app/features/meals/edit/`). Cada corrección alimenta el 
 
 #### RF-07 — Compounding
 
-- [ ] Antes de llamar a la IA, el Worker busca hasta 5 comidas del mismo usuario con plato o ingredientes similares que tengan correcciones.
-- [ ] Esas comidas (plato, valores finales y qué se corrigió) se incluyen en el prompt como contexto.
-- [ ] Primera versión: similitud por texto (nombre del plato e ingredientes, búsqueda full-text de Mongo). Embeddings solo si sobra tiempo.
+- [x] Antes de llamar a la IA, el Worker busca hasta 5 comidas del mismo usuario con plato o ingredientes similares que tengan correcciones. Como al buscar todavía no se sabe qué plato es, si el usuario tiene comidas corregidas se identifica con una llamada corta a la IA, en paralelo con la transcripción, y se busca con eso, la nota y la transcripción. Si la búsqueda falla, el análisis sigue sin contexto.
+- [x] Esas comidas (plato, valores finales y qué se corrigió) se incluyen en el prompt como contexto (`analisis-comida.md` 1.2.0), y sus ids quedan en `analysis.contextMealIds`.
+- [x] Primera versión: similitud por texto (nombre del plato e ingredientes, búsqueda full-text de Mongo). Embeddings solo si sobra tiempo. El índice cubre los valores **corregidos** (`meals.search`, ver [modelo-datos.md](modelo-datos.md#compounding-rf-07)).
 - [ ] Prueba de aceptación: corregir un plato y volver a registrar uno parecido da un rango más cercano a la corrección que el primer análisis.
 
 #### RF-08 — Historial por día
@@ -118,26 +118,26 @@ Endpoints: `GET /meals?date=&cursor=`, `GET /meals/:id`, `DELETE /meals/:id`.
 
 #### RF-11 — Comentario con personalidad
 
-- [ ] El usuario elige el tono en su perfil: motivador, neutro, roast o desactivado. Default: motivador.
-- [ ] Con un tono activo, cada análisis incluye un comentario corto (≤ 200 caracteres) en ese tono.
-- [ ] Con el tono desactivado no se genera comentario (y no se gasta la llamada).
-- [ ] El prompt prohíbe comentarios sobre el cuerpo, el peso o la apariencia, y no incentiva la restricción (RNF-10). Se prueba con un set de comidas "problemáticas".
+- [x] El usuario elige el tono en su perfil: motivador, neutro, roast o desactivado. Default: motivador.
+- [x] Con un tono activo, cada análisis incluye un comentario corto (≤ 200 caracteres) en ese tono.
+- [x] Con el tono desactivado no se genera comentario (y no se gasta la llamada).
+- [x] El prompt prohíbe comentarios sobre el cuerpo, el peso o la apariencia, y no incentiva la restricción (RNF-10). Se prueba con un set de comidas "problemáticas".
 
 #### RF-12 — Wrapped semanal
 
-- [ ] Un cron corre los lunes a las 06:00 (zona del usuario o UTC-3 en v1) y genera el resumen de la semana anterior para cada usuario con al menos un registro.
-- [ ] Métricas: promedio de kcal, días registrados, racha, plato más frecuente.
-- [ ] La IA genera 3 a 5 insights sobre hábitos, con las mismas reglas de RNF-10.
-- [ ] Se guarda en `weekly_summaries`; si ya existe la semana, no se duplica.
+- [x] Un cron corre los lunes a las 06:00 (zona del usuario o UTC-3 en v1) y genera el resumen de la semana anterior para cada usuario con al menos un registro.
+- [x] Métricas: promedio de kcal, días registrados, racha, plato más frecuente.
+- [x] La IA genera 3 a 5 insights sobre hábitos, con las mismas reglas de RNF-10.
+- [x] Se guarda en `weekly_summaries`; si ya existe la semana, no se duplica.
 - [ ] La app lo muestra como tarjetas y permite compartir cada tarjeta como imagen.
-- [ ] Al terminar, se envía el push "Wrapped listo".
+- [x] Al terminar, se envía el push "Wrapped listo".
 
 #### RF-13 — Push notifications
 
 - [ ] La app pide permiso de notificaciones y registra el push token con `PATCH /users/me`.
 - [ ] Notificaciones: análisis listo, racha en riesgo (20:00 si no hubo registro en el día y la racha es ≥ 2) y Wrapped listo.
 - [ ] El usuario puede desactivar cada tipo de notificación.
-- [ ] Los tokens inválidos que devuelve Expo se eliminan del usuario.
+- [x] Los tokens inválidos que devuelve Expo se eliminan del usuario.
 
 ### Freemium
 
@@ -188,8 +188,8 @@ Endpoints: `GET /billing/plan`, `POST /billing/subscribe`.
 5. **Precio del premium** y proveedor de pagos sandbox (Stripe test mode, Mercado Pago sandbox).
 6. **Código HTTP para cupo agotado:** la presentación no lo define. Se propone 402.
 7. **Cancelar suscripción:** RF-16 lo pide, pero no hay endpoint. Se propone `POST /billing/cancel`.
-8. **Preferencias de notificaciones:** dónde se guardan (se propone `users.notifications`).
+8. ~~**Preferencias de notificaciones:** dónde se guardan (se propone `users.notifications`).~~ Resuelto en #38: `users.notifications`, un booleano por tipo (`analysisReady`, `streakRisk`, `wrappedReady`), todos en `true` por defecto. Un usuario sin el campo tiene todo prendido. Se cambian con `PATCH /users/me` y salen en `GET /users/me`.
 9. **mTLS entre Front y Backend:** la presentación lo plantea, pero el `docker-compose` actual usa HTTP. Decidir si se implementa o queda para producción.
 10. **Dominio y hosting:** el RFC dice "si conseguimos un dominio barato" y la presentación usa `api.caloria.app` y DigitalOcean. El despliegue está marcado como "a definir".
-11. ~~**Proveedor de IA:** qué modelos de visión, transcripción y texto se usan.~~ Resuelto en #18: OpenAI. Visión con la Responses API y structured outputs, modelo en `OPENAI_VISION_MODEL` (por defecto `gpt-6-luna`). Los modelos de transcripción y texto se eligen en sus issues.
+11. ~~**Proveedor de IA:** qué modelos de visión, transcripción y texto se usan.~~ Resuelto en #18: OpenAI. Visión con la Responses API y structured outputs, modelo en `OPENAI_VISION_MODEL` (por defecto `gpt-6-luna`). Transcripción en `OPENAI_TRANSCRIPTION_MODEL` (por defecto `gpt-transcribe`). Texto (insights del Wrapped, #36) con la Responses API y structured outputs, modelo en `OPENAI_TEXT_MODEL` (por defecto `gpt-6.1-terra`). Comentario por tono (RF-11, #33) con la Responses API y structured outputs, modelo en `OPENAI_COMMENT_MODEL` (por defecto `gpt-6-luna`, con `reasoning: "low"`).
 12. ~~**Storage:** qué bucket se usa (S3, DigitalOcean Spaces, MinIO en local).~~ Resuelto en #14: MinIO en local y bucket compatible con S3 en prod (DO Spaces previsto); el código usa el SDK de S3.

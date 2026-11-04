@@ -180,3 +180,44 @@ Al guardar bien, volvé al detalle y asegurate de que muestre los datos nuevos s
 
 Me gustaría que tengan tests la lógica de totales, el armado del body con solo los campos que cambiaron y la validación. Contame primero cómo pensás resolver la edición de rangos y la regla de totales, y esperá mi OK antes de implementar. Al terminar, pasame un resumen y cómo lo pruebo, incluyendo verificar en la base que las correcciones quedaron registradas.
 ```
+
+### 2026-10-28 20:45
+
+```text
+Vamos con el compounding, que es lo que diferencia a CalorIA de las otras apps: que las correcciones de una persona mejoren sus próximos análisis. Todo esto vive en el Worker, en el paso previo a llamar a la IA. Leé RF-07 en `docs/requerimientos.md`, el flujo central en `docs/arquitectura.md` (pasos 5 y 6), la collection `meals` en `docs/modelo-datos.md` y el riesgo de compounding en `docs/PLAN.md`. Revisá también cómo está armado hoy el job de análisis en `back-service/src/jobs/`, el prompt actual en `prompts/` y cómo quedó implementado el `PATCH /meals/:id`. Trabajá desde `main` en la rama `feat/rf-07-compounding`.
+
+La idea es esta: antes de llamar a la IA, el Worker busca hasta 5 comidas de la misma persona con un plato o ingredientes parecidos y que tengan correcciones, y las suma al prompt como contexto, con el plato, los valores finales y qué se corrigió. La primera versión usa la búsqueda full-text de Mongo; los embeddings quedan para más adelante si sobra tiempo.
+
+Antes de implementar, hay un problema que quiero que resuelvas: la búsqueda necesita un texto, y en el momento de buscar todavía no sabemos qué plato es. Lo único que tenemos es la foto, la transcripción del audio (si la hay) y la nota. Se me ocurren varias salidas: buscar con la transcripción y la nota cuando existen, hacer una primera llamada barata a la IA solo para identificar el plato y después buscar, o alguna combinación de las dos. Cada una cambia la latencia (RNF-01) y el costo por análisis (RNF-07), así que proponeme cuál elegirías y por qué, con números aproximados si podés.
+
+El otro punto a revisar es qué se indexa. El índice de texto tiene que cubrir el plato y los nombres de los ingredientes con los valores corregidos, porque si alguien corrigió "milanesa" por "milanesa napolitana", lo que importa es lo segundo. Eso depende de si el `PATCH` pisa `analysis` o si las correcciones se aplican al leer; si es lo segundo, contame cómo lo resolverías. Configurá el idioma del índice en español, así "milanesas" encuentra "milanesa", y armalo compuesto con `userId` adelante, para que la búsqueda quede siempre acotada a la persona y sea eficiente. La consulta filtra por usuario, por comidas `ready` con al menos una corrección y excluye la comida que se está analizando; se ordena por relevancia y se corta en 5.
+
+Para el prompt, creá una versión nueva en `prompts/` (con autor, versión y fecha como el resto) que incluya el contexto en un bloque claramente delimitado, compacto, con el plato, los valores finales y el antes y el después de cada corrección. Ojo con que los nombres de platos, ingredientes y la transcripción los escribe el usuario: el prompt tiene que tratarlos como datos y no como instrucciones. Cada comida analizada tiene que guardar el `promptVersion` nuevo, y me gustaría que también quedaran registrados los ids de las comidas que se usaron como contexto, para poder entender después por qué un análisis dio lo que dio; proponé dónde guardarlos en el modelo y actualizá `docs/modelo-datos.md`.
+
+Dejá la búsqueda detrás de una interfaz chica, algo como un buscador de comidas similares, así cambiarla por embeddings más adelante no toca el resto del job. Y si la búsqueda falla por cualquier motivo, el análisis sigue sin contexto: el compounding mejora el resultado, pero nunca puede ser la razón de que un análisis falle.
+
+Para tests, quiero dos niveles. Los automáticos, que corren en CI, cubren la consulta de similares contra una base de prueba (que encuentre por plato y por ingrediente, que no mezcle usuarios, que ignore comidas sin correcciones y que respete el límite de 5) y el armado del prompt con la IA mockeada. Aparte, el criterio de aceptación pide probar que corregir un plato y registrar uno parecido da un rango más cercano a la corrección. Como eso llama a la IA de verdad y no es determinístico, armalo como un script de evaluación que se corre a mano: toma fotos del set de prueba, registra una, aplica una corrección, registra otra parecida, y compara cuánto se acerca el rango con y sin contexto, corriendo cada caso varias veces. Documentá en el README cómo correrlo.
+
+Contame primero cómo resolverías la búsqueda sin conocer el plato y lo del índice con los valores corregidos, y esperá mi OK. Al final, pasame un resumen, el resultado del script de evaluación y qué quedó pendiente.
+```
+## Sesión `eedcac97-83ac-4577-bdc8-74d64397ba82` · 2026-11-02
+
+### 2026-11-02 12:25
+
+```text
+Esta es la pantalla del Wrapped semanal, el resumen tipo Spotify que la gente va a querer compartir. Más que una pantalla de datos, es la pieza más "de marca" de la app, así que tiene que verse muy bien, tanto adentro de la app como en la imagen que alguien sube a sus historias. Leé RF-12 y RNF-10 en `docs/requerimientos.md`, `GET /summaries/weekly/:week` en `docs/api.md`, la collection `weekly_summaries` en `docs/modelo-datos.md` y la skill `caloria-design`, que ya prevé las tarjetas del Wrapped. Trabajá desde `main` en la rama `feat/rf-12-wrapped-screen`.
+
+Los criterios son dos: mostrar las métricas y los insights como tarjetas, y que cada tarjeta se pueda compartir como imagen.
+
+Lo primero es ver si el endpoint ya existe en el Backend y en el Front Service. Si todavía no está, no lo implementes acá: armá la pantalla contra un fixture con la forma exacta de `api.md`, en un lugar fácil de borrar, y avisame. Fijate también en qué estados puede venir el resumen. Puede estar `pending` o `failed`, puede no existir porque la persona no registró nada esa semana, y puede responder 402 `PREMIUM_REQUIRED`, porque el Wrapped completo es premium y todavía no definimos qué ve el plan free (es la decisión abierta 4). Para ese caso no inventes la regla de producto: mostrá un estado claro y tranquilo, sin paywall agresivo, y dejalo preparado para cuando lo definamos.
+
+Por defecto se muestra la última semana completa, calculada en la zona horaria del usuario y en formato de semana ISO (`2026-W38`). Ojo con el cambio de año, donde hay semanas que pertenecen al año anterior o al siguiente. Hacé la ruta con la semana como parámetro (algo como `/wrapped/[week]`), porque el push de "Wrapped listo" (RF-13) va a tener que abrir esta pantalla directo.
+
+Me imagino las tarjetas como en Spotify: una por pantalla, deslizando de una a otra. Una para cada métrica (promedio de kcal, días registrados, racha y plato más frecuente) y una para cada insight. Dentro de la skill tenés margen para que el Wrapped sea más expresivo que el resto de la app: por ejemplo, tarjetas con fondo `primary` y texto en crema, el número protagonista en `display`, el salvia como acento decorativo y `radius.xl`, como dice la skill. Si hace falta algún token nuevo, proponelo y sumalo al theme, como siempre. Las animaciones de entrada son bienvenidas, pero respetando la preferencia de reducir movimiento. Y cada tarjeta tiene que poder leerse con lector de pantalla.
+
+Para compartir, no captures la tarjeta tal como se ve en pantalla, porque depende del tamaño del teléfono, del escalado de fuente y de las safe areas. Armá una versión dedicada para compartir, en formato historia (vertical, tamaño fijo), renderizada fuera de pantalla y con el logo según las reglas de uso de la skill. Capturala con `react-native-view-shot`, compartila con `expo-sharing` o la hoja de compartir del sistema, y borrá el archivo temporal después. Probalo en Android en particular, donde estas capturas suelen salir en blanco si la vista no está bien configurada, y asegurate de que la imagen salga con Telegraf y no con la fuente del sistema.
+
+Una cosa más sobre el contenido: la imagen compartida es pública, así que antes de compartir mostrá una vista previa de lo que se va a subir. Los insights ya vienen generados con las reglas de RNF-10, así que la pantalla los muestra tal cual, sin editarlos.
+
+Para tests, me interesa el cálculo de la semana por defecto, incluyendo el cambio de año y distintas zonas horarias, y el manejo de cada estado de la respuesta. Antes de arrancar, contame cómo pensás armar las tarjetas y la versión para compartir, y esperá mi OK. Cuando termines, pasame capturas de las tarjetas y de una imagen compartida en iOS y en Android, y contame qué quedó pendiente.
+```

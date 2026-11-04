@@ -1,8 +1,10 @@
+import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { SessionProvider, useSession } from "@/store/session";
+import { fontFiles } from "@/theme";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -17,12 +19,14 @@ export default function RootLayout() {
 
 function RootNavigator() {
   const { status } = useSession();
+  const [fontsLoaded, fontError] = useFonts(fontFiles);
+  const ready = status !== "loading" && (fontsLoaded || fontError !== null);
 
   useEffect(() => {
-    if (status !== "loading") SplashScreen.hide();
-  }, [status]);
+    if (ready) SplashScreen.hide();
+  }, [ready]);
 
-  if (status === "loading") return null;
+  if (!ready) return null;
 
   return (
     <Stack screenOptions={{ headerShown: false }}>

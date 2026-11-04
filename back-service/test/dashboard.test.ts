@@ -145,6 +145,7 @@ describe("back-service: GET /dashboard/daily", () => {
       },
       targets,
       meals: { ready: 3, processing: 0, failed: 0 },
+      streak: { current: 0, best: 0 },
     });
   });
 
@@ -258,6 +259,7 @@ describe("back-service: GET /dashboard/daily", () => {
       consumed: ZEROS,
       targets,
       meals: { ready: 0, processing: 0, failed: 0 },
+      streak: { current: 0, best: 0 },
     });
   });
 
@@ -279,7 +281,7 @@ describe("back-service: GET /dashboard/daily", () => {
   it("solo números: ningún campo que juzgue lo consumido (RNF-10)", async () => {
     await ready(analysisOf(r(5000, 6000), r(300, 400), r(500, 600), r(100, 200)));
     const body = await dashboard(`?date=${DAY}`);
-    assert.deepEqual(Object.keys(body), ["date", "consumed", "targets", "meals"]);
+    assert.deepEqual(Object.keys(body), ["date", "consumed", "targets", "meals", "streak"]);
     const leaves = JSON.stringify(body.consumed) + JSON.stringify(body.targets);
     assert.ok(!/"[^"]*":\s*"/.test(leaves), "hay un valor que no es un número");
   });

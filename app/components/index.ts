@@ -1,3 +1,5 @@
+export { Badge } from "./Badge";
+export type { BadgeProps } from "./Badge";
 export { Button } from "./Button";
 export type { ButtonProps, ButtonVariant } from "./Button";
 export { Card } from "./Card";
@@ -15,6 +17,7 @@ export type { IconButtonProps, IconButtonVariant } from "./IconButton";
 export { Input } from "./Input";
 export type { InputProps } from "./Input";
 export { Logo } from "./Logo";
+export type { LogoProps } from "./Logo";
 export { OptionGroup } from "./OptionGroup";
 export type { OptionGroupOption, OptionGroupProps } from "./OptionGroup";
 export { ProgressBar } from "./ProgressBar";

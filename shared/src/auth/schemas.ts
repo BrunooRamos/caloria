@@ -4,6 +4,10 @@ import { z } from "zod";
 export const PASSWORD_MAX_BYTES = 72;
 export const PASSWORD_MIN_CHARS = 8;
 
+/** Tono del comentario de cada análisis (RF-11). "off" no genera comentario. */
+export const TONES = ["motivador", "neutro", "roast", "off"] as const;
+export type Tone = (typeof TONES)[number];
+
 /** trim + minúsculas antes de validar, así lo que se guarda y se compara es siempre lo mismo. */
 export const emailSchema = z.preprocess(
   (value) => (typeof value === "string" ? value.trim().toLowerCase() : value),
@@ -82,6 +86,38 @@ export const refreshSchema = z
   .object({ refreshToken: z.string().regex(/^[A-Za-z0-9_-]{1,512}$/) })
   .strict();
 
+export const MAX_PUSH_TOKENS = 10;
+
+/** Token de Expo Push: `ExponentPushToken[…]` o `ExpoPushToken[…]`. */
+export const expoPushTokenSchema = z
+  .string()
+  .regex(/^Expo(nent)?PushToken\[[A-Za-z0-9_-]{1,256}\]$/);
+
+export const pushTokensSchema = z
+  .array(expoPushTokenSchema)
+  .max(MAX_PUSH_TOKENS)
+  .refine((tokens) => new Set(tokens).size === tokens.length, {
+    message: "Push tokens repetidos",
+  });
+
+/** Tipos de aviso que el usuario puede apagar (RF-13). */
+export const NOTIFICATION_TYPES = ["analysisReady", "streakRisk", "wrappedReady"] as const;
+
+export const notificationsSchema = z
+  .object({
+    analysisReady: z.boolean(),
+    streakRisk: z.boolean(),
+    wrappedReady: z.boolean(),
+  })
+  .strict() satisfies z.ZodType<Record<(typeof NOTIFICATION_TYPES)[number], boolean>>;
+
+/** Sin el campo guardado (usuarios viejos), todos los avisos están prendidos. */
+export const DEFAULT_NOTIFICATIONS: NotificationPreferences = {
+  analysisReady: true,
+  streakRisk: true,
+  wrappedReady: true,
+};
+
 export const updateMeSchema = z
   .object({
     profile: profileSchema
@@ -89,15 +125,29 @@ export const updateMeSchema = z
       .strict()
       .refine((profile) => Object.keys(profile).length > 0, {
         message: "Indicá al menos un dato del perfil",
-      }),
+      })
+      .optional(),
+    tone: z.enum(TONES).optional(),
+    // Los tokens se suman a los que ya hay: cada dispositivo manda solo el suyo.
+    pushTokens: pushTokensSchema.optional(),
+    notifications: notificationsSchema
+      .partial()
+      .strict()
+      .refine((prefs) => Object.keys(prefs).length > 0, {
+        message: "Indicá al menos una preferencia",
+      })
+      .optional(),
   })
-  .strict();
+  .strict()
+  .refine((body) => Object.keys(body).length > 0, { message: "Indicá al menos un campo" });
 
 export type Profile = z.infer<typeof profileSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RefreshInput = z.infer<typeof refreshSchema>;
 export type UpdateMeInput = z.infer<typeof updateMeSchema>;
+export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
+export type NotificationPreferences = z.infer<typeof notificationsSchema>;
 
 export interface AuthResponse {
   accessToken: string;
@@ -110,6 +160,7 @@ export interface MeResponse {
   email: string;
   profile: Profile;
   targets: { kcal: number; proteinG: number; carbsG: number; fatG: number };
-  tone: "motivador" | "neutro" | "roast" | "off";
+  tone: Tone;
   plan: { tier: "free" | "premium"; since: string; renewsAt?: string };
+  notifications: NotificationPreferences;
 }

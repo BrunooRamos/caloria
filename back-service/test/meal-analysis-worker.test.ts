@@ -6,6 +6,8 @@ import IORedis from "ioredis";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import mongoose from "mongoose";
 import {
+  DEFAULT_OPENAI_COMMENT_MODEL,
+  DEFAULT_OPENAI_TEXT_MODEL,
   DEFAULT_OPENAI_TRANSCRIPTION_MODEL,
   DEFAULT_OPENAI_VISION_MODEL,
   DEFAULT_WORKER_CONCURRENCY,
@@ -135,23 +137,38 @@ describe("back-service: config del worker", () => {
     });
   }
 
-  it("toma la clave de OpenAI y los modelos de visión y transcripción, con default", () => {
+  it("toma la clave de OpenAI y los modelos de visión, transcripción, texto y comentario, con default", () => {
     assert.deepEqual(loadWorkerConfig(workerEnv).openai, {
       apiKey: "sk-test",
       visionModel: DEFAULT_OPENAI_VISION_MODEL,
       transcriptionModel: DEFAULT_OPENAI_TRANSCRIPTION_MODEL,
+      textModel: DEFAULT_OPENAI_TEXT_MODEL,
+      commentModel: DEFAULT_OPENAI_COMMENT_MODEL,
     });
     assert.equal(DEFAULT_OPENAI_TRANSCRIPTION_MODEL, "gpt-transcribe");
+    assert.equal(DEFAULT_OPENAI_TEXT_MODEL, "gpt-6.1-terra");
+    assert.equal(DEFAULT_OPENAI_COMMENT_MODEL, "gpt-6-luna");
     const config = loadWorkerConfig({
       ...workerEnv,
       OPENAI_VISION_MODEL: "gpt-6.1-sol",
       OPENAI_TRANSCRIPTION_MODEL: " gpt-4o-mini-transcribe ",
+      OPENAI_TEXT_MODEL: " gpt-6.1-terra ",
+      OPENAI_COMMENT_MODEL: " gpt-6.1-sol ",
     });
     assert.equal(config.openai.visionModel, "gpt-6.1-sol");
     assert.equal(config.openai.transcriptionModel, "gpt-4o-mini-transcribe");
+    assert.equal(config.openai.textModel, "gpt-6.1-terra");
+    assert.equal(config.openai.commentModel, "gpt-6.1-sol");
     // En blanco cuenta como sin definir.
-    const blank = loadWorkerConfig({ ...workerEnv, OPENAI_TRANSCRIPTION_MODEL: " " });
+    const blank = loadWorkerConfig({
+      ...workerEnv,
+      OPENAI_TRANSCRIPTION_MODEL: " ",
+      OPENAI_TEXT_MODEL: " ",
+      OPENAI_COMMENT_MODEL: " ",
+    });
     assert.equal(blank.openai.transcriptionModel, DEFAULT_OPENAI_TRANSCRIPTION_MODEL);
+    assert.equal(blank.openai.textModel, DEFAULT_OPENAI_TEXT_MODEL);
+    assert.equal(blank.openai.commentModel, DEFAULT_OPENAI_COMMENT_MODEL);
   });
 
   for (const name of ["MONGO_URI", "REDIS_URL", "S3_BUCKET", "OPENAI_API_KEY"]) {

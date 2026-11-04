@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { getMe, updateProfile } from "@/services/users";
-import type { Me } from "@/services/users";
+import { getMe, updateProfile, updateTone } from "@/services/users";
+import type { Me, Tone } from "@/services/users";
 import type { ProfileInput } from "./validation";
 
 export type MeState =
@@ -36,5 +36,10 @@ export function useMe() {
     setState({ status: "ready", me });
   }, []);
 
-  return { state, reload, save };
+  const saveTone = useCallback(async (tone: Tone) => {
+    const me = await updateTone(tone);
+    setState({ status: "ready", me });
+  }, []);
+
+  return { state, reload, save, saveTone };
 }

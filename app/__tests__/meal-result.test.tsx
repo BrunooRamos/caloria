@@ -95,6 +95,7 @@ describe("resultado de una comida", () => {
     expect(screen.getByText("150–190 g · 380–470 kcal")).toBeOnTheScreen();
     // min = max: un solo número.
     expect(screen.getByText("200 g · 180–230 kcal")).toBeOnTheScreen();
+    expect(screen.getByText("Comentario")).toBeOnTheScreen();
     expect(screen.getByText("“Buena porción de proteína.”")).toBeOnTheScreen();
     // La foto local se sigue usando: es la misma y no depende de la URL firmada.
     expect(photo()).toHaveProp("source", { uri: LOCAL_PHOTO });
@@ -111,6 +112,7 @@ describe("resultado de una comida", () => {
 
     expect(await screen.findByText("Confianza baja")).toBeOnTheScreen();
     expect(screen.queryByText(/“/)).toBeNull();
+    expect(screen.queryByText("Comentario")).toBeNull();
   });
 
   it("fallido: mensaje tranquilo del error.code y una salida clara", async () => {

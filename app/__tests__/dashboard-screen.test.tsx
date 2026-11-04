@@ -46,6 +46,7 @@ const day: DailyDashboard = {
   },
   targets: { kcal: 2100, proteinG: 120, carbsG: 240, fatG: 70 },
   meals: { ready: 3, processing: 0, failed: 0 },
+  streak: { current: 4, best: 12 },
 };
 
 const emptyDay: DailyDashboard = {
@@ -304,5 +305,77 @@ describe("pantalla principal: progreso del día", () => {
     await pullToRefresh();
     expect(await screen.findByText("1.500–1.900")).toBeOnTheScreen();
     expect(dashboardGets()).toHaveLength(2);
+  });
+});
+
+describe("pantalla principal: racha (RF-10)", () => {
+  const withStreak = (current: number, best: number) => () =>
+    json(200, { ...day, streak: { current, best } });
+
+  it("muestra la racha actual destacada y la máxima como dato secundario", async () => {
+    await start([withStreak(4, 12)]);
+
+    const card = await screen.findByLabelText("Racha actual: 4 días. Mejor racha: 12 días.");
+    expect(within(card).getByText("4")).toBeOnTheScreen();
+    expect(within(card).getByText("días")).toBeOnTheScreen();
+    expect(within(card).getByText("Mejor racha: 12 días")).toBeOnTheScreen();
+    expect(within(card).queryByText("Tu mejor racha")).toBeNull();
+    // Sale de la misma respuesta del dashboard: no hay otro pedido.
+    const apiCalls = calls.filter((call) => !call.path.startsWith("/auth/"));
+    expect(apiCalls.map((call) => call.path)).toEqual(["/dashboard/daily"]);
+  });
+
+  it("singular con 1 día y plural con varios", async () => {
+    await start([withStreak(1, 1)]);
+    const card = await screen.findByLabelText("Racha actual: 1 día. Mejor racha: 1 día.");
+    expect(within(card).getByText("día")).toBeOnTheScreen();
+    expect(within(card).getByText("Mejor racha: 1 día")).toBeOnTheScreen();
+    // Con 1 día todavía no se destaca como la mejor.
+    expect(within(card).queryByText("Tu mejor racha")).toBeNull();
+  });
+
+  it("si la actual es la mejor y es mayor a 1, lo destaca", async () => {
+    await start([withStreak(5, 5)]);
+    const card = await screen.findByLabelText(
+      "Racha actual: 5 días. Mejor racha: 5 días. Es tu mejor racha.",
+    );
+    expect(within(card).getByText("Tu mejor racha")).toBeOnTheScreen();
+  });
+
+  it("en 0 invita a empezar, sin hablar de rachas perdidas (RNF-10)", async () => {
+    await start([withStreak(0, 12)]);
+    const card = await screen.findByLabelText(
+      "Racha actual: 0 días. Mejor racha: 12 días. Registrá una comida para empezar tu racha.",
+    );
+    expect(within(card).getByText("Registrá una comida para empezar tu racha.")).toBeOnTheScreen();
+    expect(within(card).getByText("Mejor racha: 12 días")).toBeOnTheScreen();
+    expect(within(card).queryByText("0")).toBeNull();
+    expect(screen.queryByText(/perdiste|rompiste|se cortó|perdida/i)).toBeNull();
+    expect(paintedColors().has(colors.danger.toUpperCase())).toBe(false);
+  });
+
+  it("sin ninguna racha todavía no muestra la máxima en 0", async () => {
+    await start([withStreak(0, 0)]);
+    const card = await screen.findByLabelText(
+      "Racha actual: 0 días. Registrá una comida para empezar tu racha.",
+    );
+    expect(within(card).queryByText(/Mejor racha/)).toBeNull();
+  });
+
+  it("se actualiza con el mismo refresco del dashboard", async () => {
+    await start([withStreak(0, 3), withStreak(1, 3)]);
+    expect(await screen.findByText("Registrá una comida para empezar tu racha.")).toBeOnTheScreen();
+
+    await pullToRefresh();
+    expect(
+      await screen.findByLabelText("Racha actual: 1 día. Mejor racha: 3 días."),
+    ).toBeOnTheScreen();
+    expect(dashboardGets()).toHaveLength(2);
+  });
+
+  it("una respuesta sin streak se muestra como error, sin romper la pantalla", async () => {
+    const { streak: _streak, ...withoutStreak } = day;
+    await start([() => json(200, withoutStreak)]);
+    expect(await screen.findByRole("button", { name: "Reintentar" })).toBeOnTheScreen();
   });
 });
