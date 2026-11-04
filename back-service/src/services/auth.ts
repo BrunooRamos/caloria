@@ -18,7 +18,8 @@ export interface AuthService {
   register(input: RegisterInput): Promise<AuthResponse>;
   login(input: LoginInput): Promise<AuthResponse>;
   refresh(refreshToken: string, log: Logger): Promise<AuthResponse>;
-  logout(userId: string, refreshToken: string): Promise<void>;
+  /** Con `pushToken`, además ese dispositivo deja de recibir los avisos de la cuenta. */
+  logout(userId: string, refreshToken: string, pushToken?: string): Promise<void>;
 }
 
 function isDuplicateKey(err: unknown): boolean {
@@ -204,8 +205,12 @@ export function createAuthService({ privateKey }: { privateKey: KeyObject }): Au
       throw new AppError("UNAUTHORIZED");
     },
 
-    async logout(userId, refreshToken) {
+    async logout(userId, refreshToken, pushToken) {
       if (!isValidObjectId(userId)) return;
+      // El access ya prueba que es su cuenta: el token se saca aunque la sesión ya no exista.
+      if (pushToken) {
+        await UserModel.updateOne({ _id: userId }, { $pull: { pushTokens: pushToken } });
+      }
       const tokenHash = hashRefreshToken(refreshToken);
       await UserModel.updateOne(
         { _id: userId, "sessions.tokenHash": tokenHash },

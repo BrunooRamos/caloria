@@ -134,9 +134,9 @@ Endpoints: `GET /meals?date=&cursor=`, `GET /meals/:id`, `DELETE /meals/:id`.
 
 #### RF-13 — Push notifications
 
-- [ ] La app pide permiso de notificaciones y registra el push token con `PATCH /users/me`.
+- [x] La app pide permiso de notificaciones y registra el push token con `PATCH /users/me`.
 - [ ] Notificaciones: análisis listo, racha en riesgo (20:00 si no hubo registro en el día y la racha es ≥ 2) y Wrapped listo.
-- [ ] El usuario puede desactivar cada tipo de notificación.
+- [x] El usuario puede desactivar cada tipo de notificación.
 - [x] Los tokens inválidos que devuelve Expo se eliminan del usuario.
 
 ### Freemium

@@ -26,6 +26,8 @@ export { Screen } from "./Screen";
 export type { ScreenProps } from "./Screen";
 export { Skeleton } from "./Skeleton";
 export type { SkeletonProps } from "./Skeleton";
+export { SwitchRow } from "./SwitchRow";
+export type { SwitchRowProps } from "./SwitchRow";
 export type { SurfaceTone } from "./tone";
 export { Text } from "./Text";
 export type { TextProps } from "./Text";

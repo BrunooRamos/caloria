@@ -196,6 +196,19 @@ describe("front-service: rutas /auth", () => {
     assert.equal(back.received[0].headers.authorization, `Bearer ${token}`);
   });
 
+  it("logout reenvía el push token del dispositivo; uno inválido → 400 sin llegar al Backend", async () => {
+    const token = accessToken({ sub: "66f1a0000000000000000001", plan: "free" });
+    const authorization = { authorization: `Bearer ${token}` };
+    const body = { refreshToken: "r1", pushToken: "ExponentPushToken[abc]" };
+    assert.equal((await post("logout", body, authorization)).status, 204);
+    assert.deepEqual(back.received[0].body, body);
+
+    const res = await post("logout", { refreshToken: "r1", pushToken: "abc" }, authorization);
+    assert.equal(res.status, 400);
+    assert.equal(((await res.json()) as Envelope).error.code, "VALIDATION_ERROR");
+    assert.equal(back.received.length, 1);
+  });
+
   it("logout sin JWT, con uno inválido o vencido → 401 sin llegar al Backend", async () => {
     const expired = accessToken({ sub: "u1", plan: "free" }, -10);
     const cases: [Record<string, string>, string][] = [

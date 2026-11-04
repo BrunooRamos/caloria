@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { getMe, updateProfile, updateTone } from "@/services/users";
-import type { Me, Tone } from "@/services/users";
+import { getMe, updateNotifications, updateProfile, updateTone } from "@/services/users";
+import type { Me, NotificationPreferences, Tone } from "@/services/users";
 import type { ProfileInput } from "./validation";
 
 export type MeState =
@@ -41,5 +41,10 @@ export function useMe() {
     setState({ status: "ready", me });
   }, []);
 
-  return { state, reload, save, saveTone };
+  const saveNotifications = useCallback(async (changes: Partial<NotificationPreferences>) => {
+    const me = await updateNotifications(changes);
+    setState({ status: "ready", me });
+  }, []);
+
+  return { state, reload, save, saveTone, saveNotifications };
 }
