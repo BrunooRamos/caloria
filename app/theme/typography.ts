@@ -1,10 +1,19 @@
 import type { TextStyle } from "react-native";
+import telegrafRegular from "@/assets/fonts/Telegraf-Regular.otf";
+import telegrafUltraBold from "@/assets/fonts/Telegraf-UltraBold.otf";
+
+export const fontFiles = {
+  "Telegraf-Regular": telegrafRegular,
+  "Telegraf-UltraBold": telegrafUltraBold,
+} as const;
+
+type FontFamily = keyof typeof fontFiles;
 
 export const fonts = {
-  regular: { fontWeight: "400" },
-  medium: { fontWeight: "500" },
-  bold: { fontWeight: "700" },
-} as const satisfies Record<string, Pick<TextStyle, "fontFamily" | "fontWeight">>;
+  regular: { fontFamily: "Telegraf-Regular" },
+  medium: { fontFamily: "Telegraf-Regular" },
+  bold: { fontFamily: "Telegraf-UltraBold" },
+} as const satisfies Record<string, { fontFamily: FontFamily }>;
 
 export const typography = {
   display: { ...fonts.bold, fontSize: 40, lineHeight: 44, letterSpacing: -0.5 },

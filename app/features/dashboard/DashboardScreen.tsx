@@ -59,6 +59,9 @@ export default function DashboardScreen() {
           <Link href="/history" asChild>
             <Button variant="secondary" title="Ver comidas del día" />
           </Link>
+          <Link href="/wrapped" asChild>
+            <Button variant="secondary" title="Ver tu semana" />
+          </Link>
           <Link href="/profile" asChild>
             <Button variant="ghost" title="Mi perfil" />
           </Link>

@@ -26,6 +26,7 @@ export const borderWidth = {
   focus: 2,
   error: 1.5,
   shutter: 4,
+  artRing: 4,
 } as const;
 
 export const sizes = {
@@ -35,12 +36,15 @@ export const sizes = {
   iconDense: 20,
   iconStroke: 2,
   iconStrokeLight: 1.75,
-  logo: { width: 160 },
+  logo: { width: 160, shareWidth: 96 },
   fab: 64,
   shutter: 72,
   /** Alto de la ProgressBar (skill §5) y de la principal del dashboard, que es más grande. */
   progress: 10,
   progressLarge: 16,
+  storyIndicator: 4,
+  shareCanvas: { width: 360, height: 640 },
+  shareImage: { width: 1080, height: 1920 },
 } as const;
 
 export const opacity = {
@@ -51,6 +55,8 @@ export const opacity = {
 
 export const motion = {
   skeletonPulse: 900,
+  enter: 220,
+  enterOffset: 12,
 } as const;
 
 export const shadow = {
