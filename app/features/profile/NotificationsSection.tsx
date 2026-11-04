@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, Linking, StyleSheet, View } from "react-native";
 import { Button, Card, FormError, SwitchRow, Text } from "@/components";
 import {
@@ -12,7 +12,7 @@ import type { NotificationPreferences, NotificationType } from "@/services/users
 import { spacing } from "@/theme";
 import { NOTIFICATION_OPTIONS } from "./options";
 
-const REGISTER_FAILED = "No pudimos activar los avisos en este teléfono. Probá de nuevo más tarde.";
+const REGISTER_FAILED = "No pudimos activar los avisos en este teléfono. Probá de nuevo.";
 
 interface NotificationsSectionProps {
   notifications: NotificationPreferences;
@@ -73,10 +73,27 @@ export function NotificationsSection({ notifications, save }: NotificationsSecti
 function DevicePermission() {
   const [permission, setPermission] = useState<PushPermission | null>(null);
   const [asking, setAsking] = useState(false);
+  const [registering, setRegistering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const known = useRef<PushPermission | null>(null);
+  // El último registro falló: al volver a la app se reintenta aunque el permiso no cambió.
+  const failed = useRef(false);
   // El diálogo del sistema pasa la app a segundo plano: mientras se pregunta, registra `ask`.
   const prompting = useRef(false);
+
+  const register = useCallback(async () => {
+    setRegistering(true);
+    setError(null);
+    try {
+      await registerDevice();
+      failed.current = false;
+    } catch {
+      failed.current = true;
+      setError(REGISTER_FAILED);
+    } finally {
+      setRegistering(false);
+    }
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -87,10 +104,9 @@ function DevicePermission() {
           if (!active || prompting.current) return;
           const previous = known.current;
           known.current = next;
-          // Lo activó desde la configuración del teléfono: falta registrar el token.
-          if (previous !== null && previous !== "granted" && next === "granted") {
-            registerDevice().catch(() => setError(REGISTER_FAILED));
-          }
+          // Lo activó desde la configuración del teléfono, o el registro anterior falló.
+          const granted = previous !== null && previous !== "granted" && next === "granted";
+          if (granted || (next === "granted" && failed.current)) void register();
           setPermission(next);
         });
     }
@@ -102,7 +118,7 @@ function DevicePermission() {
       active = false;
       subscription.remove();
     };
-  }, []);
+  }, [register]);
 
   async function ask() {
     prompting.current = true;
@@ -112,7 +128,7 @@ function DevicePermission() {
       const next = await requestPushPermission();
       known.current = next;
       setPermission(next);
-      if (next === "granted") await registerDevice();
+      if (next === "granted") await register();
     } catch {
       setError(REGISTER_FAILED);
     } finally {
@@ -124,13 +140,20 @@ function DevicePermission() {
   if (permission === null) return null;
 
   if (permission === "granted") {
-    return (
-      <>
-        <Text variant="small" color="sageText">
-          Los avisos están activados en este teléfono.
-        </Text>
+    return error ? (
+      <Card>
         <FormError message={error} />
-      </>
+        <Button
+          variant="secondary"
+          title="Reintentar"
+          loading={registering}
+          onPress={() => void register()}
+        />
+      </Card>
+    ) : (
+      <Text variant="small" color="sageText" accessibilityLiveRegion="polite">
+        {registering ? "Activando los avisos…" : "Los avisos están activados en este teléfono."}
+      </Text>
     );
   }
 

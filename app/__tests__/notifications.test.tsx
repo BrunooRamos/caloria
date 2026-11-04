@@ -149,18 +149,29 @@ describe("permiso y token", () => {
     expect(Notifications.requestPermissionsAsync).not.toHaveBeenCalled();
   });
 
-  it("si Expo no da el token, lo dice y no manda nada", async () => {
+  it("si Expo no da el token, lo dice, no manda nada y deja reintentar", async () => {
     mockNotifications.setToken(new Error("ERR_NOTIFICATIONS_NO_EXPERIENCE_ID"));
     await start(backend(), "/profile");
 
     await fireEvent.press(await screen.findByText("Activar avisos"));
 
     expect(
-      await screen.findByText(
-        "No pudimos activar los avisos en este teléfono. Probá de nuevo más tarde.",
-      ),
+      await screen.findByText("No pudimos activar los avisos en este teléfono. Probá de nuevo."),
     ).toBeOnTheScreen();
+    expect(
+      screen.queryByText("Los avisos están activados en este teléfono."),
+    ).not.toBeOnTheScreen();
     expect(patches()).toEqual([]);
+
+    // El permiso ya está dado: el reintento solo vuelve a registrar el token.
+    mockNotifications.setToken(TOKEN);
+    await fireEvent.press(screen.getByText("Reintentar"));
+
+    expect(
+      await screen.findByText("Los avisos están activados en este teléfono."),
+    ).toBeOnTheScreen();
+    expect(patches()).toEqual([{ pushTokens: [TOKEN] }]);
+    expect(Notifications.requestPermissionsAsync).toHaveBeenCalledTimes(1);
   });
 
   it("con el permiso ya dado, al entrar registra el token sin preguntar", async () => {
@@ -235,20 +246,32 @@ describe("tocar un aviso", () => {
     expect(Notifications.clearLastNotificationResponse).toHaveBeenCalled();
   });
 
-  it("con la app abierta, tocar el aviso abre esa comida una sola vez", async () => {
+  it("si el aviso que abrió la app llega también por el listener, navega una sola vez", async () => {
+    const response = tapResponse({ type: "analysisReady", mealId: MEAL_ID });
+    mockNotifications.setLastResponse(response);
+    await start(backend(), "/");
+    await waitFor(() => expect(screen).toHavePathname(`/meals/${MEAL_ID}`));
+
+    await act(async () => mockNotifications.tap(response));
+
+    // Un solo push: al volver se llega al inicio, no a otra copia de la comida.
+    await act(async () => router.back());
+    expect(screen).toHavePathname("/");
+  });
+
+  it("con la app abierta, cada toque del mismo aviso abre esa comida", async () => {
     await start(backend(), "/");
     await act(() => Promise.resolve());
 
     const response = tapResponse({ type: "analysisReady", mealId: MEAL_ID });
-    await act(async () => {
-      mockNotifications.tap(response);
-      mockNotifications.tap(response);
-    });
-
+    await act(async () => mockNotifications.tap(response));
     expect(screen).toHavePathname(`/meals/${MEAL_ID}`);
-    // Un solo push: al volver se llega al inicio, no a otra copia de la comida.
+
     await act(async () => router.back());
     expect(screen).toHavePathname("/");
+
+    await act(async () => mockNotifications.tap(response));
+    expect(screen).toHavePathname(`/meals/${MEAL_ID}`);
   });
 
   it("si no se tocó el aviso sino una acción, no navega", async () => {
