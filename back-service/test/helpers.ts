@@ -1,6 +1,7 @@
 import type { AddressInfo } from "node:net";
 import type { Express } from "express";
 import { createLogger } from "@caloria/shared";
+import { createQuotaService } from "../src/services/quota";
 
 export async function listen(app: Express): Promise<{ url: string; close: () => Promise<void> }> {
   const server = app.listen(0, "127.0.0.1");
@@ -71,3 +72,5 @@ export const fixtures = {
   m4aWithoutMoov: () => Buffer.concat([ftyp("M4A ", "M4A "), box("mdat", Buffer.alloc(2048, 4))]),
   text: () => Buffer.from("esto no es una imagen, es texto con extensión .jpg\n".repeat(20)),
 };
+
+export const unlimitedQuota = createQuotaService({ freeMonthlyAnalyses: Number.MAX_SAFE_INTEGER });

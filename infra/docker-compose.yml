@@ -45,6 +45,7 @@ services:
       MONGO_URI: mongodb://mongo:27017/caloria
       REDIS_URL: redis://redis:6379
       JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY}
+      FREE_MONTHLY_ANALYSES: ${FREE_MONTHLY_ANALYSES:?Falta FREE_MONTHLY_ANALYSES}
       <<: *storage-env
     networks:
       - front-back

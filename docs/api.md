@@ -166,8 +166,14 @@ note:  "milanesa con puré"
 - `photo` es obligatoria: JPEG, PNG o HEIC de hasta 8 MB. `audio` es opcional: M4A de hasta 4 MB y 60 s. `note` es opcional, de hasta 500 caracteres. El tipo se detecta por el contenido del archivo, no por la extensión ni el `Content-Type` del cliente.
 - Falta la foto, tipo no permitido, nota de más de 500 caracteres (sea cual sea el largo), un campo de más o un archivo en un campo que no es `photo`/`audio` → 400 `VALIDATION_ERROR`. Un archivo por encima del límite → 413 `PAYLOAD_TOO_LARGE`.
 - El Backend lee la duración del audio del propio archivo (`moov/mvhd`); si no la puede leer o pasa de 60 s → 400.
-- Orden en el Backend: genera el `mealId`, sube la media a `users/{userId}/meals/{mealId}/photo.{jpg|png|heic}` (y `audio.m4a`), crea la comida con `status: "processing"` y `localDate` (el día en la zona del perfil al llegar el pedido) y encola el job `{ mealId, requestId }` con `jobId = mealId`. Responde 202 sin esperar al Worker: con el Worker apagado el job queda en espera.
-- Si falla la subida → 503 `SERVICE_UNAVAILABLE` y no queda nada. Si falla crear la comida → 500 `INTERNAL_ERROR` y se borra la media subida. Si falla encolar (Redis caído) → 503 `SERVICE_UNAVAILABLE`; la comida y la media quedan, con `status: "failed"` y `error.code: "ENQUEUE_FAILED"` para reprocesarla.
+- **Cupo del plan free (RF-14, RF-15):** antes de subir nada, el Backend reserva un análisis del mes con un solo update atómico sobre `users.usage`: suma 1 solo si el mes guardado es el actual y quedan análisis (`FREE_MONTHLY_ANALYSES`, 40 en el plan definido), o reinicia el contador a 1 si cambió el mes. El mes (`YYYY-MM`) es el de la zona del perfil, como `localDate`; no hay cron de reinicio. Si el update no se aplica → 402 `MEAL_QUOTA_EXCEEDED` (no se sube media, no se crea la comida ni se encola) y se loguea con `requestId` y `userId`. El plan se lee de la base, no del JWT. Premium no tiene cupo ni toca el contador. La comida guarda en `quotaMonth` el mes en que consumió.
+
+```json
+{ "error": { "code": "MEAL_QUOTA_EXCEEDED", "message": "Usaste los 40 análisis del plan free de este mes. El cupo se renueva el 1 de diciembre.", "requestId": "a81f…" } }
+```
+
+- Orden en el Backend: reserva el cupo, genera el `mealId`, sube la media a `users/{userId}/meals/{mealId}/photo.{jpg|png|heic}` (y `audio.m4a`), crea la comida con `status: "processing"` y `localDate` (el día en la zona del perfil al llegar el pedido) y encola el job `{ mealId, requestId }` con `jobId = mealId`. Responde 202 sin esperar al Worker: con el Worker apagado el job queda en espera.
+- Si falla la subida → 503 `SERVICE_UNAVAILABLE` y no queda nada. Si falla crear la comida → 500 `INTERNAL_ERROR` y se borra la media subida. Si falla encolar (Redis caído) → 503 `SERVICE_UNAVAILABLE`; la comida y la media quedan, con `status: "failed"` y `error.code: "ENQUEUE_FAILED"` para reprocesarla. En los tres casos se devuelve el cupo reservado (ver [modelo-datos.md](modelo-datos.md#meals)).
 - **Racha (RF-10):** con la comida ya creada, y en paralelo con el encolado, se cuenta el `localDate` en `gamification` (se crea con un upsert la primera vez). Cuenta el registro, no el análisis: vale aunque después el análisis falle. Contra `streak.lastLogDate`: el mismo día no cambia nada; el día anterior (calculado con el calendario sobre `YYYY-MM-DD`, no restando 24 h) suma 1; sin registro previo o con algún día salteado vuelve a 1; un día anterior a `lastLogDate` (cambio de zona) no toca nada. Después se actualiza `best` y `lastLogDate`.
   - Es una sola escritura atómica, condicionada a que `localDate` sea posterior a `lastLogDate`: dos comidas a la vez el mismo día suman una vez. Si el upsert choca con el índice único (dos primeras comidas a la vez), se reintenta una vez.
   - La racha nunca rompe el registro: si falla se loguea con el `requestId` y se responde 202 igual. Se espera como mucho 300 ms; si tarda más, se responde sin esperarla (la escritura sigue).
@@ -359,7 +365,7 @@ Authorization: Bearer <accessToken>
 | 204 | Borrado o logout, sin cuerpo |
 | 400 | Entrada inválida (falla la validación zod) |
 | 401 | Sin token, vencido o inválido |
-| 402 | Cupo del plan free agotado (`MEAL_QUOTA_EXCEEDED`) o función premium |
+| 402 | Cupo del plan free agotado (`MEAL_QUOTA_EXCEEDED`) o función premium con plan free (`PREMIUM_REQUIRED`, middleware `requirePremium`; el plan se lee de la base) |
 | 404 | Recurso inexistente **o de otro usuario** (no se distingue, para no filtrar existencia) |
 | 409 | Email ya registrado, o corrección de una comida que no está `ready` (`MEAL_NOT_READY`) |
 | 413 | Foto o audio superan el límite |

@@ -11,6 +11,7 @@ import { createAuthService } from "./services/auth";
 import { createDashboardService } from "./services/dashboard";
 import { createMealService } from "./services/meals";
 import { createMediaService } from "./services/media";
+import { createQuotaService } from "./services/quota";
 import { createSummaryService } from "./services/summaries";
 import { createUserService } from "./services/users";
 
@@ -22,6 +23,7 @@ async function main() {
   const meals = createMealService({
     media: createMediaService(config.storage),
     queue: createMealAnalysisQueue({ redisUrl: config.redisUrl, logger }),
+    quota: createQuotaService({ freeMonthlyAnalyses: config.freeMonthlyAnalyses }),
   });
   const api = apiRouter({
     auth,

@@ -143,16 +143,16 @@ Endpoints: `GET /meals?date=&cursor=`, `GET /meals/:id`, `DELETE /meals/:id`.
 
 #### RF-14 — Planes
 
-- [ ] Plan free: N análisis por mes calendario. Premium: análisis ilimitados y Wrapped completo.
+- [ ] Plan free: N análisis por mes calendario (N = 40, en `FREE_MONTHLY_ANALYSES`). Premium: análisis ilimitados y Wrapped completo.
 - [ ] El contador se reinicia el día 1 de cada mes.
-- [ ] Un análisis que termina en `failed` no consume cupo: el conteo del mes excluye las comidas `failed`. Así una foto que no es comida (`error.code: "NOT_FOOD"`, #18) no gasta un análisis.
+- [ ] Un análisis que termina en `failed` no consume cupo: el cupo se descuenta al registrar y se devuelve cuando la comida termina `failed`. Así una foto que no es comida (`error.code: "NOT_FOOD"`, #18) no gasta un análisis.
 - [ ] La app muestra los análisis restantes del mes.
 
 #### RF-15 — Feature gating en la API
 
-- [ ] `POST /meals` verifica el cupo en el Backend antes de encolar: sin cupo → 402 `MEAL_QUOTA_EXCEEDED`.
-- [ ] Las funciones premium se verifican en el Backend: sin plan → 402 `PREMIUM_REQUIRED`.
-- [ ] Modificar el cliente no permite saltear los límites (se prueba llamando a la API directamente).
+- [x] `POST /meals` verifica el cupo en el Backend antes de encolar: sin cupo → 402 `MEAL_QUOTA_EXCEEDED`.
+- [x] Las funciones premium se verifican en el Backend: sin plan → 402 `PREMIUM_REQUIRED` (middleware `requirePremium`; hoy ninguna ruta es solo premium, ver decisión abierta 4).
+- [x] Modificar el cliente no permite saltear los límites (se prueba llamando a la API directamente: `back-service/test/quota.test.ts` y `scripts/quota-smoke.sh`).
 
 #### RF-16 — Suscripción
 
@@ -183,7 +183,7 @@ Endpoints: `GET /billing/plan`, `POST /billing/subscribe`.
 
 1. **Datos del perfil:** el esquema de `users` de la presentación solo tiene altura, peso y objetivo, pero RF-02 pide edad y actividad, y la fórmula de metas necesita sexo. En estos documentos se agregaron `sex`, `birthDate`, `activity` y `timezone`.
 2. **Metas de macros:** la presentación guarda solo `kcal` y `proteinG`, pero RF-09 muestra todos los macros. Se agregaron `carbsG` y `fatG`.
-3. **Valor de N:** cuántos análisis por mes tiene el plan free (RF-14).
+3. ~~**Valor de N:** cuántos análisis por mes tiene el plan free (RF-14).~~ Resuelto: N = 40. Se configura con la variable de entorno `FREE_MONTHLY_ANALYSES` (obligatoria en el Back, sin valor por defecto en el código).
 4. **Qué ve el free del Wrapped:** el premium tiene "Wrapped completo", pero no está definido qué parte ve el free.
 5. **Precio del premium** y proveedor de pagos sandbox (Stripe test mode, Mercado Pago sandbox).
 6. **Código HTTP para cupo agotado:** la presentación no lo define. Se propone 402.

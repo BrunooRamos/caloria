@@ -243,8 +243,21 @@ describe("back-service: configuración", () => {
       MONGO_URI: "mongodb://x",
       REDIS_URL: "redis://x:6379",
       JWT_PRIVATE_KEY: pem,
+      FREE_MONTHLY_ANALYSES: "30",
       ...storageEnv,
     });
     assert.equal(config.jwtPrivateKey.type, "private");
+    assert.equal(config.freeMonthlyAnalyses, 30);
+  });
+
+  it("no arranca sin FREE_MONTHLY_ANALYSES o con un valor que no es entero", () => {
+    const base = { MONGO_URI: "mongodb://x", REDIS_URL: "redis://x:6379", JWT_PRIVATE_KEY: pem };
+    assert.throws(() => loadConfig({ ...base, ...storageEnv }), /FREE_MONTHLY_ANALYSES/);
+    for (const bad of ["-1", "2.5", "diez"]) {
+      assert.throws(
+        () => loadConfig({ ...base, ...storageEnv, FREE_MONTHLY_ANALYSES: bad }),
+        /FREE_MONTHLY_ANALYSES/,
+      );
+    }
   });
 });
