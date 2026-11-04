@@ -8,6 +8,7 @@ import {
   loadPrivateKey,
   loadPublicKey,
   loginSchema,
+  logoutSchema,
   MAX_PUSH_TOKENS,
   refreshSchema,
   registerSchema,
@@ -199,6 +200,26 @@ describe("refreshSchema", () => {
       { refreshToken: "abc", otro: 1 },
     ]) {
       assert.equal(refreshSchema.safeParse(body).success, false, JSON.stringify(body));
+    }
+  });
+});
+
+describe("logoutSchema", () => {
+  it("acepta el refresh solo o con el push token del dispositivo", () => {
+    assert.deepEqual(logoutSchema.parse({ refreshToken: "abc_-9" }), { refreshToken: "abc_-9" });
+    const withToken = { refreshToken: "abc", pushToken: "ExponentPushToken[abc_DEF-123]" };
+    assert.deepEqual(logoutSchema.parse(withToken), withToken);
+  });
+
+  it("rechaza un refresh inválido, un push token que no es de Expo o campos extra", () => {
+    for (const body of [
+      {},
+      { refreshToken: "a b" },
+      { refreshToken: "abc", pushToken: "no-es-un-token" },
+      { refreshToken: "abc", pushToken: ["ExponentPushToken[abc]"] },
+      { refreshToken: "abc", pushTokens: ["ExponentPushToken[abc]"] },
+    ]) {
+      assert.equal(logoutSchema.safeParse(body).success, false, JSON.stringify(body));
     }
   });
 });

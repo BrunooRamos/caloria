@@ -20,6 +20,7 @@ export {
   emailSchema,
   expoPushTokenSchema,
   loginSchema,
+  logoutSchema,
   MAX_PUSH_TOKENS,
   NOTIFICATION_TYPES,
   notificationsSchema,
@@ -36,6 +37,7 @@ export {
 export type {
   AuthResponse,
   LoginInput,
+  LogoutInput,
   MeResponse,
   NotificationPreferences,
   NotificationType,

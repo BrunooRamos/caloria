@@ -42,7 +42,21 @@ export function updateNotifications(changes: Partial<NotificationPreferences>): 
   return api.patch<Me>("/users/me", { notifications: changes });
 }
 
+let devicePushToken: string | null = null;
+
 /** El Backend suma el token a los que ya tiene: cada dispositivo manda solo el suyo. */
-export function registerPushToken(token: string): Promise<Me> {
-  return api.patch<Me>("/users/me", { pushTokens: [token] });
+export async function registerPushToken(token: string): Promise<Me> {
+  const me = await api.patch<Me>("/users/me", { pushTokens: [token] });
+  devicePushToken = token;
+  return me;
+}
+
+/**
+ * El token que este dispositivo registró en la cuenta abierta, para sacarlo al cerrar sesión.
+ * Se toma una sola vez: la próxima cuenta lo registra de nuevo al entrar.
+ */
+export function takeDevicePushToken(): string | null {
+  const token = devicePushToken;
+  devicePushToken = null;
+  return token;
 }

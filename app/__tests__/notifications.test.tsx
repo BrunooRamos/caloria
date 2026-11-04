@@ -5,6 +5,7 @@ import { Linking } from "react-native";
 import type { Profile } from "@/services/auth";
 import { createHttpClient } from "@/services/http-client";
 import type { HttpClient } from "@/services/http-client";
+import { takeDevicePushToken } from "@/services/users";
 import type { Me, NotificationPreferences } from "@/services/users";
 import {
   BASE_URL,
@@ -91,6 +92,7 @@ function backend(patch: Handler = () => json(200, me())): Handler {
     if (call.path === "/auth/refresh") return json(200, { ...NEW_TOKENS });
     if (call.path === "/users/me" && call.method === "GET") return json(200, me());
     if (call.path === "/users/me" && call.method === "PATCH") return patch(call);
+    if (call.path === "/auth/logout") return new Response(null, { status: 204 });
     return apiError(404, "NOT_FOUND");
   };
 }
@@ -110,6 +112,7 @@ const patches = () =>
 
 beforeEach(() => {
   mockNotifications.reset();
+  takeDevicePushToken();
   jest.clearAllMocks();
 });
 
@@ -191,6 +194,35 @@ describe("permiso y token", () => {
 
     expect(patches()).toEqual([]);
     expect(Notifications.requestPermissionsAsync).not.toHaveBeenCalled();
+  });
+});
+
+describe("cerrar sesión", () => {
+  const logoutBody = () =>
+    JSON.parse(String(calls.find((call) => call.path === "/auth/logout")?.body)) as object;
+
+  async function signOut() {
+    await fireEvent.press(await screen.findByText("Cerrar sesión"));
+    await fireEvent.press(screen.getByText("Sí, cerrar sesión"));
+    await waitFor(() => expect(screen).toHavePathname("/login"));
+  }
+
+  it("si este teléfono no registró un token, manda solo el refresh", async () => {
+    await start(backend(), "/profile");
+
+    await signOut();
+
+    expect(logoutBody()).toEqual({ refreshToken: NEW_TOKENS.refreshToken });
+  });
+
+  it("manda el token registrado para que el teléfono deje de recibir los avisos", async () => {
+    mockNotifications.setPermission(GRANTED);
+    await start(backend(), "/profile");
+    await waitFor(() => expect(patches()).toEqual([{ pushTokens: [TOKEN] }]));
+
+    await signOut();
+
+    expect(logoutBody()).toEqual({ refreshToken: NEW_TOKENS.refreshToken, pushToken: TOKEN });
   });
 });
 

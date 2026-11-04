@@ -296,6 +296,52 @@ describe("back-service: POST /auth/refresh y /auth/logout", () => {
     assert.equal((await logout(accessToken, randomBytes(32).toString("base64url"))).status, 204);
   });
 
+  it("logout con pushToken saca ese token de la cuenta y deja los de otros dispositivos", async () => {
+    const phone = "ExponentPushToken[phone]";
+    const tablet = "ExponentPushToken[tablet]";
+    const { user, accessToken, refreshToken } = await register();
+    await User.updateOne({ _id: user.id }, { $set: { pushTokens: [tablet, phone] } });
+
+    const res = await post("logout", { refreshToken, pushToken: phone }, accessToken);
+    assert.equal(res.status, 204);
+    assert.deepEqual((await User.findById(user.id).lean())?.pushTokens, [tablet]);
+    assert.ok((await sessionOf(refreshToken))?.revokedAt);
+  });
+
+  it("logout con pushToken lo saca aunque la sesión ya estuviera revocada", async () => {
+    const phone = "ExponentPushToken[phone]";
+    const { user, accessToken, refreshToken } = await register();
+    await logout(accessToken, refreshToken);
+    await User.updateOne({ _id: user.id }, { $set: { pushTokens: [phone] } });
+
+    const res = await post("logout", { refreshToken, pushToken: phone }, accessToken);
+    assert.equal(res.status, 204);
+    assert.deepEqual((await User.findById(user.id).lean())?.pushTokens, []);
+  });
+
+  it("logout con el pushToken de otra cuenta no lo toca", async () => {
+    const shared = "ExponentPushToken[shared]";
+    const cami = await register();
+    const juan = await register("juan@example.com");
+    await User.updateOne({ _id: juan.user.id }, { $set: { pushTokens: [shared] } });
+
+    const res = await post(
+      "logout",
+      { refreshToken: cami.refreshToken, pushToken: shared },
+      cami.accessToken,
+    );
+    assert.equal(res.status, 204);
+    assert.deepEqual((await User.findById(juan.user.id).lean())?.pushTokens, [shared]);
+  });
+
+  it("logout con un pushToken inválido → 400 y no revoca", async () => {
+    const { accessToken, refreshToken } = await register();
+    const res = await post("logout", { refreshToken, pushToken: "no-es-un-token" }, accessToken);
+    assert.equal(res.status, 400);
+    assert.equal((await errorOf(res)).code, "VALIDATION_ERROR");
+    assert.equal((await sessionOf(refreshToken))?.revokedAt, undefined);
+  });
+
   it("logout sin access token, con uno inválido o vencido → 401 y no revoca", async () => {
     const { user, refreshToken } = await register();
     const expired = jwt.sign({ plan: "free" }, privateKey, {

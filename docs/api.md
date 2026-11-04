@@ -9,7 +9,7 @@ REST + JSON, versionada en `/api/v1`. El Front Service expone los mismos endpoin
 | POST | `/auth/register` | Pública | Alta con email, password y perfil inicial | 201 | RF-01, RF-02 |
 | POST | `/auth/login` | Pública | Devuelve `accessToken` (15 min) + `refreshToken` (30 d) | 200 | RF-01 |
 | POST | `/auth/refresh` | Refresh token | Rota el par de tokens | 200 | RF-01 |
-| POST | `/auth/logout` | JWT | Revoca la familia del `refreshToken` del body | 204 | RF-01 |
+| POST | `/auth/logout` | JWT | Revoca la familia del `refreshToken` del body y saca el `pushToken`, si viene | 204 | RF-01, RF-13 |
 | GET | `/users/me` | JWT | Perfil, metas diarias y plan vigente | 200 | RF-02 |
 | PATCH | `/users/me` | JWT | Edita perfil o preferencias (tono, push tokens); recalcula metas | 200 | RF-02, RF-11, RF-13 |
 | DELETE | `/users/me` | JWT | Borrado total de cuenta, media y documentos | 204 | RNF-04 |
@@ -88,10 +88,12 @@ POST /api/v1/auth/logout
 Authorization: Bearer <accessToken>
 Content-Type: application/json
 
-{ "refreshToken": "…" }
+{ "refreshToken": "…", "pushToken": "ExponentPushToken[xxxx]" }
 ```
 
 Revoca la familia de ese refresh si pertenece al usuario del access y responde 204 sin cuerpo. Es idempotente: si el refresh no existe, es de otro usuario o la familia ya estaba revocada, también responde 204 (sin revocar nada ajeno). Las otras familias del usuario (otros dispositivos) siguen activas.
+
+- `pushToken` (opcional, RF-13): el token de Expo de este dispositivo. Se saca de la cuenta para que el teléfono deje de recibir sus avisos, aunque la sesión ya estuviera revocada. Solo toca la cuenta del access: si el token es de otra cuenta, no se modifica. Mal formado → 400 `VALIDATION_ERROR` y no se revoca nada.
 
 ### Validación en el Front
 
