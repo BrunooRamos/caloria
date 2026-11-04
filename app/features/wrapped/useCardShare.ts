@@ -57,19 +57,21 @@ export function useCardShare(week: string) {
   const capturing = useRef<WrappedCard | null>(null);
   const current = useRef<string | null>(null);
   const leftover = useRef<string | null>(null);
+  const mounted = useRef(true);
 
   const discard = useCallback((ref: { current: string | null }) => {
     if (ref.current) deleteTempFile(ref.current);
     ref.current = null;
   }, []);
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
       discard(current);
       discard(leftover);
-    },
-    [discard],
-  );
+    };
+  }, [discard]);
 
   const start = useCallback(
     (card: WrappedCard) => {
@@ -89,6 +91,10 @@ export function useCardShare(week: string) {
         result: "tmpfile",
         ...(Platform.OS === "android" ? sizes.shareImage : {}),
       });
+      if (!mounted.current) {
+        deleteTempFile(toFileUri(path));
+        return;
+      }
       current.current = renameCapture(path, shareFileName(week, card.kind));
       setState({ status: "preview", card, uri: current.current });
     } catch {

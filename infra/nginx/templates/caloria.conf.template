@@ -1,0 +1,35 @@
+# La imagen de nginx reemplaza ${DOMAIN} y ${HSTS_MAX_AGE} al arrancar (NGINX_ENVSUBST_FILTER
+# deja afuera cualquier otra variable). Las de nginx, como $request_uri, quedan como están.
+
+# 80: solo el desafío de Let's Encrypt. Todo lo demás redirige a HTTPS con la misma ruta y query.
+server {
+  listen 80 default_server;
+  server_name ${DOMAIN};
+
+  location ^~ /.well-known/acme-challenge/ {
+    root /var/www/certbot;
+    default_type text/plain;
+    try_files $uri =404;
+  }
+
+  # Al dominio configurado y no a $host, para no redirigir a un Host que mande el cliente.
+  location / {
+    return 301 https://${DOMAIN}$request_uri;
+  }
+}
+
+server {
+  listen 443 ssl default_server;
+  http2 on;
+  server_name ${DOMAIN};
+
+  # Symlinks que arma 40-caloria-tls.sh: Let's Encrypt, mkcert o el certificado temporal.
+  ssl_certificate /etc/nginx/tls/fullchain.pem;
+  ssl_certificate_key /etc/nginx/tls/privkey.pem;
+
+  # HSTS corto y sin includeSubDomains ni preload hasta validar HTTPS (ver docs/arquitectura.md):
+  # un navegador que lo recibe se niega a entrar por HTTP durante todo el max-age.
+  add_header Strict-Transport-Security "max-age=${HSTS_MAX_AGE}" always;
+
+  include /etc/nginx/caloria/api.conf;
+}

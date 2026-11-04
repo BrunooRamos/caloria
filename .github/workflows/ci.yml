@@ -27,7 +27,8 @@ jobs:
       - run: npm run lint -- --max-warnings 0
       - run: npm run format:check
 
-  # nginx -t y smoke test de los límites de POST /meals, con un stub del Front.
+  # nginx -t y smoke test de HTTPS (redirección, desafío ACME, TLS, HSTS, cambio de certificado) y de
+  # los límites de POST /meals, con un stub del Front.
   nginx:
     name: nginx (config + smoke)
     runs-on: ubuntu-latest

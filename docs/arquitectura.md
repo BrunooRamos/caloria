@@ -38,11 +38,13 @@ Firewall **default deny**: todo cerrado salvo estas reglas.
 | Origen → Destino | Protocolo · Puerto | Regla |
 |---|---|---|
 | App → nginx | HTTPS · 443 | Permitida |
+| Internet → nginx | HTTP · 80 | Solo el desafío de Let's Encrypt (`/.well-known/acme-challenge/`); todo lo demás recibe un 301 a HTTPS |
+| certbot → Let's Encrypt | HTTPS · 443 egreso | Permitida. certbot está solo en la red `certbot-egress`: no ve a ningún otro servicio y comparte con nginx únicamente los volúmenes del certificado y del webroot |
 | nginx → Front Service | HTTP · 3000 | Permitida (dentro de la DMZ) |
 | Front Service → Backend | HTTPS · 4000 (mTLS) | Permitida: **único cruce DMZ → red segura** |
 | Backend / Worker → MongoDB | Mongo wire · 27017 | Permitida (interna) |
 | Backend / Worker → Redis | RESP · 6379 | Permitida (interna) |
-| Worker → IA, Expo Push | HTTPS · 443 egreso | Permitida (allowlist de dominios). En `docker compose`, solo el Worker está en una red con salida (`worker-egress`); Mongo, Redis y MinIO quedan en la red `interna` (`internal: true`) |
+| Worker → IA, Expo Push | HTTPS · 443 egreso | Permitida (allowlist de dominios). En `docker compose`, de la red segura solo el Worker está en una red con salida (`worker-egress`); Mongo, Redis y MinIO quedan en la red `interna` (`internal: true`). certbot tiene su propia salida (`certbot-egress`), sin acceso a nada más |
 | Worker / Backend → storage | HTTPS · 443 | Permitida |
 | Internet → Front o Backend directo | 3000 · 4000 | Denegada |
 | Front Service → MongoDB / Redis | 27017 · 6379 | Denegada |
@@ -50,12 +52,53 @@ Firewall **default deny**: todo cerrado salvo estas reglas.
 
 ## Protocolos
 
-- **HTTPS:** todo el tráfico cliente-servidor cifrado. Certificado Let's Encrypt con renovación automática en nginx; el puerto 80 solo redirige a 443.
+- **HTTPS:** todo el tráfico cliente-servidor cifrado (RNF-03). Certificado Let's Encrypt con renovación automática en nginx; el puerto 80 solo redirige a 443, salvo el desafío de Let's Encrypt. Detalle en [HTTPS y certificados](#https-y-certificados).
 - **REST + JSON:** API versionada en la ruta (`/api/v1`), recursos sustantivos, verbos en el método HTTP y códigos estándar.
 - **multipart/form-data:** subida de foto (≤ 8 MB) y audio (≤ 60 s) en `POST /meals`. Límites validados en nginx y en la API.
 - **DNS:** `api.caloria.app` → registro A/AAAA a la IP pública de la DMZ. Los hosts de la red segura no tienen DNS público.
 - **Cola interna (Redis):** solo dentro de la red segura, nunca atraviesa Internet.
 - **Expo Push:** notificaciones servidor → app (análisis listo, racha en riesgo, Wrapped disponible). Las manda el Worker por HTTPS a `exp.host` (`services/push.ts`), solo a los tipos que el usuario tiene prendidos en `users.notifications`. Los receipts se consultan 15 min después con un job demorado en la cola `push-receipts`, y los tokens que Expo marca como inválidos se borran del usuario.
+
+## HTTPS y certificados
+
+nginx termina TLS para toda la API. Los comandos para configurarlo están en el [README](../README.md#https); acá, cómo funciona.
+
+**Configuración (`infra/nginx/`).** `nginx.conf` es la base: rate limit, el `map` del `requestId` y TLS. Los `server` salen de `templates/caloria.conf.template`, que la imagen oficial de nginx procesa al arrancar con `DOMAIN` y `HSTS_MAX_AGE` de `infra/.env` (`NGINX_ENVSUBST_FILTER` deja afuera cualquier otra variable). Las rutas de la API están en `api.conf`, que usan el 443 y el listener HTTP de desarrollo (`dev.conf`, solo en `docker-compose.dev.yml`, en el 8080).
+
+- **80:** sirve `/.well-known/acme-challenge/` desde el webroot que comparte con certbot y responde `301 https://$DOMAIN$request_uri` a todo lo demás. Redirige al dominio configurado y no al `Host` del pedido.
+- **443:** TLS 1.2 y 1.3 con los cifrados del perfil "intermediate" de Mozilla (guía 6.0), HTTP/2, sin session tickets y sin OCSP stapling, porque Let's Encrypt dejó de publicar OCSP en 2025.
+- **HSTS:** `max-age=$HSTS_MAX_AGE` (300 por defecto), sin `includeSubDomains` ni `preload`, también en los 413 y 429 que arma nginx (`add_header_inherit merge`). Se sube de a poco cuando HTTPS está validado, porque un navegador que lo recibió se niega a entrar por HTTP durante todo el `max-age`.
+
+**Arranque sin certificado.** nginx no levanta si los archivos del certificado no existen, y Let's Encrypt no emite si nginx no responde el desafío. Por eso nginx nunca apunta a los archivos de Let's Encrypt: usa `/etc/nginx/tls/{fullchain,privkey}.pem`, symlinks que arma `infra/nginx/tls.sh` (en `/docker-entrypoint.d/`, antes de que arranque nginx) al primero que exista de:
+
+1. `/etc/letsencrypt/live/$DOMAIN/`: el de Let's Encrypt (volumen `letsencrypt`).
+2. `/etc/nginx/certs/local/`: uno propio, por ejemplo de mkcert (`infra/certs/local/`, ignorado por git).
+3. `/etc/nginx/bootstrap/`: un autofirmado temporal que genera `tls-init` (`infra/nginx/tls-init.sh`) antes de que arranque nginx. Corre con la imagen de certbot porque la de nginx no trae openssl.
+
+Así, en un servidor limpio, `docker compose up` levanta nginx enseguida con el temporal, certbot pide el real y nginx pasa a usarlo solo. Como el temporal no está en `/etc/letsencrypt`, certbot encuentra el directorio limpio y no termina creando `dominio-0001`.
+
+**Emisión y renovación (`infra/certbot/certbot.sh`, perfil `letsencrypt`).**
+
+- Si no hay certificado para `DOMAIN`, o es de otro servidor (al pasar de staging a producción), certbot lo pide con `certonly --webroot`.
+- Antes de llamar a Let's Encrypt, comprueba que `http://$DOMAIN/.well-known/acme-challenge/` llegue a este nginx, para que un DNS mal configurado no gaste intentos fallidos (Let's Encrypt corta a los 5 por hora). Si falla, reintenta cada 15 minutos.
+- Después corre `certbot renew` cada 12 h, que renueva cuando falta poco para el vencimiento.
+- `LETSENCRYPT_STAGING=1` (el default) usa staging.
+
+**Recarga.** `tls.sh` deja un loop en el contenedor de nginx que cada 60 s compara el hash del certificado elegido. Si cambió (la primera emisión o una renovación), rehace los symlinks y corre `nginx -t` y `nginx -s reload`. La recarga es gradual: arrancan workers con el certificado nuevo y los viejos terminan sus conexiones antes de salir. Si el certificado nuevo no pasa `nginx -t`, sigue el anterior. certbot no recarga nginx por su cuenta, porque para eso necesitaría el socket de Docker, que da control del host.
+
+**Sin dominio.**
+
+| Opción | Cuándo conviene | Límite principal |
+|---|---|---|
+| Quick tunnel de Cloudflare (perfil `tunnel`) | Probar o mostrar la app desde cualquier red, sin cuenta | URL nueva en cada arranque, sin SLA, 200 requests en vuelo |
+| ngrok (dominio gratis de la cuenta) | Demo con un build instalado: la URL no cambia | 20.000 requests y 1 GB por mes en el plan gratis |
+| Autofirmado o mkcert | Probar nginx o desarrollar en local | iOS y Android lo rechazan sin instalar la CA: no sirve para la app |
+
+Los dos túneles dan un certificado válido en su borde y llegan al 443 de nginx (cloudflared verifica el certificado temporal con `--origin-ca-pool`), así que siguen aplicando los límites de nginx y HSTS. Como todo el tráfico llega desde la IP del túnel, el rate limit de `/auth` es compartido entre todos los clientes.
+
+**App.** Un build que no es de desarrollo no arranca si `EXPO_PUBLIC_API_URL` no es `https` (`app/services/api-url.ts`). Android tiene `usesCleartextTraffic: false` (`expo-build-properties`), salvo en los builds de debug, donde Expo lo deja en `true` para Metro. iOS ya bloquea HTTP por ATS (`NSAllowsArbitraryLoads: false`).
+
+**Fuera de alcance.** El mTLS entre el Front y el Backend es la decisión abierta 9. Las URLs firmadas de la media salen de `S3_PUBLIC_ENDPOINT`: para que esas descargas también vayan cifradas, en producción tiene que ser un endpoint HTTPS (el bucket gestionado previsto). Con MinIO dentro de `docker compose`, quedaría en HTTP y además sin publicar.
 
 ## Flujo central: registrar una comida
 
@@ -96,6 +139,7 @@ En local, `npm run wrapped -- --week 2026-W43` (en `back-service/`) encola un fa
 |---|---|---|
 | App móvil | iOS y Android | EAS Build → TestFlight / APK interno |
 | nginx, Front, Backend, Worker, Redis | A definir (DigitalOcean previsto) | GitHub Actions: build de imágenes → `docker compose` en cada merge a `main` |
+| Certificado TLS | Volumen `letsencrypt` en el servidor | certbot (perfil `letsencrypt`) lo emite y lo renueva, y nginx lo recarga solo (ver [HTTPS y certificados](#https-y-certificados)). Requiere un DNS A/AAAA del dominio y el 80 y el 443 abiertos |
 | MongoDB | A definir | Backups programados |
 | Storage | MinIO en `docker compose` (local); bucket gestionado compatible con S3 en prod (DO Spaces previsto) | Acceso solo con credenciales de Backend y Worker. Las URLs se firman con `S3_PUBLIC_ENDPOINT`, el host que alcanza la app |
 
