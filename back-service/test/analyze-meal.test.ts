@@ -357,6 +357,10 @@ describe("back-service: análisis con IA", () => {
           model: "gpt-transcribe",
           fetch: unauthorized,
         }),
+        commenter: fakeCommenter().commenter,
+        identifier: fakeIdentifier().identifier,
+        notifications: { notify: async () => "noDevices" },
+        similarMeals: createMongoSimilarMealsFinder(),
       }),
     });
     const { logger, lines } = captureLogger("worker");
