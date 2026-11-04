@@ -61,6 +61,9 @@
           "android": {
             "usesCleartextTraffic": false
           }
+        }
+      ],
+      [
         "expo-notifications",
         {
           "icon": "./assets/android-icon-monochrome.png",
