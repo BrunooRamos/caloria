@@ -14,7 +14,8 @@ import {
 import { loadWorkerConfig } from "../src/config/worker";
 import { createAnalyzeMeal, NOT_FOOD } from "../src/jobs/analyze-meal";
 import { createMealAnalysisProcessor } from "../src/jobs/meal-analysis-processor";
-import { createMealAnalysisHandler } from "../src/jobs/meal-analysis-worker";
+import { MEAL_ANALYSIS_JOB_OPTIONS } from "../src/jobs/meal-analysis";
+import { ANALYSIS_FAILED, createMealAnalysisHandler } from "../src/jobs/meal-analysis-worker";
 import { MealModel } from "../src/models/Meal";
 import { UserModel } from "../src/models/User";
 import type { User } from "../src/models/User";
@@ -294,7 +295,7 @@ describe("back-service: análisis con IA", () => {
       const data = { mealId: meal.id, requestId: REQUEST_ID };
 
       await assert.rejects(
-        handle({ data, attemptsMade: 0, opts: { attempts: 4 } }),
+        handle({ data, attemptsMade: 0, opts: { attempts: MEAL_ANALYSIS_JOB_OPTIONS.attempts } }),
         InvalidVisionResponseError,
       );
       const saved = await MealModel.findById(meal.id).lean();
@@ -317,6 +318,76 @@ describe("back-service: análisis con IA", () => {
       assert.ok(!JSON.stringify(lines).includes(DISH));
     });
   }
+
+  it("con una clave de OpenAI inválida, reintenta y al final queda failed sin perder la media", async () => {
+    const meal = await createMeal();
+    const calls: string[] = [];
+    // OpenAI responde 401 a cada pedido.
+    const unauthorized: typeof fetch = async (url) => {
+      calls.push(String(url));
+      return new Response(
+        JSON.stringify({
+          error: { message: "Incorrect API key provided", code: "invalid_api_key" },
+        }),
+        { status: 401, headers: { "content-type": "application/json" } },
+      );
+    };
+    const prompt = { version: "1.2.3", system: "PROMPT DE SISTEMA" };
+    const removed: string[] = [];
+    const media: MediaService = {
+      ...fakeMedia(PHOTO),
+      remove: async (key) => {
+        removed.push(key);
+      },
+      removeUserMedia: async (userId) => {
+        removed.push(userId);
+      },
+    };
+    const processor = createMealAnalysisProcessor({
+      media,
+      analyze: createAnalyzeMeal({
+        vision: createOpenAiVision({
+          apiKey: "sk-invalida",
+          model: "gpt-6-luna",
+          prompt,
+          fetch: unauthorized,
+        }),
+        transcriber: createOpenAiTranscription({
+          apiKey: "sk-invalida",
+          model: "gpt-transcribe",
+          fetch: unauthorized,
+        }),
+        commenter: fakeCommenter().commenter,
+        identifier: fakeIdentifier().identifier,
+        notifications: { notify: async () => "noDevices" },
+        similarMeals: createMongoSimilarMealsFinder(),
+      }),
+    });
+    const { logger, lines } = captureLogger("worker");
+    const handle = createMealAnalysisHandler(processor, logger);
+    const data = { mealId: meal.id, requestId: REQUEST_ID };
+    const opts = { attempts: MEAL_ANALYSIS_JOB_OPTIONS.attempts };
+
+    for (let attemptsMade = 0; attemptsMade < opts.attempts; attemptsMade++) {
+      await assert.rejects(handle({ data, attemptsMade, opts }), { status: 401 });
+    }
+
+    // Un pedido a la API de visión por intento: el SDK no reintenta por su cuenta.
+    assert.equal(calls.filter((url) => url.endsWith("/responses")).length, opts.attempts);
+    const failures = lines.filter((line) => line.msg === "job de análisis falló");
+    assert.deepEqual(
+      failures.map((line) => line.willRetry),
+      [true, true, false],
+    );
+    const saved = await MealModel.findById(meal.id).lean();
+    assert.equal(saved?.status, "failed");
+    assert.deepEqual(saved?.error, { code: ANALYSIS_FAILED });
+    assert.equal(saved?.attempts, 3);
+    assert.deepEqual(saved?.media, meal.toObject().media);
+    assert.deepEqual(removed, []);
+    // La clave no va al log.
+    assert.ok(!JSON.stringify(lines).includes("sk-invalida"));
+  });
 
   it("si no es comida, queda failed con NOT_FOOD y el job termina sin error", async () => {
     const meal = await createMeal();
@@ -767,7 +838,7 @@ describe("back-service: análisis con IA", () => {
       const job = {
         data: { mealId: meal.id, requestId: REQUEST_ID },
         attemptsMade: 0,
-        opts: { attempts: 4 },
+        opts: { attempts: MEAL_ANALYSIS_JOB_OPTIONS.attempts },
       };
 
       await assert.rejects(handle(job), InvalidVisionResponseError);
@@ -790,7 +861,7 @@ describe("back-service: análisis con IA", () => {
         handle({
           data: { mealId: meal.id, requestId: REQUEST_ID },
           attemptsMade: 0,
-          opts: { attempts: 4 },
+          opts: { attempts: MEAL_ANALYSIS_JOB_OPTIONS.attempts },
         }),
         /transcripción caída/,
       );

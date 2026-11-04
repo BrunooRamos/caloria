@@ -103,7 +103,7 @@ Antes de llamar a la IA, el Worker busca hasta 5 comidas `ready` y corregidas de
 |---|---|---|
 | `ENQUEUE_FAILED` | Backend | No se pudo encolar el análisis (Redis caído). Reprocesable |
 | `NOT_FOOD` | Worker | La IA dice que la foto no es comida. Sin reintento y no consume cupo |
-| `ANALYSIS_FAILED` | Worker | Se agotaron los reintentos del análisis (RNF-02). Reservado: lo escribe #35 |
+| `ANALYSIS_FAILED` | Worker | Falló el último de los 3 intentos del análisis (2 reintentos con backoff exponencial de 5 y 10 s, RNF-02). La media queda en el bucket |
 
 ## `weekly_summaries`
 

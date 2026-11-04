@@ -22,6 +22,7 @@ import type { MealAnalysisJob, MealAnalysisQueue } from "../src/jobs/meal-analys
 import { createMealAnalysisProcessor } from "../src/jobs/meal-analysis-processor";
 import type { MealAnalysisInput } from "../src/jobs/meal-analysis-processor";
 import {
+  ANALYSIS_FAILED,
   createMealAnalysisHandler,
   createMealAnalysisWorker,
 } from "../src/jobs/meal-analysis-worker";
@@ -47,6 +48,7 @@ const workerEnv = {
 function fakeMedia() {
   const objects = new Map<string, Uint8Array>();
   const downloads: string[] = [];
+  const removed: string[] = [];
   let fails = false;
   const media: MediaService = {
     async download(key) {
@@ -57,14 +59,21 @@ function fakeMedia() {
       return body;
     },
     upload: () => Promise.reject(new Error("el worker no sube")),
-    remove: () => Promise.reject(new Error("el worker no borra")),
-    removeUserMedia: () => Promise.reject(new Error("el worker no borra")),
+    remove: (key) => {
+      removed.push(key);
+      return Promise.reject(new Error("el worker no borra"));
+    },
+    removeUserMedia: (key) => {
+      removed.push(key);
+      return Promise.reject(new Error("el worker no borra"));
+    },
     signedUrl: () => Promise.reject(new Error("el worker no firma")),
   };
   return {
     media,
     objects,
     downloads,
+    removed,
     failNext(value = true) {
       fails = value;
     },
@@ -269,7 +278,7 @@ describe("back-service: worker de análisis", () => {
       assert.equal(log.mealId, meal.id);
       assert.equal(log.requestId, REQUEST_ID);
       assert.equal(log.attempt, 1);
-      assert.equal(log.maxAttempts, 4);
+      assert.equal(log.maxAttempts, 3);
       assert.equal(log.outcome, "analyzed");
       assert.equal(typeof log.durationMs, "number");
       // Ni la nota ni la media van al log.
@@ -286,7 +295,7 @@ describe("back-service: worker de análisis", () => {
       const data = { mealId: meal.id, requestId: REQUEST_ID };
 
       await assert.rejects(handle({ data, attemptsMade: 0, opts }), /bucket no disponible/);
-      await assert.rejects(handle({ data, attemptsMade: 3, opts }), /bucket no disponible/);
+      await assert.rejects(handle({ data, attemptsMade: 2, opts }), /bucket no disponible/);
       const failures = lines.filter((line) => line.msg === "job de análisis falló");
       assert.equal(failures.length, 2);
       const [first, last] = failures as Record<string, unknown>[];
@@ -297,8 +306,85 @@ describe("back-service: worker de análisis", () => {
       assert.equal(first.willRetry, true);
       assert.equal(typeof first.durationMs, "number");
       assert.equal((first.err as { message: string }).message, "bucket no disponible");
-      assert.equal(last.attempt, 4);
+      assert.equal(last.attempt, 3);
       assert.equal(last.willRetry, false);
+    });
+  });
+
+  describe("reintentos agotados (RNF-02)", () => {
+    const opts = { attempts: MEAL_ANALYSIS_JOB_OPTIONS.attempts };
+
+    it("2 reintentos con backoff exponencial", () => {
+      assert.equal(MEAL_ANALYSIS_JOB_OPTIONS.attempts, 3);
+      assert.deepEqual(MEAL_ANALYSIS_JOB_OPTIONS.backoff, { type: "exponential", delay: 5_000 });
+    });
+
+    it("sigue en processing hasta el último intento y ahí queda failed con ANALYSIS_FAILED", async () => {
+      const meal = await createMeal({ audio: true });
+      bucket.failNext();
+      const { logger, lines } = captureLogger("worker");
+      const handle = createMealAnalysisHandler(processor, logger);
+      const data = { mealId: meal.id, requestId: REQUEST_ID };
+
+      for (let attemptsMade = 0; attemptsMade < 2; attemptsMade++) {
+        await assert.rejects(handle({ data, attemptsMade, opts }), /bucket no disponible/);
+        const stored = await MealModel.findById(meal.id).lean();
+        assert.equal(stored?.status, "processing");
+        assert.equal(stored?.attempts, attemptsMade + 1);
+        assert.equal(stored?.error, undefined);
+      }
+      await assert.rejects(handle({ data, attemptsMade: 2, opts }), /bucket no disponible/);
+
+      const stored = await MealModel.findById(meal.id).lean();
+      assert.equal(stored?.status, "failed");
+      assert.deepEqual(stored?.error, { code: ANALYSIS_FAILED });
+      assert.equal(stored?.attempts, 3);
+      // La media sigue en el bucket y en la meal.
+      assert.deepEqual(stored?.media, meal.toObject().media);
+      assert.deepEqual(bucket.removed, []);
+      const log = lines.find(
+        (line) => line.msg === "se agotaron los reintentos: la comida queda en failed",
+      );
+      assert.equal(log?.level, "warn");
+      assert.equal(log?.mealId, meal.id);
+      assert.equal(log?.errorCode, ANALYSIS_FAILED);
+    });
+
+    for (const status of ["ready", "failed"] as const) {
+      it(`no pisa una meal que ya está en ${status}`, async () => {
+        const meal = await createMeal({ status });
+        const { logger } = captureLogger("worker");
+        const failing = () => Promise.reject(new Error("IA caída"));
+        const handle = createMealAnalysisHandler(failing, logger);
+        const data = { mealId: meal.id, requestId: REQUEST_ID };
+
+        await assert.rejects(handle({ data, attemptsMade: 2, opts }), /IA caída/);
+        const stored = await MealModel.findById(meal.id).lean();
+        assert.equal(stored?.status, status);
+        assert.equal(stored?.attempts, 0);
+        assert.equal(stored?.error, undefined);
+      });
+    }
+
+    it("si Mongo falla al registrar el intento, el job igual tira el error original", async () => {
+      const meal = await createMeal();
+      const { logger, lines } = captureLogger("worker");
+      const failing = () => Promise.reject(new Error("IA caída"));
+      const handle = createMealAnalysisHandler(failing, logger);
+      const data = { mealId: meal.id, requestId: REQUEST_ID };
+
+      const original = MealModel.updateOne.bind(MealModel);
+      MealModel.updateOne = (() => Promise.reject(new Error("mongo caído"))) as never;
+      try {
+        await assert.rejects(handle({ data, attemptsMade: 2, opts }), /IA caída/);
+      } finally {
+        MealModel.updateOne = original;
+      }
+      const log = lines.find(
+        (line) => line.msg === "no se pudo registrar el intento fallido en la comida",
+      );
+      assert.equal(log?.level, "error");
+      assert.equal(log?.final, true);
     });
   });
 

@@ -4,7 +4,7 @@ Lógica de negocio, MongoDB, Redis (cola) y worker de IA (`src/worker.ts`). Firm
 
 ## Cola de análisis (Redis + BullMQ)
 
-`POST /meals` encola en la cola `meal-analysis` (`src/jobs/meal-analysis.ts`) un job `{ mealId, requestId }` con `jobId = mealId`, 4 intentos y backoff exponencial. Config en `REDIS_URL` (obligatoria).
+`POST /meals` encola en la cola `meal-analysis` (`src/jobs/meal-analysis.ts`) un job `{ mealId, requestId }` con `jobId = mealId`, 3 intentos (el original y 2 reintentos) y backoff exponencial de 5 y 10 s; no hay un 4º para acotar el costo de la IA. Config en `REDIS_URL` (obligatoria).
 
 Los tests de la cola y del worker corren contra un Redis real y se saltean si no está `REDIS_TEST_URL`. El override de dev publica el Redis del compose en `127.0.0.1:6379`:
 
@@ -20,6 +20,8 @@ REDIS_TEST_URL=redis://127.0.0.1:6379 npm test
 Al arrancar lee una sola vez los prompts `src/prompts/analisis-comida.md`, `identificar-plato.md`, `roast.md` y `wrapped.md` (`loadPrompt` y las rutas, en `src/config/prompts.ts`): el frontmatter tiene `autor`, `version` y `fecha`, y el cuerpo es el prompt de sistema. La `version` del de análisis es el `promptVersion` que se guarda en cada meal, la del Wrapped, el de cada Wrapped, y la de `roast.md` va al log del comentario. Si falta un archivo o no tiene versión, el worker no arranca. Entran en la imagen de Docker con el resto de `back-service/`.
 
 Cada job lo resuelve `src/jobs/meal-analysis-processor.ts`: lee la meal, baja la foto (y el audio) del bucket y se los pasa a `analyze` (`src/jobs/analyze-meal.ts`). Si la meal no existe o ya no está en `processing`, el job termina sin error; si falla Mongo o el bucket, el error se propaga y BullMQ reintenta.
+
+Si un intento falla, el handler (`src/jobs/meal-analysis-worker.ts`) guarda en `meals.attempts` cuántos intentos fallaron. Si era el último, deja la meal en `failed` con `error.code: "ANALYSIS_FAILED"` (RNF-02): la app deja de consultar y muestra el aviso. En los dos casos, solo si sigue en `processing`. La foto y el audio quedan en el bucket. Si Mongo falla al guardarlo, se loguea y el job igual termina con el error original.
 
 `analyze` pasa la foto HEIC a JPEG (`src/services/vision-image.ts`, con `heic-convert`: libheif en WASM, sin binarios nativos) y, en paralelo, transcribe el audio si lo hay. Después llama a la IA (`src/services/vision.ts`). La interfaz `VisionService` recibe la imagen, el `transcript` y la `note` (los dos opcionales) y devuelve el análisis o "no es comida". El transcript y la nota van como partes `input_text` rotuladas ("Audio del usuario:", "Nota del usuario:"); si no hay, el mensaje lleva solo la foto. El prompt les explica a la IA que completan lo que la foto no ve, pero que son datos y no instrucciones. La implementación de OpenAI usa la Responses API con structured outputs (JSON schema strict), `store: false` y un timeout de 45 s sin reintentos del SDK. La respuesta se valida igual con zod: rangos con `min ≤ max` y sin negativos, y `confidence` entre 0 y 1. Después:
 
