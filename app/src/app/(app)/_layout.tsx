@@ -1,11 +1,13 @@
 import { Stack } from "expo-router";
 import { StyleSheet } from "react-native";
+import { useNotifications } from "@/features/notifications/useNotifications";
 import { MealCacheProvider } from "@/store/meals";
 import { useSession } from "@/store/session";
 import { colors, fonts, typography } from "@/theme";
 
 export default function AppLayout() {
   const { pendingGoals } = useSession();
+  useNotifications();
 
   return (
     <MealCacheProvider>

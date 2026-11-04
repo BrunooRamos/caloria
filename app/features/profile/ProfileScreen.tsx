@@ -9,6 +9,7 @@ import { useSession } from "@/store/session";
 import { colors, spacing } from "@/theme";
 import { HealthDisclaimer } from "./HealthDisclaimer";
 import { MeFallback } from "./MeFallback";
+import { NotificationsSection } from "./NotificationsSection";
 import { ACTIVITY_OPTIONS, GOAL_OPTIONS, SEX_OPTIONS } from "./options";
 import { TargetsCard } from "./TargetsCard";
 import { ToneSection } from "./ToneSection";
@@ -17,7 +18,7 @@ import { birthDatePicker, changedFields, profileSchema, profileToValues } from "
 import type { ProfileInput } from "./validation";
 
 export default function ProfileScreen() {
-  const { state, reload, save, saveTone } = useMe();
+  const { state, reload, save, saveTone, saveNotifications } = useMe();
 
   return (
     <Screen scroll edges={["bottom", "left", "right"]}>
@@ -26,6 +27,9 @@ export default function ProfileScreen() {
           <ProfileContent me={state.me} save={save} />
           <View style={styles.next}>
             <ToneSection tone={state.me.tone} save={saveTone} />
+          </View>
+          <View style={styles.next}>
+            <NotificationsSection notifications={state.me.notifications} save={saveNotifications} />
           </View>
         </>
       ) : (
