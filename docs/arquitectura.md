@@ -94,7 +94,7 @@ Así, en un servidor limpio, `docker compose up` levanta nginx enseguida con el 
 | ngrok (dominio gratis de la cuenta) | Demo con un build instalado: la URL no cambia | 20.000 requests y 1 GB por mes en el plan gratis |
 | Autofirmado o mkcert | Probar nginx o desarrollar en local | iOS y Android lo rechazan sin instalar la CA: no sirve para la app |
 
-Los dos túneles dan un certificado válido en su borde y llegan al 443 de nginx (cloudflared verifica el certificado temporal con `--origin-ca-pool`), así que siguen aplicando los límites de nginx y HSTS. Como todo el tráfico llega desde la IP del túnel, el rate limit de `/auth` es compartido entre todos los clientes.
+Los dos túneles dan un certificado válido en su borde y llegan a nginx (cloudflared verifica el certificado temporal con `--origin-ca-pool`), así que siguen aplicando los límites de nginx y HSTS. cloudflared entra por el 8443, un listener igual al 443 que no se publica en el host (solo lo alcanza la red `dmz`) y que toma la IP del cliente de `CF-Connecting-IP` (`real_ip_header`): así el rate limit de `/auth` es por cliente. En el 443 ese header se ignora, porque cualquiera podría mandarlo. ngrok entra por el 443 publicado, así que con ngrok todo el tráfico llega desde la misma IP y el rate limit de `/auth` es compartido entre todos los clientes.
 
 **App.** Un build que no es de desarrollo no arranca si `EXPO_PUBLIC_API_URL` no es `https` (`app/services/api-url.ts`). Android tiene `usesCleartextTraffic: false` (`expo-build-properties`), salvo en los builds de debug, donde Expo lo deja en `true` para Metro. iOS ya bloquea HTTP por ATS (`NSAllowsArbitraryLoads: false`).
 

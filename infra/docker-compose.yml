@@ -75,7 +75,8 @@ services:
 
   # Sin dominio: HTTPS válido con un quick tunnel de Cloudflare (https://<algo>.trycloudflare.com,
   # cambia en cada arranque). Se activa con COMPOSE_PROFILES=tunnel; la URL sale en
-  # `docker compose logs tunnel`. Entra por el 443 de nginx y verifica el certificado temporal.
+  # `docker compose logs tunnel`. Entra por el 8443 de nginx (no publicado, toma la IP del cliente de
+  # CF-Connecting-IP para el rate limit) y verifica el certificado temporal.
   tunnel:
     image: cloudflare/cloudflared:2026.10.7
     profiles: [tunnel]
@@ -83,7 +84,7 @@ services:
       - tunnel
       - --no-autoupdate
       - --url
-      - https://nginx:443
+      - https://nginx:8443
       - --origin-server-name
       - ${DOMAIN:?Falta DOMAIN}
       - --origin-ca-pool

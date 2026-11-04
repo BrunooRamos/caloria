@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Prueba infra/nginx con Docker, armado como en infra/docker-compose.yml: el template, el certificado
 # temporal de tls-init y el cambio a uno "de Let's Encrypt" sin reiniciar nginx. Chequea la
-# redirección del 80, el desafío ACME, TLS 1.2/1.3 y HSTS, y los límites de POST /api/v1/meals.
+# redirección del 80, el desafío ACME, TLS 1.2/1.3 y HSTS, los límites de POST /api/v1/meals y el
+# rate limit de /auth por cliente detrás del túnel (8443).
 # El Front es un stub que responde 202. Uso: npm run nginx:smoke (o bash scripts/nginx-smoke.sh)
 set -euo pipefail
 
@@ -58,13 +59,14 @@ docker run --rm -e DOMAIN="$DOMAIN" -v "$NGINX_DIR/tls-init.sh:/tls-init.sh:ro" 
   -v "$ID-bootstrap:/etc/nginx/bootstrap" --entrypoint sh "$CERTBOT_IMAGE" /tls-init.sh >/dev/null
 with_certbot "cat /etc/nginx/bootstrap/fullchain.pem" >"$TMP/bootstrap.pem"
 
-# Stub del Front: descarta el body y responde 202.
+# Stub del Front: descarta el body y responde 202. Devuelve el X-Forwarded-For que le llegó.
 cat >"$TMP/front.conf" <<'EOF'
 events {}
 http {
   server {
     listen 3000;
     client_max_body_size 0;
+    add_header X-Seen-Forwarded-For $http_x_forwarded_for always;
     return 202 '{"mealId":"66f1a0000000000000000099","status":"processing"}';
   }
 }
@@ -75,7 +77,7 @@ docker run -d --name "$ID-front" --network "$ID" --network-alias front \
 # Con el log en warn se ve si nginx escribe el body a un archivo temporal. El certificado se revisa
 # cada segundo para no esperar el minuto de producción. dev.conf también, para que pase nginx -t.
 docker run -d --name "$ID-nginx" --network "$ID" \
-  -p 127.0.0.1::80 -p 127.0.0.1::443 -p 127.0.0.1::8080 \
+  -p 127.0.0.1::80 -p 127.0.0.1::443 -p 127.0.0.1::8080 -p 127.0.0.1::8443 \
   -e DOMAIN="$DOMAIN" -e HSTS_MAX_AGE=300 -e 'NGINX_ENVSUBST_FILTER=^(DOMAIN|HSTS_MAX_AGE)$' \
   -e TLS_CHECK_INTERVAL=1 \
   -v "$NGINX_DIR/nginx.conf:/etc/nginx/nginx.conf:ro" \
@@ -93,9 +95,11 @@ port() {
 HTTP_PORT="$(port 80)"
 HTTPS_PORT="$(port 443)"
 DEV_PORT="$(port 8080)"
+TUNNEL_PORT="$(port 8443)"
 HTTP="http://127.0.0.1:$HTTP_PORT"
 HTTPS="https://$DOMAIN:$HTTPS_PORT"
-TLS=(--resolve "$DOMAIN:$HTTPS_PORT:127.0.0.1" --cacert "$TMP/bootstrap.pem")
+TLS=(--resolve "$DOMAIN:$HTTPS_PORT:127.0.0.1" --resolve "$DOMAIN:$TUNNEL_PORT:127.0.0.1"
+  --cacert "$TMP/bootstrap.pem")
 for _ in $(seq 1 50); do
   curl -s -o /dev/null "$HTTP/" && break
   sleep 0.2
@@ -176,6 +180,29 @@ status="$(curl -s -o /dev/null -D "$TMP/headers" -w '%{http_code}' -X POST -d x=
   "http://127.0.0.1:$DEV_PORT/api/v1/meals")"
 [ "$status" = 202 ] || fail "el 8080 respondió $status"
 if grep -qi '^strict-transport-security' "$TMP/headers"; then fail "el 8080 manda HSTS"; fi
+
+# $1: base URL. $2: CF-Connecting-IP. Deja el status en $STATUS y los headers en $TMP/headers.
+login() {
+  STATUS="$(curl -s -o /dev/null -D "$TMP/headers" -w '%{http_code}' "${TLS[@]}" \
+    -H "CF-Connecting-IP: $2" -X POST -d x=1 "$1/api/v1/auth/login")"
+}
+
+# /auth admite 10 por minuto con burst de 5: el séptimo seguido de la misma IP ya es 429.
+echo "→ túnel (8443): el rate limit de /auth es por cliente (CF-Connecting-IP)"
+TUNNEL="https://$DOMAIN:$TUNNEL_PORT"
+for i in $(seq 1 10); do
+  login "$TUNNEL" "198.51.100.$i"
+  [ "$STATUS" = 202 ] || fail "el cliente $i del túnel recibió $STATUS: comparten el rate limit"
+done
+grep -qi '^x-seen-forwarded-for: .*198\.51\.100\.10[[:space:]]*$' "$TMP/headers" ||
+  fail "el Front no recibió la IP del cliente al final de X-Forwarded-For: $(cat "$TMP/headers")"
+grep -qi '^strict-transport-security: max-age=300' "$TMP/headers" || fail "el 8443 no manda HSTS"
+for _ in $(seq 1 7); do login "$TUNNEL" 198.51.100.200; done
+[ "$STATUS" = 429 ] || fail "el túnel no limitó a un mismo cliente: $STATUS"
+
+echo "→ 443: CF-Connecting-IP se ignora (no se puede esquivar el rate limit falseándolo)"
+for i in $(seq 1 7); do login "$HTTPS" "203.0.113.$i"; done
+[ "$STATUS" = 429 ] || fail "el 443 le creyó a CF-Connecting-IP: $STATUS"
 
 # $1: CN esperado. Espera hasta 10 s a que nginx sirva ese certificado.
 wait_for_cert() {
