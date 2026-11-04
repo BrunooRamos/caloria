@@ -207,7 +207,7 @@ La forma depende del `status`:
 |---|---|---|
 | `NOT_FOOD` | Worker: la IA dice que la foto no es comida. No se reintenta y no consume cupo | "No encontramos comida en esta foto. Probá con otra en la que se vea el plato." |
 | `ENQUEUE_FAILED` | Backend: no se pudo encolar el análisis (Redis caído). La comida y la media quedan para reprocesarla | "No pudimos analizar esta comida. Probá de nuevo en un rato." |
-| `ANALYSIS_FAILED` | Worker: se agotaron los reintentos del análisis (RNF-02). Reservado: lo escribe #35 | "No pudimos analizar esta comida. Probá de nuevo en un rato." |
+| `ANALYSIS_FAILED` | Worker: falló el último de los 3 intentos del análisis (2 reintentos con backoff exponencial, RNF-02). La comida y la media quedan | "No pudimos analizar esta comida. Probá de nuevo en un rato." |
 
 - Nunca salen campos internos: `userId`, keys del bucket, `promptVersion`, `model`, `attempts`, `transcript`, `note` ni `corrections`. El id sale como string y las fechas en ISO.
 - `photoUrl` es una URL GET firmada de vida corta (15 min, RNF-04). Se firma en cada request y nunca se guarda en la base.
