@@ -66,6 +66,7 @@ const me = (overrides: Partial<Me> = {}): Me => ({
   targets: TARGETS,
   tone: "neutro",
   plan: { tier: "free", since: "2026-10-14T19:00:00.000Z" },
+  notifications: { analysisReady: true, streakRisk: true, wrappedReady: true },
   ...overrides,
 });
 

@@ -3,6 +3,7 @@ import type { Logger } from "@caloria/shared";
 import { MealModel } from "../models/Meal";
 import type { Meal } from "../models/Meal";
 import type { MediaService } from "../services/media";
+import { refundMealQuota } from "../services/quota";
 import type { MealAnalysisJob } from "./meal-analysis";
 
 export interface MealAnalysisInput {
@@ -42,6 +43,11 @@ export function createMealAnalysisProcessor({
     // Un job repetido no pisa una comida que ya se analizó.
     if (meal.status !== "processing") {
       log.info("la comida ya no está en processing, se saltea", { status: meal.status });
+      // Si un intento anterior la dejó failed pero no llegó a devolver el cupo, se devuelve acá.
+      // Es idempotente: si ya se devolvió, no hace nada.
+      if (meal.status === "failed" && (await refundMealQuota(meal._id))) {
+        log.info("cupo de la comida failed", { refunded: true });
+      }
       return "skipped";
     }
 

@@ -25,7 +25,7 @@ profile: {
 targets: { kcal: number; proteinG: number; carbsG: number; fatG: number }   // recalculadas al editar profile
 tone: "motivador" | "neutro" | "roast" | "off"   // default "motivador"; "off" no genera comentario (RF-11)
 plan: { tier: "free" | "premium"; since: Date; renewsAt?: Date }
-usage: { month: string; analyses: number }   // "2026-10"; se reinicia al cambiar de mes
+usage: { month: string; analyses: number }   // cupo free: "2026-10" en la zona del perfil; se reinicia al consumir en un mes posterior, nunca retrocede
 pushTokens: string[]          // tokens de Expo, del más viejo al más nuevo; hasta 10; índice
 notifications?: { analysisReady: boolean; streakRisk: boolean; wrappedReady: boolean }   // sin el campo: todo true
 sessions: { tokenHash: string; family: string; expiresAt: Date; rotatedAt?: Date; revokedAt?: Date }[]
@@ -74,6 +74,8 @@ search?: {                    // RF-07: solo para el índice de texto; lo escrib
 comment?: { tone: string; text: string }   // tono con que se generó y texto ≤ 200; ausente con "off", NOT_FOOD o si falló
 attempts: number              // reintentos del job de análisis
 error?: { code: "ENQUEUE_FAILED" | "NOT_FOOD" | "ANALYSIS_FAILED" }   // solo con status "failed"
+quotaMonth?: string           // "YYYY-MM": mes en que consumió cupo free; sin el campo, no consumió (premium)
+quotaRefunded?: boolean       // ya se devolvió el cupo por terminar en failed
 ```
 
 La media vive en `users/{userId}/meals/{mealId}/photo.{jpg|png|heic}` y `…/audio.m4a`. Nunca se guarda una URL firmada: se firma en cada lectura.
@@ -97,13 +99,15 @@ Antes de llamar a la IA, el Worker busca hasta 5 comidas `ready` y corregidas de
 - **Trazabilidad:** `analysis.contextMealIds` guarda qué comidas fueron contexto de ese análisis, para entender después por qué dio lo que dio. Si alguna de esas comidas se borra, el id queda como registro. Los análisis previos a RF-07 no tienen el campo.
 - **Las comidas corregidas antes de RF-07** no tienen `search`: se completan una vez con `back-service/src/scripts/backfill-meal-search.ts`, que se puede repetir.
 
+**Cupo y comidas `failed` (RF-14):** el contador `users.usage` se descuenta cuando se registra la comida (`POST /meals`), no al terminar el análisis. Cuando una comida termina en `failed` se devuelve con `refundMealQuota` (`back-service/src/services/quota.ts`): primero marca `quotaRefunded: true` con un update condicionado a que no lo estuviera (así un job repetido no devuelve dos veces) y después hace `$inc: -1` solo si `usage.month` sigue siendo `quotaMonth` y el contador es > 0. Si el contador ya se reinició para otro mes, no se toca nada. Si el descuento falla, desmarca la comida y relanza, para que el reintento lo vuelva a intentar. Hoy la llaman el Backend (`ENQUEUE_FAILED`) y el Worker (`NOT_FOOD`, y el processor si ve un job repetido sobre una comida `failed`); quien escriba `ANALYSIS_FAILED` tiene que llamarla también.
+
 `error.code` lo escribe quien pasa la comida a `failed`, y el catálogo vive en `shared` (`MEAL_ERROR_CODES`):
 
 | Código | Quién | Cuándo |
 |---|---|---|
 | `ENQUEUE_FAILED` | Backend | No se pudo encolar el análisis (Redis caído). Reprocesable |
 | `NOT_FOOD` | Worker | La IA dice que la foto no es comida. Sin reintento y no consume cupo |
-| `ANALYSIS_FAILED` | Worker | Se agotaron los reintentos del análisis (RNF-02). Reservado: lo escribe #35 |
+| `ANALYSIS_FAILED` | Worker | Falló el último de los 3 intentos del análisis (2 reintentos con backoff exponencial de 5 y 10 s, RNF-02). La media queda en el bucket |
 
 ## `weekly_summaries`
 

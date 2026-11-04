@@ -134,25 +134,25 @@ Endpoints: `GET /meals?date=&cursor=`, `GET /meals/:id`, `DELETE /meals/:id`.
 
 #### RF-13 — Push notifications
 
-- [ ] La app pide permiso de notificaciones y registra el push token con `PATCH /users/me`.
+- [x] La app pide permiso de notificaciones y registra el push token con `PATCH /users/me`.
 - [ ] Notificaciones: análisis listo, racha en riesgo (20:00 si no hubo registro en el día y la racha es ≥ 2) y Wrapped listo.
-- [ ] El usuario puede desactivar cada tipo de notificación.
+- [x] El usuario puede desactivar cada tipo de notificación.
 - [x] Los tokens inválidos que devuelve Expo se eliminan del usuario.
 
 ### Freemium
 
 #### RF-14 — Planes
 
-- [ ] Plan free: N análisis por mes calendario. Premium: análisis ilimitados y Wrapped completo.
+- [ ] Plan free: N análisis por mes calendario (N = 40, en `FREE_MONTHLY_ANALYSES`). Premium: análisis ilimitados y Wrapped completo.
 - [ ] El contador se reinicia el día 1 de cada mes.
-- [ ] Un análisis que termina en `failed` no consume cupo: el conteo del mes excluye las comidas `failed`. Así una foto que no es comida (`error.code: "NOT_FOOD"`, #18) no gasta un análisis.
+- [ ] Un análisis que termina en `failed` no consume cupo: el cupo se descuenta al registrar y se devuelve cuando la comida termina `failed`. Así una foto que no es comida (`error.code: "NOT_FOOD"`, #18) no gasta un análisis.
 - [ ] La app muestra los análisis restantes del mes.
 
 #### RF-15 — Feature gating en la API
 
-- [ ] `POST /meals` verifica el cupo en el Backend antes de encolar: sin cupo → 402 `MEAL_QUOTA_EXCEEDED`.
-- [ ] Las funciones premium se verifican en el Backend: sin plan → 402 `PREMIUM_REQUIRED`.
-- [ ] Modificar el cliente no permite saltear los límites (se prueba llamando a la API directamente).
+- [x] `POST /meals` verifica el cupo en el Backend antes de encolar: sin cupo → 402 `MEAL_QUOTA_EXCEEDED`.
+- [x] Las funciones premium se verifican en el Backend: sin plan → 402 `PREMIUM_REQUIRED` (middleware `requirePremium`; hoy ninguna ruta es solo premium, ver decisión abierta 4).
+- [x] Modificar el cliente no permite saltear los límites (se prueba llamando a la API directamente: `back-service/test/quota.test.ts` y `scripts/quota-smoke.sh`).
 
 #### RF-16 — Suscripción
 
@@ -169,7 +169,7 @@ Endpoints: `GET /billing/plan`, `POST /billing/subscribe`.
 | RNF | Requerimiento | Métrica / criterio | Cómo se verifica |
 |---|---|---|---|
 | RNF-01 | Rendimiento | Análisis foto + audio en < 15 s (p90) con indicador de progreso; navegación y endpoints de lectura en < 1 s | Logs de duración por job; medición sobre 20 registros de prueba |
-| RNF-02 | Resiliencia | Si la IA falla, el job reintenta 3 veces con backoff exponencial; si sigue fallando, `failed` y aviso al usuario. La media subida nunca se pierde | Test cortando la API de IA (clave inválida) y verificando reintentos |
+| RNF-02 | Resiliencia | Si la IA falla, el job reintenta 2 veces con backoff exponencial (3 intentos en total, para acotar el costo de la IA); si sigue fallando, `failed` y aviso al usuario. La media subida nunca se pierde | Test cortando la API de IA (clave inválida) y verificando reintentos |
 | RNF-03 | Seguridad | HTTPS en todo el tráfico; HTTP redirige a HTTPS; Front → Backend por HTTPS con mTLS | Revisión de config de nginx; `curl` a HTTP y a puertos internos |
 | RNF-04 | Privacidad | Bucket privado con URLs firmadas (≤ 15 min); `DELETE /users/me` borra todo | Abrir una URL vencida; borrar una cuenta de prueba y verificar Mongo y bucket |
 | RNF-05 | Arquitectura asincrónica | Análisis y Wrapped corren en el Worker vía Redis; la API responde 202 en < 1 s | Test de `POST /meals` con el Worker apagado: responde 202 y queda encolado |
@@ -183,7 +183,7 @@ Endpoints: `GET /billing/plan`, `POST /billing/subscribe`.
 
 1. **Datos del perfil:** el esquema de `users` de la presentación solo tiene altura, peso y objetivo, pero RF-02 pide edad y actividad, y la fórmula de metas necesita sexo. En estos documentos se agregaron `sex`, `birthDate`, `activity` y `timezone`.
 2. **Metas de macros:** la presentación guarda solo `kcal` y `proteinG`, pero RF-09 muestra todos los macros. Se agregaron `carbsG` y `fatG`.
-3. **Valor de N:** cuántos análisis por mes tiene el plan free (RF-14).
+3. ~~**Valor de N:** cuántos análisis por mes tiene el plan free (RF-14).~~ Resuelto: N = 40. Se configura con la variable de entorno `FREE_MONTHLY_ANALYSES` (obligatoria en el Back, sin valor por defecto en el código).
 4. **Qué ve el free del Wrapped:** el premium tiene "Wrapped completo", pero no está definido qué parte ve el free.
 5. **Precio del premium** y proveedor de pagos sandbox (Stripe test mode, Mercado Pago sandbox).
 6. **Código HTTP para cupo agotado:** la presentación no lo define. Se propone 402.

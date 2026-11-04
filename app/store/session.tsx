@@ -3,6 +3,7 @@ import type { PropsWithChildren } from "react";
 import { api, tokenStorage } from "@/services/api";
 import * as auth from "@/services/auth";
 import type { AuthResponse, Credentials, RegisterInput } from "@/services/auth";
+import { takeDevicePushToken } from "@/services/users";
 
 export type SessionStatus = "loading" | "authenticated" | "unauthenticated";
 
@@ -46,6 +47,8 @@ export function SessionProvider({ children }: PropsWithChildren) {
   useEffect(
     () =>
       api.onSessionExpired(() => {
+        // Sin sesión no hay cómo sacar el token: lo mueve la próxima cuenta que entre.
+        takeDevicePushToken();
         setPendingGoals(false);
         setStatus("unauthenticated");
       }),
@@ -78,7 +81,8 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const signOut = useCallback(async () => {
     try {
       const tokens = await tokenStorage.get();
-      if (tokens) auth.logout(tokens).catch(() => undefined);
+      const pushToken = takeDevicePushToken();
+      if (tokens) auth.logout(tokens, pushToken).catch(() => undefined);
       await api.clearSession();
     } finally {
       setPendingGoals(false);

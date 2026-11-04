@@ -54,7 +54,6 @@ export function apiRouter({
   if (dashboard) {
     router.get("/dashboard/daily", authenticated, dashboardController(dashboard).daily);
   }
-  // El gating de premium del Wrapped es del #40 (decisión abierta 4).
   if (summaries) {
     router.get("/summaries/weekly/:week", authenticated, summariesController(summaries).weekly);
   }

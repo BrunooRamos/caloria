@@ -93,6 +93,17 @@ export const expoPushTokenSchema = z
   .string()
   .regex(/^Expo(nent)?PushToken\[[A-Za-z0-9_-]{1,256}\]$/);
 
+/**
+ * Logout: con `pushToken`, el dispositivo deja de recibir los avisos de esta cuenta.
+ * Es opcional porque un teléfono sin permiso de avisos no tiene token.
+ */
+export const logoutSchema = z
+  .object({
+    refreshToken: refreshSchema.shape.refreshToken,
+    pushToken: expoPushTokenSchema.optional(),
+  })
+  .strict();
+
 export const pushTokensSchema = z
   .array(expoPushTokenSchema)
   .max(MAX_PUSH_TOKENS)
@@ -145,6 +156,7 @@ export type Profile = z.infer<typeof profileSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RefreshInput = z.infer<typeof refreshSchema>;
+export type LogoutInput = z.infer<typeof logoutSchema>;
 export type UpdateMeInput = z.infer<typeof updateMeSchema>;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 export type NotificationPreferences = z.infer<typeof notificationsSchema>;

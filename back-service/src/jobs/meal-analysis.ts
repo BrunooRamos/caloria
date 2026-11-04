@@ -13,7 +13,8 @@ export interface MealAnalysisJob {
 }
 
 export const MEAL_ANALYSIS_JOB_OPTIONS = {
-  attempts: 4,
+  // El original y 2 reintentos (5 y 10 s): cada intento le cuesta a la API de IA.
+  attempts: 3,
   backoff: { type: "exponential", delay: 5_000 },
   removeOnComplete: { age: 24 * 60 * 60 },
   removeOnFail: { age: 7 * 24 * 60 * 60 },

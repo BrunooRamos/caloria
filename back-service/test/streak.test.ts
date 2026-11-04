@@ -20,7 +20,7 @@ import type { StreakService } from "../src/services/streak";
 import { computeTargets } from "../src/services/targets";
 import { signAccessToken } from "../src/services/tokens";
 import { createUserService } from "../src/services/users";
-import { captureLogger, fixtures, listen, storageEnv } from "./helpers";
+import { captureLogger, fixtures, listen, storageEnv, unlimitedQuota } from "./helpers";
 
 const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
 const REQUEST_ID = "0b6f3c1e-7d2a-4c5b-9e8f-1a2b3c4d5e6f";
@@ -84,6 +84,7 @@ describe("back-service: racha (RF-10)", () => {
     const meals = createMealService({
       media: createMediaService(loadStorageConfig(storageEnv)),
       queue: noopQueue,
+      quota: unlimitedQuota,
       now,
       ...(streak && { streak }),
     });

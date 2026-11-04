@@ -1,5 +1,5 @@
 import type { Profile } from "@/services/auth";
-import type { Tone } from "@/services/users";
+import type { NotificationType, Tone } from "@/services/users";
 
 export interface Option<T extends string> {
   value: T;
@@ -42,5 +42,23 @@ export const TONE_OPTIONS: Option<Tone>[] = [
     value: "off",
     label: "Sin comentario",
     description: "No vas a ver comentarios en tus análisis.",
+  },
+];
+
+export const NOTIFICATION_OPTIONS: Required<Option<NotificationType>>[] = [
+  {
+    value: "analysisReady",
+    label: "Comida analizada",
+    description: "Cuando termina el análisis de una comida.",
+  },
+  {
+    value: "streakRisk",
+    label: "Racha en riesgo",
+    description: "A las 20:00, si ese día no registraste nada y tu racha es de 2 días o más.",
+  },
+  {
+    value: "wrappedReady",
+    label: "Resumen semanal",
+    description: "Cuando está listo el resumen de tu semana.",
   },
 ];

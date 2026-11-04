@@ -310,3 +310,48 @@ Si el proyecto tiene tests de componentes, agregá los de: racha con valores nor
 Cuando termines, pasame qué archivos tocaste, si tomaste alguna decisión distinta a lo que puse acá y cómo probarlo en el simulador.
 
 ```
+
+## Sesión `cabf0397-ccba-4ac6-9db4-b14278cbd06b` · 2026-11-04
+
+### 2026-11-04 13:39
+
+```text
+Tengo que implementar el ticket de feature gating del lado del servidor, o sea que el Backend sea el que controla el cupo del plan free y el acceso a las funciones premium.
+
+Para el contexto, fijate en docs/requerimientos.md, en docs/api.md (los códigos MEAL_QUOTA_EXCEEDED y PREMIUM_REQUIRED) y en el modelo de users, que ya tiene plan y quota: { month, used }. En el POST /meals quedó un TODO donde iba el control de cupo; arrancá por ahí.
+
+Los criterios de aceptación son estos: POST /meals verifica el cupo antes de encolar y, si no hay cupo, responde 402 MEAL_QUOTA_EXCEEDED; las funciones premium sin plan premium responden 402 PREMIUM_REQUIRED; el contador se reinicia cada mes y los análisis que terminan en failed no consumen cupo; y todo se prueba llamando a la API directamente, sin pasar por la app.
+
+Algunas cosas que pensé y quiero que se respeten:
+
+Todo el control va en el Backend. El Front no decide nada de esto, y la app tampoco: puede mostrar el cupo, pero la regla la aplica el servidor. Y el plan leelo siempre de la base, no del plan que viene en el JWT, porque el token puede tener hasta 15 minutos y el usuario pudo haber cambiado de plan en el medio.
+
+El límite del plan free que sea configurable por variable de entorno (agregala al .env.example), no un número suelto en el código. Los usuarios premium no tienen cupo.
+
+El mes se calcula en la zona horaria del usuario, en formato YYYY-MM, igual que hacemos con el localDate. El reinicio no necesita un cron: si quota.month es distinto del mes actual, se considera que el usuario tiene 0 usados y se pisa el mes al consumir.
+
+El control y el consumo tienen que ser una sola operación atómica en Mongo: un update que solo se aplique si el mes es el actual y used es menor al límite (o que reinicie si el mes cambió), y que sume 1. Si no se aplica, es que no hay cupo. Nada de leer, comparar en JavaScript y después escribir, porque si el usuario manda varias fotos a la vez podría pasarse del límite.
+
+En el POST /meals, el cupo se reserva antes de subir la media, así no guardamos archivos de comidas que igual vamos a rechazar. Guardá en el documento de la comida en qué mes consumió cupo (algo como quotaMonth), para poder devolverlo después.
+
+Para que los failed no consuman: cuando una comida termina en failed (en el Worker, después de agotar los reintentos, y también en el caso del POST /meals cuando falla el encolado o la creación del documento), se devuelve el cupo con un $inc de -1, solo si quotaMonth sigue siendo el mes actual del usuario. Si el mes ya cambió, no se toca nada. Esa devolución tiene que ser idempotente: marcá la comida (por ejemplo quotaRefunded: true) y que solo se devuelva si todavía no estaba marcada, así un job reintentado o un fallo repetido no devuelve dos veces. Y que el contador nunca quede negativo.
+
+El 402 MEAL_QUOTA_EXCEEDED usa el sobre de error de siempre. En el message poné algo claro y neutro, que diga cuándo se renueva el cupo. Logueá el rechazo con el requestId y el userId.
+
+Para las funciones premium, hacé un middleware requirePremium que se pueda poner en cualquier ruta, y aplicalo a las que docs/requerimientos.md marca como premium y ya existan. Si alguna todavía no existe, dejá anotado dónde va. Si hay una ruta que tiene una versión free y una premium (por ejemplo un resumen parcial y uno completo), decidilo dentro del controller y no con el middleware; avisame cuáles encontraste.
+
+Si ya existe GET /billing/plan, que devuelva los análisis restantes del mes calculados con la misma lógica (con el reinicio de mes incluido). Si no existe, no lo crees en este ticket.
+
+Para el criterio de probar sin la app, quiero dos cosas: tests de integración que peguen a la API por HTTP con supertest, y un script en scripts/ (o una sección en docs/) con los curl para reproducirlo a mano: registrarse, mandar fotos hasta agotar el cupo y ver el 402, y llamar a una ruta premium con un usuario free.
+
+Para los tests: usuario free con cupo disponible da 202 y used sube 1; con el cupo agotado da 402 MEAL_QUOTA_EXCEEDED, no se sube nada al bucket ni se crea el documento ni se encola; usuario premium no tiene límite; con quota.month del mes pasado se reinicia y deja registrar; el cambio de mes se calcula con la zona horaria del usuario (por ejemplo el 31 a las 23:30 de Montevideo sigue siendo ese mes); varias requests simultáneas con un solo lugar libre dejan pasar solo una; una comida que termina en failed devuelve el cupo; un failed procesado dos veces devuelve una sola vez; un failed de un mes anterior no toca el contador actual; una ruta premium con usuario free da 402 PREMIUM_REQUIRED y con premium funciona; un usuario que pasó a premium hace segundos ya puede entrar aunque su token diga free.
+
+Cuando termines, pasame qué archivos tocaste, qué rutas quedaron marcadas como premium, si tomaste alguna decisión distinta a lo que puse acá y cómo dieron los tests.
+```
+
+
+### 2026-11-04 19:22
+
+```text
+me das una descripcion def pr con los cambios impelemntados?
+```

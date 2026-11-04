@@ -9,7 +9,7 @@ REST + JSON, versionada en `/api/v1`. El Front Service expone los mismos endpoin
 | POST | `/auth/register` | Pública | Alta con email, password y perfil inicial | 201 | RF-01, RF-02 |
 | POST | `/auth/login` | Pública | Devuelve `accessToken` (15 min) + `refreshToken` (30 d) | 200 | RF-01 |
 | POST | `/auth/refresh` | Refresh token | Rota el par de tokens | 200 | RF-01 |
-| POST | `/auth/logout` | JWT | Revoca la familia del `refreshToken` del body | 204 | RF-01 |
+| POST | `/auth/logout` | JWT | Revoca la familia del `refreshToken` del body y saca el `pushToken`, si viene | 204 | RF-01, RF-13 |
 | GET | `/users/me` | JWT | Perfil, metas diarias y plan vigente | 200 | RF-02 |
 | PATCH | `/users/me` | JWT | Edita perfil o preferencias (tono, push tokens); recalcula metas | 200 | RF-02, RF-11, RF-13 |
 | DELETE | `/users/me` | JWT | Borrado total de cuenta, media y documentos | 204 | RNF-04 |
@@ -88,10 +88,12 @@ POST /api/v1/auth/logout
 Authorization: Bearer <accessToken>
 Content-Type: application/json
 
-{ "refreshToken": "…" }
+{ "refreshToken": "…", "pushToken": "ExponentPushToken[xxxx]" }
 ```
 
 Revoca la familia de ese refresh si pertenece al usuario del access y responde 204 sin cuerpo. Es idempotente: si el refresh no existe, es de otro usuario o la familia ya estaba revocada, también responde 204 (sin revocar nada ajeno). Las otras familias del usuario (otros dispositivos) siguen activas.
+
+- `pushToken` (opcional, RF-13): el token de Expo de este dispositivo. Se saca de la cuenta para que el teléfono deje de recibir sus avisos, aunque la sesión ya estuviera revocada. Solo toca la cuenta del access: si el token es de otra cuenta, no se modifica. Mal formado → 400 `VALIDATION_ERROR` y no se revoca nada.
 
 ### Validación en el Front
 
@@ -166,8 +168,14 @@ note:  "milanesa con puré"
 - `photo` es obligatoria: JPEG, PNG o HEIC de hasta 8 MB. `audio` es opcional: M4A de hasta 4 MB y 60 s. `note` es opcional, de hasta 500 caracteres. El tipo se detecta por el contenido del archivo, no por la extensión ni el `Content-Type` del cliente.
 - Falta la foto, tipo no permitido, nota de más de 500 caracteres (sea cual sea el largo), un campo de más o un archivo en un campo que no es `photo`/`audio` → 400 `VALIDATION_ERROR`. Un archivo por encima del límite → 413 `PAYLOAD_TOO_LARGE`.
 - El Backend lee la duración del audio del propio archivo (`moov/mvhd`); si no la puede leer o pasa de 60 s → 400.
-- Orden en el Backend: genera el `mealId`, sube la media a `users/{userId}/meals/{mealId}/photo.{jpg|png|heic}` (y `audio.m4a`), crea la comida con `status: "processing"` y `localDate` (el día en la zona del perfil al llegar el pedido) y encola el job `{ mealId, requestId }` con `jobId = mealId`. Responde 202 sin esperar al Worker: con el Worker apagado el job queda en espera.
-- Si falla la subida → 503 `SERVICE_UNAVAILABLE` y no queda nada. Si falla crear la comida → 500 `INTERNAL_ERROR` y se borra la media subida. Si falla encolar (Redis caído) → 503 `SERVICE_UNAVAILABLE`; la comida y la media quedan, con `status: "failed"` y `error.code: "ENQUEUE_FAILED"` para reprocesarla.
+- **Cupo del plan free (RF-14, RF-15):** antes de subir nada, el Backend reserva un análisis del mes con un solo update atómico sobre `users.usage`: suma 1 solo si el mes guardado es el actual y quedan análisis (`FREE_MONTHLY_ANALYSES`, 40 en el plan definido), o reinicia el contador a 1 si el mes actual es posterior al guardado. El mes (`YYYY-MM`) es el de la zona del perfil, como `localDate`; no hay cron de reinicio. El mes del contador nunca retrocede: como la zona la elige el usuario, pasar a una zona que todavía está en el mes anterior no reinicia el cupo (se sigue contando sobre el mes guardado). Si el update no se aplica → 402 `MEAL_QUOTA_EXCEEDED` (no se sube media, no se crea la comida ni se encola) y se loguea con `requestId` y `userId`. El plan se lee de la base, no del JWT. Premium no tiene cupo ni toca el contador. La comida guarda en `quotaMonth` el mes en que consumió.
+
+```json
+{ "error": { "code": "MEAL_QUOTA_EXCEEDED", "message": "Usaste los 40 análisis del plan free de este mes. El cupo se renueva el 1 de diciembre.", "requestId": "a81f…" } }
+```
+
+- Orden en el Backend: reserva el cupo, genera el `mealId`, sube la media a `users/{userId}/meals/{mealId}/photo.{jpg|png|heic}` (y `audio.m4a`), crea la comida con `status: "processing"` y `localDate` (el día en la zona del perfil al llegar el pedido) y encola el job `{ mealId, requestId }` con `jobId = mealId`. Responde 202 sin esperar al Worker: con el Worker apagado el job queda en espera.
+- Si falla la subida → 503 `SERVICE_UNAVAILABLE` y no queda nada. Si falla crear la comida → 500 `INTERNAL_ERROR` y se borra la media subida. Si falla encolar (Redis caído) → 503 `SERVICE_UNAVAILABLE`; la comida y la media quedan, con `status: "failed"` y `error.code: "ENQUEUE_FAILED"` para reprocesarla. En los tres casos se devuelve el cupo reservado (ver [modelo-datos.md](modelo-datos.md#meals)).
 - **Racha (RF-10):** con la comida ya creada, y en paralelo con el encolado, se cuenta el `localDate` en `gamification` (se crea con un upsert la primera vez). Cuenta el registro, no el análisis: vale aunque después el análisis falle. Contra `streak.lastLogDate`: el mismo día no cambia nada; el día anterior (calculado con el calendario sobre `YYYY-MM-DD`, no restando 24 h) suma 1; sin registro previo o con algún día salteado vuelve a 1; un día anterior a `lastLogDate` (cambio de zona) no toca nada. Después se actualiza `best` y `lastLogDate`.
   - Es una sola escritura atómica, condicionada a que `localDate` sea posterior a `lastLogDate`: dos comidas a la vez el mismo día suman una vez. Si el upsert choca con el índice único (dos primeras comidas a la vez), se reintenta una vez.
   - La racha nunca rompe el registro: si falla se loguea con el `requestId` y se responde 202 igual. Se espera como mucho 300 ms; si tarda más, se responde sin esperarla (la escritura sigue).
@@ -207,7 +215,7 @@ La forma depende del `status`:
 |---|---|---|
 | `NOT_FOOD` | Worker: la IA dice que la foto no es comida. No se reintenta y no consume cupo | "No encontramos comida en esta foto. Probá con otra en la que se vea el plato." |
 | `ENQUEUE_FAILED` | Backend: no se pudo encolar el análisis (Redis caído). La comida y la media quedan para reprocesarla | "No pudimos analizar esta comida. Probá de nuevo en un rato." |
-| `ANALYSIS_FAILED` | Worker: se agotaron los reintentos del análisis (RNF-02). Reservado: lo escribe #35 | "No pudimos analizar esta comida. Probá de nuevo en un rato." |
+| `ANALYSIS_FAILED` | Worker: falló el último de los 3 intentos del análisis (2 reintentos con backoff exponencial, RNF-02). La comida y la media quedan | "No pudimos analizar esta comida. Probá de nuevo en un rato." |
 
 - Nunca salen campos internos: `userId`, keys del bucket, `promptVersion`, `model`, `attempts`, `transcript`, `note` ni `corrections`. El id sale como string y las fechas en ISO.
 - `photoUrl` es una URL GET firmada de vida corta (15 min, RNF-04). Se firma en cada request y nunca se guarda en la base.
@@ -359,7 +367,7 @@ Authorization: Bearer <accessToken>
 | 204 | Borrado o logout, sin cuerpo |
 | 400 | Entrada inválida (falla la validación zod) |
 | 401 | Sin token, vencido o inválido |
-| 402 | Cupo del plan free agotado (`MEAL_QUOTA_EXCEEDED`) o función premium |
+| 402 | Cupo del plan free agotado (`MEAL_QUOTA_EXCEEDED`) o función premium con plan free (`PREMIUM_REQUIRED`, middleware `requirePremium`; el plan se lee de la base) |
 | 404 | Recurso inexistente **o de otro usuario** (no se distingue, para no filtrar existencia) |
 | 409 | Email ya registrado, o corrección de una comida que no está `ready` (`MEAL_NOT_READY`) |
 | 413 | Foto o audio superan el límite |

@@ -39,10 +39,14 @@ export function register(input: RegisterInput): Promise<AuthResponse> {
   return api.post<AuthResponse>("/auth/register", input, { auth: false });
 }
 
-export function logout({ accessToken, refreshToken }: AuthTokens): Promise<void> {
+/** Con `pushToken`, este dispositivo deja de recibir los avisos de la cuenta. */
+export function logout(
+  { accessToken, refreshToken }: AuthTokens,
+  pushToken?: string | null,
+): Promise<void> {
   return api.post<void>(
     "/auth/logout",
-    { refreshToken },
+    pushToken ? { refreshToken, pushToken } : { refreshToken },
     { auth: false, headers: { Authorization: `Bearer ${accessToken}` } },
   );
 }
