@@ -19,7 +19,7 @@ import { createMediaService } from "../src/services/media";
 import { computeTargets } from "../src/services/targets";
 import { signAccessToken } from "../src/services/tokens";
 import { createUserService } from "../src/services/users";
-import { captureLogger, listen, storageEnv } from "./helpers";
+import { captureLogger, listen, storageEnv, unlimitedQuota } from "./helpers";
 
 const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
 const REQUEST_ID = "0b6f3c1e-7d2a-4c5b-9e8f-1a2b3c4d5e6f";
@@ -150,6 +150,7 @@ describe("back-service: GET /meals y DELETE /meals/:id", () => {
     const meals = createMealService({
       media: createMediaService(loadStorageConfig(storageEnv)),
       queue,
+      quota: unlimitedQuota,
     });
     const api = apiRouter({
       auth: createAuthService({ privateKey }),

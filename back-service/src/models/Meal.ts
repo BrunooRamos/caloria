@@ -58,6 +58,8 @@ export interface Meal {
   comment?: { tone: string; text: string };
   attempts: number;
   error?: { code: MealErrorCode };
+  quotaMonth?: string;
+  quotaRefunded?: boolean;
 }
 
 const rangeSchema = new Schema<Range>(
@@ -141,6 +143,8 @@ const mealSchema = new Schema<Meal>(
       { code: { type: String, enum: MEAL_ERROR_CODES, required: true } },
       { _id: false },
     ),
+    quotaMonth: { type: String, match: /^\d{4}-\d{2}$/ },
+    quotaRefunded: Boolean,
   },
   { collection: "meals" },
 );

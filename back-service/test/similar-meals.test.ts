@@ -20,7 +20,7 @@ import {
   toSearchText,
 } from "../src/services/similar-meals";
 import { formatSimilarMeals } from "../src/services/similar-meals-context";
-import { fixtures } from "./helpers";
+import { fixtures, unlimitedQuota } from "./helpers";
 
 const r = (min: number, max: number): Range => ({ min, max });
 
@@ -46,7 +46,7 @@ const media: MediaService = {
   removeUserMedia: () => Promise.reject(new Error("no se usa")),
 };
 const queue: MealAnalysisQueue = { async enqueue() {}, async ready() {}, async close() {} };
-const meals = createMealService({ media, queue });
+const meals = createMealService({ media, queue, quota: unlimitedQuota });
 const finder = createMongoSimilarMealsFinder();
 
 let capturedAt = Date.parse("2026-10-01T12:00:00Z");

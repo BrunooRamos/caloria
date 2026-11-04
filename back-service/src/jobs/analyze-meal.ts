@@ -12,6 +12,7 @@ import type { DishIdentifier } from "../services/dish-identifier";
 import type { NotificationService } from "../services/notifications";
 import type { SimilarMealsFinder } from "../services/similar-meals";
 import type { TranscriptionService } from "../services/transcription";
+import { refundMealQuota } from "../services/quota";
 import { toVisionImage } from "../services/vision-image";
 import { InvalidVisionResponseError } from "../services/vision";
 import type { FoodAnalysis, VisionService } from "../services/vision";
@@ -233,8 +234,14 @@ export function createAnalyzeMeal({
       log.info("la comida cambió de estado durante el análisis, no se pisa");
       return;
     }
+    // Un análisis que termina en failed no consume cupo. Si esto lanza, BullMQ reintenta
+    // y el processor vuelve a intentar la devolución al ver la comida en failed; es idempotente.
+    if (!result.isFood) {
+      const refunded = await refundMealQuota(meal._id);
+      log.info("cupo de la comida failed", { refunded });
+    }
     // Solo si este job la dejó en ready: un job repetido no avisa dos veces. NOT_FOOD no avisa
-    // acá (#35). notify no lanza: si el push falla, la meal ya está ready y el job termina bien.
+    // acá. notify no lanza: si el push falla, la meal ya está ready y el job termina bien.
     if (result.isFood) {
       await notifications.notify(
         meal.userId.toString(),

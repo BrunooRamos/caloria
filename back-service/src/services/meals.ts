@@ -21,6 +21,8 @@ import { applyCorrections, toMealSearch } from "./meal-corrections";
 import { MEAL_RESPONSE_FIELDS, toMealResponse } from "./meal-response";
 import type { MealResponseSource } from "./meal-response";
 import type { MediaKind, MediaService } from "./media";
+import { refundMealQuota } from "./quota";
+import type { QuotaService } from "./quota";
 import { createStreakService } from "./streak";
 import type { StreakService } from "./streak";
 
@@ -87,6 +89,7 @@ export interface MealService {
 export interface MealServiceDeps {
   media: MediaService;
   queue: MealAnalysisQueue;
+  quota: QuotaService;
   streak?: StreakService;
   now?: () => Date;
 }
@@ -94,6 +97,7 @@ export interface MealServiceDeps {
 export function createMealService({
   media,
   queue,
+  quota,
   streak = createStreakService(),
   now = () => new Date(),
 }: MealServiceDeps): MealService {
@@ -173,9 +177,28 @@ export function createMealService({
       >();
       if (!user) throw new AppError("UNAUTHORIZED");
 
+      // El cupo se reserva antes de subir la media: una comida rechazada no deja archivos.
+      const { month: quotaMonth } = await quota.reserve(userId, user.profile.timezone, {
+        requestId,
+        log,
+      });
+      /** Una reserva sin comida que la respalde no consume cupo. Nunca lanza. */
+      const releaseQuota = async (mealId: string) => {
+        if (quotaMonth === undefined) return;
+        await quota.release(userId, quotaMonth).catch((err: unknown) => {
+          log.error("no se pudo devolver el cupo", { mealId, err: serializeError(err) });
+        });
+      };
+
       const mealId = new Types.ObjectId();
       const id = mealId.toString();
-      const mediaKeys = await uploadMedia(userId, id, upload, log);
+      let mediaKeys: MealMedia;
+      try {
+        mediaKeys = await uploadMedia(userId, id, upload, log);
+      } catch (err) {
+        await releaseQuota(id);
+        throw err;
+      }
       const localDate = localDateIn(user.profile.timezone, receivedAt);
 
       try {
@@ -187,6 +210,7 @@ export function createMealService({
           status: "processing",
           media: mediaKeys,
           ...(upload.note !== undefined && { note: upload.note }),
+          ...(quotaMonth !== undefined && { quotaMonth }),
         });
       } catch (err) {
         log.error("no se pudo crear la comida; se borra la media subida", {
@@ -194,6 +218,7 @@ export function createMealService({
           err: serializeError(err, { stack: true }),
         });
         await removeMedia(Object.values(mediaKeys), log, id);
+        await releaseQuota(id);
         throw new AppError("INTERNAL_ERROR", undefined, { cause: err });
       }
 
@@ -212,12 +237,15 @@ export function createMealService({
         await MealModel.updateOne(
           { _id: mealId },
           { $set: { status: "failed", error: { code: ENQUEUE_FAILED } } },
-        ).catch((updateErr: unknown) => {
-          log.error("no se pudo marcar la comida como failed", {
-            mealId: id,
-            err: serializeError(updateErr, { stack: true }),
+        )
+          // Terminó en failed: no consume cupo.
+          .then(() => refundMealQuota(mealId))
+          .catch((updateErr: unknown) => {
+            log.error("no se pudo marcar la comida como failed o devolver el cupo", {
+              mealId: id,
+              err: serializeError(updateErr, { stack: true }),
+            });
           });
-        });
         throw new AppError("SERVICE_UNAVAILABLE", undefined, { cause: err });
       }
       await streakRecorded;

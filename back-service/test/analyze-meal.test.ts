@@ -44,6 +44,7 @@ import {
   TRANSCRIPT_LABEL,
 } from "../src/services/vision";
 import type { VisionInput, VisionService } from "../src/services/vision";
+import { monthIn } from "../src/services/quota";
 import { toVisionImage } from "../src/services/vision-image";
 import { PROBLEMATIC_MEALS } from "./fixtures/comidas-problematicas";
 import type { VisionImage } from "../src/services/vision-image";
@@ -401,6 +402,39 @@ describe("back-service: análisis con IA", () => {
     const log = lines.find((line) => line.msg === "análisis de la IA");
     assert.equal(log?.result, NOT_FOOD);
     assert.equal(log?.saved, true);
+  });
+
+  it("NOT_FOOD devuelve el cupo una sola vez, aunque el job se procese de nuevo", async () => {
+    const userId = await createUser("off");
+    const month = monthIn("America/Montevideo", new Date());
+    await UserModel.updateOne({ _id: userId }, { $set: { usage: { month, analyses: 2 } } });
+    const meal = await createMeal({ userId });
+    await MealModel.updateOne({ _id: meal._id }, { $set: { quotaMonth: month } });
+    const { processor, logger } = setup(() => ({ isFood: false, analysis: null }));
+
+    assert.equal(await processor({ mealId: meal.id, requestId: REQUEST_ID }, logger), "analyzed");
+    // Un job repetido (o reintentado) ve la comida failed y no devuelve otra vez.
+    assert.equal(await processor({ mealId: meal.id, requestId: REQUEST_ID }, logger), "skipped");
+
+    const user = await UserModel.findById(userId, { usage: 1 }).lean();
+    assert.deepEqual(user?.usage, { month, analyses: 1 });
+    assert.equal((await MealModel.findById(meal.id).lean())?.quotaRefunded, true);
+  });
+
+  it("si el job murió después de dejarla failed, el reintento devuelve el cupo", async () => {
+    const userId = await createUser("off");
+    const month = monthIn("America/Montevideo", new Date());
+    await UserModel.updateOne({ _id: userId }, { $set: { usage: { month, analyses: 2 } } });
+    const meal = await createMeal({ userId });
+    await MealModel.updateOne(
+      { _id: meal._id },
+      { $set: { quotaMonth: month, status: "failed", error: { code: NOT_FOOD } } },
+    );
+    const { processor, logger } = setup(() => foodResponse());
+
+    assert.equal(await processor({ mealId: meal.id, requestId: REQUEST_ID }, logger), "skipped");
+    const user = await UserModel.findById(userId, { usage: 1 }).lean();
+    assert.deepEqual(user?.usage, { month, analyses: 1 });
   });
 
   for (const [name, response] of [
