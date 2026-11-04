@@ -239,7 +239,7 @@ export function createMealService({
           { $set: { status: "failed", error: { code: ENQUEUE_FAILED } } },
         )
           // Terminó en failed: no consume cupo.
-          .then(() => refundMealQuota(mealId, now()))
+          .then(() => refundMealQuota(mealId))
           .catch((updateErr: unknown) => {
             log.error("no se pudo marcar la comida como failed o devolver el cupo", {
               mealId: id,

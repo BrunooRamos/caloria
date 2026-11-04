@@ -6,6 +6,7 @@ import { AppError } from "@caloria/shared";
 import type { AuthResponse, LoginInput, Logger, RegisterInput } from "@caloria/shared";
 import { UserModel } from "../models/User";
 import type { Session, User } from "../models/User";
+import { monthIn } from "./quota";
 import { computeTargets } from "./targets";
 import { hashRefreshToken, newRefreshSession, signAccessToken } from "./tokens";
 
@@ -137,6 +138,7 @@ export function createAuthService({ privateKey }: { privateKey: KeyObject }): Au
         passwordHash,
         profile,
         targets: computeTargets(profile),
+        usage: { month: monthIn(profile.timezone, new Date()), analyses: 0 },
       });
       const { response, session } = issueTokens(user);
       user.sessions.push(session);

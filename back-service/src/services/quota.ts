@@ -46,12 +46,14 @@ export function createQuotaService({
     async reserve(userId, timeZone, { requestId, log }) {
       const month = monthIn(timeZone, now());
       const isPremium = { $eq: ["$plan.tier", "premium"] };
+      const keepsMonth = { $gte: ["$usage.month", month] };
       const user = await UserModel.findOneAndUpdate(
         {
           _id: userId,
           $or: [
             { "plan.tier": "premium" },
-            { "usage.month": { $ne: month } },
+            { "usage.month": { $exists: false } },
+            { "usage.month": { $lt: month } },
             { "usage.analyses": { $lt: freeMonthlyAnalyses } },
           ],
         },
@@ -63,37 +65,37 @@ export function createQuotaService({
                   isPremium,
                   "$usage",
                   {
-                    month,
-                    analyses: {
-                      $cond: [
-                        { $eq: ["$usage.month", month] },
-                        { $add: ["$usage.analyses", 1] },
-                        1,
-                      ],
-                    },
+                    month: { $cond: [keepsMonth, "$usage.month", month] },
+                    analyses: { $cond: [keepsMonth, { $add: ["$usage.analyses", 1] }, 1] },
                   },
                 ],
               },
             },
           },
         ],
-        { projection: { "plan.tier": 1 } },
-      ).lean<Pick<User, "plan">>();
+        { new: true, projection: { "plan.tier": 1, "usage.month": 1 } },
+      ).lean<Pick<User, "plan" | "usage">>();
 
       if (!user) {
+        // Solo para el mensaje: el mes que se agotó puede ser posterior al de la zona actual.
+        const stored = await UserModel.findById(userId, { "usage.month": 1 }).lean<
+          Pick<User, "usage">
+        >();
+        const exhausted =
+          stored?.usage?.month && stored.usage.month > month ? stored.usage.month : month;
         log.info("cupo mensual agotado, se rechaza la comida", {
           requestId,
           userId,
-          month,
+          month: exhausted,
           limit: freeMonthlyAnalyses,
         });
         throw new AppError(
           "MEAL_QUOTA_EXCEEDED",
           `Usaste los ${freeMonthlyAnalyses} análisis del plan free de este mes. ` +
-            `El cupo se renueva el ${renewalLabel(month)}.`,
+            `El cupo se renueva el ${renewalLabel(exhausted)}.`,
         );
       }
-      return user.plan.tier === "premium" ? {} : { month };
+      return user.plan.tier === "premium" ? {} : { month: user.usage.month };
     },
 
     async release(userId, month) {
@@ -105,10 +107,7 @@ export function createQuotaService({
   };
 }
 
-export async function refundMealQuota(
-  mealId: Types.ObjectId | string,
-  now: Date = new Date(),
-): Promise<boolean> {
+export async function refundMealQuota(mealId: Types.ObjectId | string): Promise<boolean> {
   const meal = await MealModel.findOneAndUpdate(
     {
       _id: mealId,
@@ -121,13 +120,14 @@ export async function refundMealQuota(
   ).lean<{ userId: Types.ObjectId; quotaMonth: string }>();
   if (!meal) return false;
 
-  const user = await UserModel.findById(meal.userId, { "profile.timezone": 1 }).lean<
-    Pick<User, "profile">
-  >();
-  if (!user || monthIn(user.profile.timezone, now) !== meal.quotaMonth) return false;
-  const { modifiedCount } = await UserModel.updateOne(
-    { _id: meal.userId, "usage.month": meal.quotaMonth, "usage.analyses": { $gt: 0 } },
-    { $inc: { "usage.analyses": -1 } },
-  );
-  return modifiedCount === 1;
+  try {
+    const { modifiedCount } = await UserModel.updateOne(
+      { _id: meal.userId, "usage.month": meal.quotaMonth, "usage.analyses": { $gt: 0 } },
+      { $inc: { "usage.analyses": -1 } },
+    );
+    return modifiedCount === 1;
+  } catch (err) {
+    await MealModel.updateOne({ _id: mealId }, { $unset: { quotaRefunded: 1 } });
+    throw err;
+  }
 }

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
-import { after, before, beforeEach, describe, it } from "node:test";
+import { after, before, beforeEach, describe, it, mock } from "node:test";
 import { Router } from "express";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import mongoose from "mongoose";
@@ -210,6 +210,7 @@ describe("back-service: cupo del plan free y funciones premium (RF-14, RF-15)", 
 
     it("se puede llenar el cupo justo hasta el límite y la siguiente da 402", async () => {
       const { token, userId } = await register();
+      await setUsage(userId, "2026-10", 0);
       for (let i = 0; i < LIMIT; i++) assert.equal((await postMeal(token)).status, 202);
       assertQuotaExceeded(await postMeal(token), "1 de noviembre");
       assert.equal((await usageOf(userId)).analyses, LIMIT);
@@ -247,6 +248,34 @@ describe("back-service: cupo del plan free y funciones premium (RF-14, RF-15)", 
       now = NOV_01_0030_MVD;
       assert.equal((await postMeal(token)).status, 202);
       assert.deepEqual(await usageOf(userId), { month: "2026-11", analyses: 1 });
+    });
+
+    it("cambiar de zona horaria no reinicia el cupo, aunque la nueva zona esté en otro mes", async () => {
+      const { token, userId } = await register();
+      await setUsage(userId, "2026-10", LIMIT);
+      now = OCT_31_2330_MVD; // 31/10 en Montevideo, 01/11 en Kiritimati (UTC+14) y en UTC.
+      const setZone = (timezone: string) =>
+        request(app)
+          .patch("/api/v1/users/me")
+          .set("authorization", `Bearer ${token}`)
+          .send({ profile: { timezone } });
+
+      // A una zona atrasada (Pago Pago, UTC-11, todavía 31/10): sigue agotado.
+      assert.equal((await setZone("Pacific/Pago_Pago")).status, 200);
+      assertQuotaExceeded(await postMeal(token), "1 de noviembre");
+
+      // A una zona adelantada ya es noviembre: arranca el cupo de noviembre, una sola vez.
+      assert.equal((await setZone("Pacific/Kiritimati")).status, 200);
+      assert.equal((await postMeal(token)).status, 202);
+      assert.deepEqual(await usageOf(userId), { month: "2026-11", analyses: 1 });
+
+      // Volver a una zona de octubre no reinicia: se sigue contando sobre noviembre.
+      assert.equal((await setZone("Pacific/Pago_Pago")).status, 200);
+      for (let i = 1; i < LIMIT; i++) assert.equal((await postMeal(token)).status, 202);
+      assertQuotaExceeded(await postMeal(token), "1 de diciembre");
+      assert.equal((await setZone("Pacific/Kiritimati")).status, 200);
+      assertQuotaExceeded(await postMeal(token), "1 de diciembre");
+      assert.deepEqual(await usageOf(userId), { month: "2026-11", analyses: LIMIT });
     });
 
     it("con un solo lugar libre y varias requests a la vez, pasa una sola", async () => {
@@ -304,7 +333,7 @@ describe("back-service: cupo del plan free y funciones premium (RF-14, RF-15)", 
       await setUsage(userId, "2026-10", 2);
       const meal = await failedMeal(userId, "2026-10");
 
-      assert.equal(await refundMealQuota(meal._id, now), true);
+      assert.equal(await refundMealQuota(meal._id), true);
       assert.deepEqual(await usageOf(userId), { month: "2026-10", analyses: 1 });
     });
 
@@ -314,12 +343,12 @@ describe("back-service: cupo del plan free y funciones premium (RF-14, RF-15)", 
       const meal = await failedMeal(userId, "2026-10");
 
       const refunds = await Promise.all([
-        refundMealQuota(meal._id, now),
-        refundMealQuota(meal._id, now),
-        refundMealQuota(meal._id, now),
+        refundMealQuota(meal._id),
+        refundMealQuota(meal._id),
+        refundMealQuota(meal._id),
       ]);
       assert.equal(refunds.filter(Boolean).length, 1);
-      assert.equal(await refundMealQuota(meal._id, now), false);
+      assert.equal(await refundMealQuota(meal._id), false);
       assert.deepEqual(await usageOf(userId), { month: "2026-10", analyses: 1 });
     });
 
@@ -328,17 +357,42 @@ describe("back-service: cupo del plan free y funciones premium (RF-14, RF-15)", 
       await setUsage(userId, "2026-10", 2);
       const meal = await failedMeal(userId, "2026-09");
 
-      assert.equal(await refundMealQuota(meal._id, now), false);
+      assert.equal(await refundMealQuota(meal._id), false);
       assert.deepEqual(await usageOf(userId), { month: "2026-10", analyses: 2 });
     });
 
-    it("si el mes cambió pero el contador todavía no se reinició, tampoco lo toca", async () => {
+    it("se devuelve aunque el usuario haya cambiado de zona después de registrar", async () => {
+      const { userId } = await register();
+      await setUsage(userId, "2026-10", 2);
+      const meal = await failedMeal(userId, "2026-10");
+      // En Kiritimati ya es noviembre, pero el contador sigue en octubre.
+      await UserModel.updateOne(
+        { _id: userId },
+        { $set: { "profile.timezone": "Pacific/Kiritimati" } },
+      );
+
+      assert.equal(await refundMealQuota(meal._id), true);
+      assert.deepEqual(await usageOf(userId), { month: "2026-10", analyses: 1 });
+    });
+
+    it("si el descuento falla, desmarca la comida y un reintento devuelve el cupo", async () => {
       const { userId } = await register();
       await setUsage(userId, "2026-10", 2);
       const meal = await failedMeal(userId, "2026-10");
 
-      assert.equal(await refundMealQuota(meal._id, NOV_01_0030_MVD), false);
-      assert.deepEqual(await usageOf(userId), { month: "2026-10", analyses: 2 });
+      const updateOne = mock.method(UserModel, "updateOne", () => {
+        throw new Error("Mongo no disponible");
+      });
+      try {
+        await assert.rejects(refundMealQuota(meal._id), /Mongo no disponible/);
+      } finally {
+        updateOne.mock.restore();
+      }
+      assert.equal((await MealModel.findById(meal._id).lean())?.quotaRefunded, undefined);
+
+      assert.equal(await refundMealQuota(meal._id), true);
+      assert.equal(await refundMealQuota(meal._id), false);
+      assert.deepEqual(await usageOf(userId), { month: "2026-10", analyses: 1 });
     });
 
     it("el contador nunca queda negativo", async () => {
@@ -346,7 +400,7 @@ describe("back-service: cupo del plan free y funciones premium (RF-14, RF-15)", 
       await setUsage(userId, "2026-10", 0);
       const meal = await failedMeal(userId, "2026-10");
 
-      assert.equal(await refundMealQuota(meal._id, now), false);
+      assert.equal(await refundMealQuota(meal._id), false);
       assert.deepEqual(await usageOf(userId), { month: "2026-10", analyses: 0 });
     });
 
@@ -356,7 +410,7 @@ describe("back-service: cupo del plan free y funciones premium (RF-14, RF-15)", 
       const meal = await failedMeal(userId, "2026-10");
       await MealModel.updateOne({ _id: meal._id }, { $set: { status: "ready" } });
 
-      assert.equal(await refundMealQuota(meal._id, now), false);
+      assert.equal(await refundMealQuota(meal._id), false);
       assert.deepEqual(await usageOf(userId), { month: "2026-10", analyses: 2 });
     });
   });
