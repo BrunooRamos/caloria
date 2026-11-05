@@ -14,7 +14,7 @@ import { MealModel } from "../src/models/Meal";
 import { UserModel } from "../src/models/User";
 import { apiRouter } from "../src/routes";
 import { createAuthService } from "../src/services/auth";
-import { createBillingService } from "../src/services/billing";
+import { createBillingService, WEBHOOK_CLAIM_LEASE_MS } from "../src/services/billing";
 import { createFakeBillingProvider } from "../src/services/billing/fake";
 import type { FakeBilling, SignedWebhook } from "../src/services/billing/fake";
 import { createMealService } from "../src/services/meals";
@@ -326,18 +326,49 @@ describe("back-service: suscripción premium (RF-16)", () => {
       assert.equal(await BillingEventModel.countDocuments(), 1);
     });
 
-    it("entregas simultáneas del mismo evento: una sola se procesa", async () => {
+    it("entregas simultáneas del mismo evento: una sola se procesa y las otras reintentan", async () => {
       const { token, userId } = await register();
       await subscribe(token);
       const webhook = fake.completeCheckout((await planOf(userId)).customerId!);
 
       const results = await Promise.all([1, 2, 3].map(() => sendWebhook(webhook)));
-      assert.deepEqual(
-        results.map((r) => r.status),
-        [200, 200, 200],
-      );
-      assert.equal(results.filter((r) => r.body.duplicate === false).length, 1);
+      assert.equal(results.filter((r) => r.status === 200 && !r.body.duplicate).length, 1);
+      // Las demás: 503 si llegaron mientras se procesaba, duplicate si llegaron después.
+      for (const r of results.filter((r) => r.status !== 200 || r.body.duplicate)) {
+        if (r.status !== 200) expectError(r, 503, "SERVICE_UNAVAILABLE");
+      }
       assert.equal(fake.calls.filter((c) => c === "getSubscription").length, 1);
+      assert.deepEqual((await sendWebhook(webhook)).body, { received: true, duplicate: true });
+    });
+
+    it("un evento que quedó en processing (el proceso se cayó) se retoma al vencer la reserva", async () => {
+      const { token, userId } = await register();
+      await subscribe(token);
+      const webhook = fake.completeCheckout((await planOf(userId)).customerId!);
+      const { id } = JSON.parse(webhook.body) as { id: string };
+      // Lo que deja un crash entre la reserva y el done.
+      await BillingEventModel.create({
+        _id: id,
+        type: "checkout.session.completed",
+        status: "processing",
+        receivedAt: now,
+        claimedAt: now,
+      });
+
+      // Con la reserva vigente: 503, para que el proveedor siga reintentando (no 200 duplicate).
+      expectError(await sendWebhook(webhook), 503, "SERVICE_UNAVAILABLE");
+      assert.equal((await planOf(userId)).tier, "free");
+
+      now = new Date(now.getTime() + WEBHOOK_CLAIM_LEASE_MS);
+      const retried = await sendWebhook(webhook);
+      assert.equal(retried.status, 200, JSON.stringify(retried.body));
+      assert.equal(retried.body.duplicate, false);
+      assert.equal((await planOf(userId)).tier, "premium");
+      assert.equal((await BillingEventModel.findById(id).lean())!.status, "done");
+      assert.ok(
+        logs.some((l) => l.msg === "webhook de pagos que quedó a medio procesar, se retoma"),
+      );
+      assert.deepEqual((await sendWebhook(webhook)).body, { received: true, duplicate: true });
     });
 
     it("si el proveedor falla al procesar: 503 y el reintento del mismo evento se procesa", async () => {

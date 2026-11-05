@@ -5,6 +5,8 @@ export interface BillingEvent {
   type: string;
   status: "processing" | "done";
   receivedAt: Date;
+  /** Cuándo se reservó para procesarlo. Una reserva en processing más vieja que el lease se retoma. */
+  claimedAt: Date;
 }
 
 /** El proveedor reintenta hasta 3 días; se guardan 30 por las dudas y después se borran solos. */
@@ -16,6 +18,7 @@ const billingEventSchema = new Schema<BillingEvent>(
     type: { type: String, required: true },
     status: { type: String, enum: ["processing", "done"], required: true },
     receivedAt: { type: Date, required: true },
+    claimedAt: { type: Date, required: true },
   },
   { collection: "billing_events", versionKey: false },
 );

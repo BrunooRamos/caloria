@@ -37,6 +37,12 @@ export interface BillingServiceDeps {
 type BillingUser = Pick<User, "_id" | "plan" | "usage" | "profile">;
 const USER_FIELDS = { plan: 1, usage: 1, "profile.timezone": 1 } as const;
 const DUPLICATE_KEY = 11000;
+/**
+ * Cuánto dura la reserva de un evento en processing. Si el proceso se cae a mitad de camino,
+ * pasado este tiempo la próxima entrega la retoma. Holgado contra el peor caso de una entrega
+ * (dos intentos de 10 s contra Stripe más la base).
+ */
+export const WEBHOOK_CLAIM_LEASE_MS = 2 * 60 * 1000;
 
 export function createBillingService({
   provider,
@@ -149,6 +155,54 @@ export function createBillingService({
     return updated;
   }
 
+  async function claim(
+    event: { id: string; type: string },
+    { requestId, log }: BillingContext,
+  ): Promise<Date | undefined> {
+    const at = now();
+    try {
+      await BillingEventModel.create({
+        _id: event.id,
+        type: event.type,
+        status: "processing",
+        receivedAt: at,
+        claimedAt: at,
+      });
+      return at;
+    } catch (err) {
+      if ((err as { code?: number }).code !== DUPLICATE_KEY) throw err;
+    }
+
+    const retaken = await BillingEventModel.findOneAndUpdate(
+      {
+        _id: event.id,
+        status: "processing",
+        claimedAt: { $lte: new Date(at.getTime() - WEBHOOK_CLAIM_LEASE_MS) },
+      },
+      { $set: { claimedAt: at } },
+    ).lean();
+    if (retaken) {
+      log.warn("webhook de pagos que quedó a medio procesar, se retoma", {
+        requestId,
+        eventId: event.id,
+        type: event.type,
+      });
+      return at;
+    }
+
+    const existing = await BillingEventModel.findById(event.id, { status: 1 }).lean();
+    if (existing?.status === "done") {
+      log.info("webhook de pagos repetido, se ignora", { requestId, eventId: event.id });
+      return undefined;
+    }
+    // Lo está procesando otra entrega (o se acaba de liberar por un fallo): que reintente.
+    log.info("webhook de pagos en proceso por otra entrega, se pide reintentar", {
+      requestId,
+      eventId: event.id,
+    });
+    throw new AppError("SERVICE_UNAVAILABLE", "El evento se está procesando");
+  }
+
   return {
     async getPlan(userId) {
       return view(await load(userId), now());
@@ -224,18 +278,8 @@ export function createBillingService({
 
       // Se reserva el id antes de procesar: un evento repetido (o dos entregas a la vez) no
       // se procesa dos veces.
-      try {
-        await BillingEventModel.create({
-          _id: event.id,
-          type: event.type,
-          status: "processing",
-          receivedAt: now(),
-        });
-      } catch (err) {
-        if ((err as { code?: number }).code !== DUPLICATE_KEY) throw err;
-        log.info("webhook de pagos repetido, se ignora", { requestId, eventId: event.id });
-        return { duplicate: true };
-      }
+      const claimedAt = await claim(event, context);
+      if (!claimedAt) return { duplicate: true };
 
       try {
         if (event.kind === "subscription") {
@@ -258,10 +302,14 @@ export function createBillingService({
             await apply(user, sub, now(), context);
           }
         }
-        await BillingEventModel.updateOne({ _id: event.id }, { $set: { status: "done" } });
+        await BillingEventModel.updateOne(
+          { _id: event.id, claimedAt },
+          { $set: { status: "done" } },
+        );
       } catch (err) {
-        // Se libera el id: el proveedor reintenta la entrega y se vuelve a procesar.
-        await BillingEventModel.deleteOne({ _id: event.id, status: "processing" });
+        // Se libera el id: el proveedor reintenta la entrega y se vuelve a procesar. Solo si la
+        // reserva sigue siendo esta (si venció, otra entrega la pudo haber retomado).
+        await BillingEventModel.deleteOne({ _id: event.id, status: "processing", claimedAt });
         throw err;
       }
       log.info("webhook de pagos procesado", { requestId, eventId: event.id, type: event.type });

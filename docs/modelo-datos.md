@@ -161,6 +161,7 @@ _id: string                   // id del evento en Stripe (evt_…)
 type: string                  // ej. "checkout.session.completed"
 status: "processing" | "done" // processing: se está procesando; si falla, se borra y Stripe reintenta
 receivedAt: Date              // índice TTL: se borra a los 30 días (Stripe reintenta hasta 3)
+claimedAt: Date               // cuándo se reservó; un processing con más de 2 min (crash a mitad) lo retoma el próximo reintento
 ```
 
 ## Índices
