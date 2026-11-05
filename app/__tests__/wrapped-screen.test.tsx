@@ -407,6 +407,13 @@ describe("Wrapped: compartir una tarjeta", () => {
 });
 
 describe("Wrapped: reducir movimiento", () => {
+  /**
+   * Las animaciones que se ven: la navegación de pestañas también llama a `Animated.timing`, pero
+   * con duración 0 (sin transición entre pestañas), y eso no mueve nada.
+   */
+  const visible = (timing: jest.SpyInstance) =>
+    timing.mock.calls.filter(([, config]) => (config as { duration?: number }).duration !== 0);
+
   it("con reducir movimiento prendido no anima la entrada de las tarjetas ni la vista previa", async () => {
     jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockResolvedValue(true);
     const timing = jest.spyOn(Animated, "timing");
@@ -418,7 +425,7 @@ describe("Wrapped: reducir movimiento", () => {
     await readyShareCard();
 
     expect(await screen.findByRole("header", { name: "Vista previa" })).toBeOnTheScreen();
-    expect(timing).not.toHaveBeenCalled();
+    expect(visible(timing)).toEqual([]);
   });
 
   it("sin reducir movimiento, la primera tarjeta entra animada", async () => {
@@ -428,6 +435,6 @@ describe("Wrapped: reducir movimiento", () => {
     await layoutPager();
 
     await screen.findByLabelText(/^Tu semana: registraste/);
-    expect(timing).toHaveBeenCalled();
+    expect(visible(timing).length).toBeGreaterThan(0);
   });
 });
