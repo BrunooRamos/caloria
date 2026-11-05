@@ -1,0 +1,21 @@
+shared/test/errors.test.ts
+  s_affbeaa78d7365::t_a0923b0a58e55d 18
+prompts/historial/pazdiaz15.md
+  s_affbeaa78d7365::t_c22eb12c05266c 395-498
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1bb168a7e5a31c205686770838d1f1682773d3dd",
+  "prompts": {},
+  "sessions": {
+    "s_affbeaa78d7365": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9fea9a39-7d5f-4d1c-82af-0660aba2a510",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "pazdiaz15 <mpdiaz@correo.um.edu.uy>"
+    }
+  }
+}
