@@ -1,0 +1,146 @@
+docs/modelo-datos.md
+  s_965d164546c5ae::t_f8480a1a9d2e58 3,27-35,43,155-165,171,177
+back-service/src/models/User.ts
+  s_965d164546c5ae::t_a6b5bdad9e1dfd 160-164
+  s_965d164546c5ae::t_516f42fd552e53 27-30,34-40
+  s_965d164546c5ae::t_f8cf9bc88c9946 99-103
+back-service/src/services/billing/fake.ts
+  s_965d164546c5ae::t_6e8c2bc9b5bbe3 1-164
+back-service/src/services/auth.ts
+  s_965d164546c5ae::t_e530e70d21de39 128-131,193-196
+  s_965d164546c5ae::t_22fb4ac077f741 9
+back-service/package.json
+  s_965d164546c5ae::t_5bda29bdd7b7dc 39
+back-service/src/app.ts
+  s_965d164546c5ae::t_a5d0c239d12ce4 3-9,24
+  s_965d164546c5ae::t_e530e70d21de39 25-28
+back-service/src/index.ts
+  s_965d164546c5ae::t_8539c7052eae93 25,29-36
+  s_965d164546c5ae::t_a4d6904eb2c8a6 12
+  s_965d164546c5ae::t_0b93f4e960c509 56
+  s_965d164546c5ae::t_21b6b5d643e7ab 6
+  s_965d164546c5ae::t_bf718db9e49ddc 44
+back-service/src/services/billing/provider.ts
+  s_965d164546c5ae::t_a4cbea7fc8c2c6 1-67
+back-service/src/routes/index.ts
+  s_965d164546c5ae::t_a5d0c239d12ce4 4,12,24,34,64-70
+  s_965d164546c5ae::t_3783a2be0dc353 71
+back-service/test/billing.test.ts
+  s_965d164546c5ae::t_26ac08d7baf1df 546-548
+  s_965d164546c5ae::t_e530e70d21de39 136,187-191,295-298,303-306,335-338,539-542
+  s_965d164546c5ae::t_c13bc28436bbc8 1-135,137-186,192-294,299-302,307-334,339-538,543-545,549-551
+front-service/src/clients/backend.ts
+  s_965d164546c5ae::t_d9f3bea3c6d223 28-29,79,90,95-97
+docs/arquitectura.md
+  s_965d164546c5ae::t_f8480a1a9d2e58 28,31,46-47
+back-service/src/config/index.ts
+  s_965d164546c5ae::t_0b412895255d77 20-55
+scripts/billing-sandbox.sh
+  s_965d164546c5ae::t_708a8248281c42 1-109
+back-service/src/services/quota.ts
+  s_965d164546c5ae::t_6887f3c4ac9b29 115-128
+  s_965d164546c5ae::t_a0a19117723ccd 8
+  s_965d164546c5ae::t_1501dd82289e09 66-72,87-88,93-94
+  s_965d164546c5ae::t_e3c236e325b395 50-51
+  s_965d164546c5ae::t_e7f181b59cbeea 14,16-19,21,25-35
+  s_965d164546c5ae::t_531c5281d56e60 36
+back-service/src/services/plan.ts
+  s_965d164546c5ae::t_4a0030bcc3f544 1-29
+shared/src/errors.ts
+  s_965d164546c5ae::t_a2d0667d9d7daa 10
+back-service/test/billing-stripe.test.ts
+  s_965d164546c5ae::t_e056e7f073d80f 1-25,31-154
+  s_965d164546c5ae::t_e530e70d21de39 26-30
+docs/seguridad.md
+  s_965d164546c5ae::t_f8480a1a9d2e58 17,42,47-52
+  s_965d164546c5ae::t_8cb359adb090d9 53
+docs/README.md
+  s_965d164546c5ae::t_561244b4f5185f 11
+eslint.config.mjs
+  s_965d164546c5ae::t_b5eeeec27f163a 38-46,50-55
+  s_965d164546c5ae::t_e530e70d21de39 48-49
+  h_5b36141b16afea 36-37
+  s_965d164546c5ae::t_1a683adcdc9219 47
+infra/docker-compose.yml
+  s_965d164546c5ae::t_88f4dacfa7e3f9 3-4,50-55,60,146-148
+back-service/src/services/billing/service.ts
+  s_965d164546c5ae::t_3361bd6c96be68 192-194
+  s_965d164546c5ae::t_0bcfd75b4b38de 1-191,195-271
+docs/requerimientos.md
+  s_965d164546c5ae::t_f8480a1a9d2e58 160-163,165,188,190
+infra/.env.example
+  h_5b36141b16afea 32-36
+  h_5b36141b16afea 30
+shared/src/billing.ts
+  s_965d164546c5ae::t_cd1da881776799 1-28
+front-service/src/schemas/index.ts
+  s_965d164546c5ae::t_d9f3bea3c6d223 50-53
+back-service/README.md
+  s_965d164546c5ae::t_f8480a1a9d2e58 7-11
+back-service/src/models/BillingEvent.ts
+  s_965d164546c5ae::t_9c02568680099a 1-25
+front-service/src/controllers/billing.ts
+  s_965d164546c5ae::t_d9f3bea3c6d223 1-21
+docs/api.md
+  s_965d164546c5ae::t_5926ebfdff453c 28-31,130-131,365-449,461,464,491,496,511
+docs/billing-sandbox.md
+  s_965d164546c5ae::t_b26a6ab1f8b0b5 66
+  s_965d164546c5ae::t_603f203bab9137 1-65,67-70
+shared/src/index.ts
+  s_965d164546c5ae::t_900656e74747fa 108-113
+back-service/src/controllers/billing.ts
+  s_965d164546c5ae::t_8b851b546ba684 1-29
+front-service/test/billing.test.ts
+  s_965d164546c5ae::t_5e288aa3094d92 1-86
+back-service/src/services/billing/index.ts
+  s_965d164546c5ae::t_36bc8e1a96d8e7 1-13
+front-service/src/app.ts
+  s_965d164546c5ae::t_d9f3bea3c6d223 3-9,27
+  s_965d164546c5ae::t_e530e70d21de39 28-31
+back-service/src/services/users.ts
+  s_965d164546c5ae::t_a9fe666f4dd58c 5
+  s_965d164546c5ae::t_0373d8c4d3803f 30-33,41
+front-service/src/routes/index.ts
+  s_965d164546c5ae::t_d9f3bea3c6d223 6,36-38,51-52
+back-service/src/middleware/plan.ts
+  s_965d164546c5ae::t_d17bde9df7362f 5,8-27
+back-service/.env.example
+  h_5b36141b16afea 24-28
+  h_5b36141b16afea 23
+back-service/src/services/billing/stripe.ts
+  s_965d164546c5ae::t_f450d7e7daaf5d 153
+  s_965d164546c5ae::t_553ab4dddd9b40 1-152,154-191
+back-service/package-lock.json
+  s_965d164546c5ae::t_66374ddc9586d3 23,1131,3406-3422,3587
+prompts/historial/pazdiaz15.md
+  s_affbeaa78d7365::t_e8aaf0048d2fe2 358-394
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "95a34ca13633b9edfb7d464d2190e0f512e3a773",
+  "prompts": {},
+  "humans": {
+    "h_5b36141b16afea": {
+      "author": "pazdiaz15 <mpdiaz@correo.um.edu.uy>"
+    }
+  },
+  "sessions": {
+    "s_965d164546c5ae": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b53686f2-ede0-48be-83d9-5522da16c68a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "pazdiaz15 <mpdiaz@correo.um.edu.uy>"
+    },
+    "s_affbeaa78d7365": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9fea9a39-7d5f-4d1c-82af-0660aba2a510",
+        "model": "unknown"
+      },
+      "human_author": "pazdiaz15 <mpdiaz@correo.um.edu.uy>"
+    }
+  }
+}
