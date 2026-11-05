@@ -13,6 +13,7 @@ import {
   json,
   memoryStorage,
 } from "@/test-utils/fake-api";
+import { spyAlerts } from "@/test-utils/alert";
 import type { Call, Handler } from "@/test-utils/fake-api";
 
 jest.mock("expo-splash-screen", () => ({
@@ -88,7 +89,13 @@ function start({
     if (call.path === "/auth/refresh") return json(200, { ...NEW_TOKENS });
     if (call.path.startsWith("/meals?")) return list(call);
     if (call.method === "DELETE") return remove(call);
-    if (call.path.startsWith("/meals/")) return json(200, BREAKFAST);
+    if (call.path.startsWith("/meals/")) {
+      const id = call.path.split("/").pop();
+      return json(
+        200,
+        [BREAKFAST, LUNCH, DINNER, YESTERDAY].find((item) => item.id === id),
+      );
+    }
     if (call.path === "/dashboard/daily") return apiError(503, "SERVICE_UNAVAILABLE");
     return apiError(404, "NOT_FOUND");
   });
@@ -281,115 +288,98 @@ describe("historial por día", () => {
     expect(await screen.findByText("Milanesa napolitana")).toBeOnTheScreen();
   });
 
-  describe("eliminar", () => {
-    it("pide confirmación, borra y saca la comida de la lista", async () => {
-      await start({ list: byDay({ [TODAY]: page([BREAKFAST, LUNCH]) }) });
-      expect(await screen.findByText("Milanesa con puré")).toBeOnTheScreen();
+  describe("eliminar, desde el detalle", () => {
+    /** Lista de hoy que ya no trae lo borrado, como el servidor. */
+    function todayWithout(deleted: Set<string>, meals: Meal[]) {
+      return (call: Call) =>
+        byDay({ [TODAY]: page(meals.filter((item) => !deleted.has(item.id))) })(call);
+    }
 
-      await fireEvent.press(
-        screen.getByRole("button", { name: "Eliminar la comida de las 13:30" }),
-      );
-      expect(screen.getByText("¿Eliminar esta comida?")).toBeOnTheScreen();
+    async function openLunch() {
+      await fireEvent.press(await screen.findByRole("button", { name: /Milanesa con puré/ }));
+      return screen.findByRole("button", { name: "Eliminar comida" });
+    }
+
+    it("pide confirmación, borra, avisa y vuelve al historial sin la comida", async () => {
+      const deleted = new Set<string>();
+      const router = await start({
+        list: todayWithout(deleted, [BREAKFAST, LUNCH]),
+        remove: (call) => {
+          deleted.add(call.path.split("/").pop() ?? "");
+          return new Response(null, { status: 204 });
+        },
+      });
+      const alerts = spyAlerts();
+      await fireEvent.press(await openLunch());
+      expect(alerts.last()).toMatchObject({
+        title: "¿Eliminar esta comida?",
+        message: "Se borra con su foto y deja de sumar en el día. No se puede deshacer.",
+      });
+      expect(alerts.last().buttons.map((button) => button.text)).toEqual(["Cancelar", "Eliminar"]);
       expect(deleteCalls()).toHaveLength(0);
 
-      await fireEvent.press(screen.getByRole("button", { name: "Sí, eliminar" }));
+      await alerts.press("Eliminar");
       expect(deleteCalls().map((call) => call.path)).toEqual([`/meals/${LUNCH.id}`]);
+      expect(await screen.findByText("Eliminamos la comida.")).toBeOnTheScreen();
+      expect(router.getPathname()).toBe("/history");
+      expect(await screen.findByText("Tostadas con palta")).toBeOnTheScreen();
       expect(screen.queryByText("Milanesa con puré")).toBeNull();
-      expect(screen.getByText("Tostadas con palta")).toBeOnTheScreen();
     });
 
     it("cancelar no borra nada", async () => {
-      await start({ list: byDay({ [TODAY]: page([LUNCH]) }) });
-      expect(await screen.findByText("Milanesa con puré")).toBeOnTheScreen();
-
-      await fireEvent.press(
-        screen.getByRole("button", { name: "Eliminar la comida de las 13:30" }),
-      );
-      await fireEvent.press(screen.getByRole("button", { name: "Cancelar" }));
-      expect(screen.queryByText("¿Eliminar esta comida?")).toBeNull();
-      expect(screen.getByText("Milanesa con puré")).toBeOnTheScreen();
+      const router = await start({ list: byDay({ [TODAY]: page([LUNCH]) }) });
+      const alerts = spyAlerts();
+      await fireEvent.press(await openLunch());
+      await alerts.press("Cancelar");
       expect(deleteCalls()).toHaveLength(0);
+      expect(router.getPathname()).toBe(`/meals/${LUNCH.id}`);
     });
 
     it("si falla, lo dice y la comida queda", async () => {
-      await start({
+      const router = await start({
         list: byDay({ [TODAY]: page([LUNCH]) }),
         remove: () => apiError(503, "SERVICE_UNAVAILABLE"),
       });
-      expect(await screen.findByText("Milanesa con puré")).toBeOnTheScreen();
-
-      await fireEvent.press(
-        screen.getByRole("button", { name: "Eliminar la comida de las 13:30" }),
-      );
-      await fireEvent.press(screen.getByRole("button", { name: "Sí, eliminar" }));
+      const alerts = spyAlerts();
+      await fireEvent.press(await openLunch());
+      await alerts.press("Eliminar");
       expect(
         await screen.findByText(
           "El servicio no está disponible ahora. Probá de nuevo en unos minutos.",
         ),
       ).toBeOnTheScreen();
-      expect(screen.getByText("Milanesa con puré")).toBeOnTheScreen();
-    });
-
-    it("un refresco que salió antes de borrar no la trae de vuelta", async () => {
-      const refresh = deferred<Response>();
-      let first = true;
-      await start({
-        list: (call) => {
-          if (first) {
-            first = false;
-            return byDay({ [TODAY]: page([BREAKFAST, LUNCH]) })(call);
-          }
-          return refresh.promise;
-        },
-      });
-      expect(await screen.findByText("Milanesa con puré")).toBeOnTheScreen();
-
-      // Ir al detalle y volver pide la lista de nuevo; esa respuesta queda en vuelo.
-      await fireEvent.press(screen.getByRole("button", { name: /Tostadas con palta/ }));
-      await act(() => appRouter.back());
-      expect(listCalls()).toHaveLength(2);
-
-      await fireEvent.press(
-        screen.getByRole("button", { name: "Eliminar la comida de las 13:30" }),
-      );
-      await fireEvent.press(screen.getByRole("button", { name: "Sí, eliminar" }));
-      expect(screen.queryByText("Milanesa con puré")).toBeNull();
-
-      // El servidor respondió con la lista de antes del borrado.
-      await act(async () => refresh.resolve(json(200, page([BREAKFAST, LUNCH]))));
-      expect(screen.getByText("Tostadas con palta")).toBeOnTheScreen();
-      expect(screen.queryByText("Milanesa con puré")).toBeNull();
+      expect(router.getPathname()).toBe(`/meals/${LUNCH.id}`);
+      expect(screen.queryByText("Eliminamos la comida.")).toBeNull();
     });
 
     it("un 404 cuenta como borrada: ya no estaba", async () => {
-      await start({
-        list: byDay({ [TODAY]: page([LUNCH]) }),
+      const router = await start({
+        list: byDay({ [TODAY]: page([]) }),
         remove: () => apiError(404, "NOT_FOUND"),
+        initialUrl: `/meals/${LUNCH.id}`,
       });
-      expect(await screen.findByText("Milanesa con puré")).toBeOnTheScreen();
-
-      await fireEvent.press(
-        screen.getByRole("button", { name: "Eliminar la comida de las 13:30" }),
-      );
-      await fireEvent.press(screen.getByRole("button", { name: "Sí, eliminar" }));
-      expect(await screen.findByText("Todavía no hay comidas hoy")).toBeOnTheScreen();
+      const alerts = spyAlerts();
+      await fireEvent.press(await screen.findByRole("button", { name: "Eliminar comida" }));
+      await alerts.press("Eliminar");
+      expect(await screen.findByText("Eliminamos la comida.")).toBeOnTheScreen();
+      // Se abrió sola (como desde un link): vuelve al inicio.
+      expect(router.getPathname()).toBe("/");
     });
   });
 
-  it("se llega desde el dashboard, que se vuelve a pedir después de borrar", async () => {
-    const router = await start({ list: byDay({ [TODAY]: page([LUNCH]) }), initialUrl: "/" });
-    const dashboardGets = () => calls.filter((call) => call.path === "/dashboard/daily");
-    await fireEvent.press(await screen.findByText("Ver comidas del día"));
+  it("es una pestaña: se llega desde cualquier sección y vuelve al día que estaba", async () => {
+    const router = await start({
+      list: byDay({ [TODAY]: page([LUNCH]), "2026-10-26": page([YESTERDAY]) }),
+      initialUrl: "/",
+    });
+    await fireEvent.press(await screen.findByRole("tab", { name: "Historial" }));
     expect(router.getPathname()).toBe("/history");
-    expect(await screen.findByText("Milanesa con puré")).toBeOnTheScreen();
-    expect(dashboardGets()).toHaveLength(1);
+    await fireEvent.press(await screen.findByRole("button", { name: "Día anterior" }));
+    expect(await screen.findByText("Guiso de lentejas")).toBeOnTheScreen();
 
-    await fireEvent.press(screen.getByRole("button", { name: "Eliminar la comida de las 13:30" }));
-    await fireEvent.press(screen.getByRole("button", { name: "Sí, eliminar" }));
-    expect(deleteCalls()).toHaveLength(1);
-
-    await act(() => appRouter.back());
-    expect(router.getPathname()).toBe("/");
-    expect(dashboardGets()).toHaveLength(2);
+    await fireEvent.press(screen.getByRole("tab", { name: "Perfil" }));
+    expect(router.getPathname()).toBe("/profile");
+    await fireEvent.press(screen.getByRole("tab", { name: "Historial" }));
+    expect(await screen.findByText("Guiso de lentejas")).toBeOnTheScreen();
   });
 });

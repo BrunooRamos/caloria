@@ -4,7 +4,7 @@ import type { Targets } from "@/services/users";
 import { spacing } from "@/theme";
 
 const MACROS = [
-  { key: "proteinG", label: "Proteína" },
+  { key: "proteinG", label: "Proteínas" },
   { key: "carbsG", label: "Carbohidratos" },
   { key: "fatG", label: "Grasas" },
 ] as const satisfies { key: keyof Targets; label: string }[];
@@ -13,7 +13,7 @@ export function TargetsCard({ targets }: { targets: Targets }) {
   return (
     <Card>
       <Text variant="caption" color="inkMuted">
-        Energía por día
+        Calorías por día
       </Text>
       <View
         accessible

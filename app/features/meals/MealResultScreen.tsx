@@ -4,6 +4,7 @@ import { StyleSheet, View } from "react-native";
 import { Screen } from "@/components";
 import { spacing } from "@/theme";
 import { AnalyzingState } from "./result/AnalyzingState";
+import { DeleteMeal } from "./result/DeleteMeal";
 import { FailedState, NotFoundState } from "./result/FailedState";
 import { MealPhoto } from "./result/MealPhoto";
 import { ReadyState } from "./result/ReadyState";
@@ -49,6 +50,7 @@ export default function MealResultScreen() {
       <View style={styles.content}>
         <MealPhoto localUri={localPhoto} remoteUrl={meal?.photoUrl} onRemoteError={renewPhotoUrl} />
         {content}
+        {meal && !polling.notFound && <DeleteMeal id={id} />}
       </View>
     </Screen>
   );

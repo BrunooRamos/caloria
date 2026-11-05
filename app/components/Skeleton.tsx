@@ -1,3 +1,4 @@
+import { useIsFocused } from "expo-router";
 import { useEffect, useState } from "react";
 import { Animated, Easing, StyleSheet } from "react-native";
 import type { DimensionValue } from "react-native";
@@ -12,10 +13,11 @@ export interface SkeletonProps {
 
 export function Skeleton({ height, width = "100%", rounded = "sm" }: SkeletonProps) {
   const reduceMotion = useReduceMotion();
+  const focused = useIsFocused();
   const [pulse] = useState(() => new Animated.Value(1));
 
   useEffect(() => {
-    if (reduceMotion !== false) {
+    if (reduceMotion !== false || !focused) {
       pulse.setValue(1);
       return;
     }
@@ -29,7 +31,7 @@ export function Skeleton({ height, width = "100%", rounded = "sm" }: SkeletonPro
     const loop = Animated.loop(Animated.sequence([step(opacity.skeleton), step(1)]));
     loop.start();
     return () => loop.stop();
-  }, [pulse, reduceMotion]);
+  }, [pulse, reduceMotion, focused]);
 
   return (
     <Animated.View

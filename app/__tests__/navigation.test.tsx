@@ -1,7 +1,7 @@
 import * as SplashScreen from "expo-splash-screen";
 import type * as React from "react";
 import type * as LoginScreenModule from "@/features/auth/LoginScreen";
-import type * as SessionDebugModule from "@/features/auth/SessionDebug";
+import type * as DashboardScreenModule from "@/features/dashboard/DashboardScreen";
 import { act, fireEvent, renderRouter, screen } from "expo-router/testing-library";
 import { createHttpClient } from "@/services/http-client";
 import type { HttpClient } from "@/services/http-client";
@@ -18,6 +18,7 @@ import {
   memoryStorage,
   rotatingBackend,
 } from "@/test-utils/fake-api";
+import { spyAlerts } from "@/test-utils/alert";
 import type { Call, Handler } from "@/test-utils/fake-api";
 
 jest.mock("expo-splash-screen", () => ({
@@ -50,14 +51,16 @@ jest.mock("@/features/auth/LoginScreen", () => {
     },
   };
 });
-// La home renderiza SessionDebug en desarrollo (__DEV__ es true en Jest).
-jest.mock("@/features/auth/SessionDebug", () => {
+jest.mock("@/features/dashboard/DashboardScreen", () => {
   const { createElement } = jest.requireActual<typeof React>("react");
-  const actual = jest.requireActual<typeof SessionDebugModule>("@/features/auth/SessionDebug");
+  const actual = jest.requireActual<typeof DashboardScreenModule>(
+    "@/features/dashboard/DashboardScreen",
+  );
   return {
-    SessionDebug: () => {
+    __esModule: true,
+    default: () => {
       mockRenders.home += 1;
-      return createElement(actual.SessionDebug);
+      return createElement(actual.default);
     },
   };
 });
@@ -208,14 +211,21 @@ describe("con la app abierta", () => {
       OLD_TOKENS,
     );
 
-    await fireEvent.press(await screen.findByText("Mi perfil"));
+    const alerts = spyAlerts();
+    await fireEvent.press(await screen.findByRole("tab", { name: "Perfil" }));
     expect(router.getPathname()).toBe("/profile");
 
-    await fireEvent.press(await screen.findByText("Cerrar sesión"));
-    expect(screen.getByText("¿Querés cerrar la sesión?")).toBeOnTheScreen();
-    await fireEvent.press(screen.getByText("Cancelar"));
+    await fireEvent.press(await screen.findByRole("button", { name: "Cerrar sesión" }));
+    expect(alerts.last()).toMatchObject({
+      title: "¿Cerrar la sesión?",
+      message: "Para volver a entrar vas a necesitar tu email y tu contraseña.",
+    });
+    expect(alerts.last().buttons.map((button) => button.text)).toEqual([
+      "Cancelar",
+      "Cerrar sesión",
+    ]);
+    await alerts.press("Cancelar");
 
-    expect(screen.getByText("Cerrar sesión")).toBeOnTheScreen();
     expect(router.getPathname()).toBe("/profile");
     expect(calls.some((call) => call.path === "/auth/logout")).toBe(false);
     expect(mockTokenStorage.current()).toEqual(NEW_TOKENS);
@@ -228,9 +238,10 @@ describe("con la app abierta", () => {
       return apiError(404, "NOT_FOUND");
     }, OLD_TOKENS);
 
-    await fireEvent.press(await screen.findByText("Mi perfil"));
-    await fireEvent.press(await screen.findByText("Cerrar sesión"));
-    await fireEvent.press(screen.getByText("Sí, cerrar sesión"));
+    const alerts = spyAlerts();
+    await fireEvent.press(await screen.findByRole("tab", { name: "Perfil" }));
+    await fireEvent.press(await screen.findByRole("button", { name: "Cerrar sesión" }));
+    await alerts.press("Cerrar sesión");
 
     expect(await screen.findByLabelText("Email")).toBeOnTheScreen();
     expect(router.getPathname()).toBe("/login");
@@ -250,9 +261,10 @@ describe("con la app abierta", () => {
     );
     await screen.findByText("Hoy");
 
-    // El access token vence y el backend ya no acepta el refresh token.
+    // El access token vence y el backend ya no acepta el refresh token: el próximo pedido (abrir
+    // el perfil) recibe un 401, el refresh falla y la sesión se cierra.
     await mockTokenStorage.set({ accessToken: "access-vencido", refreshToken: "refresh-2" });
-    await fireEvent.press(screen.getByText("Probar 2 requests en paralelo (dev)"));
+    await fireEvent.press(screen.getByRole("tab", { name: "Perfil" }));
 
     expect(await screen.findByLabelText("Email")).toBeOnTheScreen();
     expect(router.getPathname()).toBe("/login");

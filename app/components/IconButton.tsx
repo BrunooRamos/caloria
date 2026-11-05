@@ -1,7 +1,8 @@
 import type { LucideIcon } from "lucide-react-native";
-import { Pressable, StyleSheet } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import type { PressableProps } from "react-native";
-import { colors, opacity, radius, sizes } from "@/theme";
+import { colors, opacity, radius, sizes, spacing } from "@/theme";
+import { Text } from "./Text";
 
 /** `tinted`: fondo `sageSoft`, para la acción principal de un bloque. */
 export type IconButtonVariant = "default" | "camera" | "tinted";
@@ -10,15 +11,24 @@ export interface IconButtonProps extends Omit<PressableProps, "children" | "styl
   icon: LucideIcon;
   label: string;
   variant?: IconButtonVariant;
+  caption?: string;
 }
 
 export function IconButton({
   icon: Icon,
   label,
   variant = "default",
+  caption,
   disabled,
   ...props
 }: IconButtonProps) {
+  const icon = (
+    <Icon
+      color={variant === "camera" ? colors.onCamera : colors.primary}
+      size={sizes.icon}
+      strokeWidth={sizes.iconStroke}
+    />
+  );
   return (
     <Pressable
       accessibilityRole="button"
@@ -27,17 +37,21 @@ export function IconButton({
       {...props}
       disabled={disabled}
       style={({ pressed }) => [
-        styles.base,
-        styles[variant],
+        caption ? styles.captioned : [styles.base, styles[variant]],
         pressed && styles.pressed,
         disabled && styles.disabled,
       ]}
     >
-      <Icon
-        color={variant === "camera" ? colors.onCamera : colors.primary}
-        size={sizes.icon}
-        strokeWidth={sizes.iconStroke}
-      />
+      {caption ? (
+        <>
+          <View style={[styles.base, styles[variant]]}>{icon}</View>
+          <Text variant="caption" color={variant === "camera" ? "onCamera" : "primary"}>
+            {caption}
+          </Text>
+        </>
+      ) : (
+        icon
+      )}
     </Pressable>
   );
 }
@@ -50,6 +64,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  captioned: { alignItems: "center", gap: spacing.xxs, minWidth: sizes.touchTarget },
   default: {},
   camera: { backgroundColor: colors.cameraControl },
   tinted: { backgroundColor: colors.sageSoft },

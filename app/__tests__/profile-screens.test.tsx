@@ -16,6 +16,7 @@ import {
   json,
   memoryStorage,
 } from "@/test-utils/fake-api";
+import { spyAlerts } from "@/test-utils/alert";
 import type { Call, Handler } from "@/test-utils/fake-api";
 
 jest.mock("expo-splash-screen", () => ({
@@ -218,7 +219,7 @@ describe("registro con perfil", () => {
 
     // Las metas salen de GET /users/me, tal cual.
     expect(await screen.findByText("2093")).toBeOnTheScreen();
-    expect(screen.getByLabelText("Proteína: 108 gramos")).toBeOnTheScreen();
+    expect(screen.getByLabelText("Proteínas: 108 gramos")).toBeOnTheScreen();
     expect(screen.getByLabelText("Carbohidratos: 285 gramos")).toBeOnTheScreen();
     expect(screen.getByLabelText("Grasas: 58 gramos")).toBeOnTheScreen();
     expect(screen.getByText(HEALTH_DISCLAIMER)).toBeOnTheScreen();
@@ -322,106 +323,225 @@ describe("perfil", () => {
     };
   }
 
+  /** Como el servidor: lo que se guarda es lo que devuelve el próximo GET. */
+  function statefulBackend(): Handler {
+    let current = me();
+    return (call) => {
+      if (call.path === "/auth/refresh") return json(200, { ...NEW_TOKENS });
+      if (call.path === "/users/me" && call.method === "GET") return json(200, current);
+      if (call.path === "/users/me" && call.method === "PATCH") {
+        const body = JSON.parse(String(call.body)) as Partial<Me>;
+        current = {
+          ...current,
+          ...body,
+          notifications: { ...current.notifications, ...body.notifications },
+        };
+        return json(200, current);
+      }
+      return apiError(404, "NOT_FOUND");
+    };
+  }
+
   const patches = () =>
     calls.filter((call) => call.path === "/users/me" && call.method === "PATCH");
+  const press = async (name: string | RegExp) =>
+    fireEvent.press(await screen.findByRole("button", { name }));
 
-  it("muestra los datos cargados, las metas y el aviso, sin IMC ni etiquetas sobre el cuerpo", async () => {
-    await start(profileBackend(), "/profile", NEW_TOKENS);
+  describe("la pantalla principal del perfil", () => {
+    it("es un menú: cada sección con el resumen de lo que tiene, y cerrar sesión al final", async () => {
+      await start(profileBackend(), "/profile", NEW_TOKENS);
 
-    expect(await screen.findByText("Tus datos")).toBeOnTheScreen();
-    expect(screen.getByRole("radio", { name: "Femenino" })).toBeChecked();
-    expect(screen.getByRole("button", { name: "Fecha de nacimiento" })).toHaveProp(
-      "accessibilityValue",
-      {
-        text: "10 de abril de 2002",
-      },
-    );
-    expect(screen.getByLabelText("Altura (cm)")).toHaveProp("value", "165");
-    expect(screen.getByLabelText("Peso (kg)")).toHaveProp("value", "60");
-    expect(screen.getByRole("radio", { name: "Moderada" })).toBeChecked();
-    expect(screen.getByRole("radio", { name: "Mantener mi peso" })).toBeChecked();
-    expect(screen.getByText("2093")).toBeOnTheScreen();
-    expect(screen.getByText(HEALTH_DISCLAIMER)).toBeOnTheScreen();
+      expect(await screen.findByText("cami@example.com")).toBeOnTheScreen();
+      for (const name of [
+        "Tus metas diarias, 2.093 kcal por día",
+        "Tus datos, 60 kg · Mantener mi peso",
+        "Comentario de tus comidas, Neutro",
+        "Avisos, Todos activados",
+      ]) {
+        expect(screen.getByRole("button", { name })).toBeOnTheScreen();
+      }
+      expect(screen.getByRole("button", { name: "Cerrar sesión" })).toBeOnTheScreen();
+      // Nada del formulario en esta pantalla: queda corta.
+      expect(screen.queryByLabelText("Peso (kg)")).toBeNull();
+      expect(screen.queryByRole("radio")).toBeNull();
+    });
 
-    for (const banned of [/IMC/i, /sobrepeso/i, /obesidad/i, /bajo peso/i]) {
-      expect(screen.queryByText(banned)).not.toBeOnTheScreen();
-    }
+    it("cada fila abre su sección y Volver regresa al perfil", async () => {
+      const router = await start(profileBackend(), "/profile", NEW_TOKENS);
+      for (const [row, path, header] of [
+        [/^Tus metas diarias/, "/profile/targets", "Tus metas diarias"],
+        [/^Tus datos/, "/profile/data", "Tus datos"],
+        [/^Comentario de tus comidas/, "/profile/tone", "Comentario de tus comidas"],
+        [/^Avisos/, "/profile/notifications", "Avisos"],
+      ] as const) {
+        await press(row);
+        expect(router.getPathname()).toBe(path);
+        expect(await screen.findByRole("header", { name: header })).toBeOnTheScreen();
+        await press("Volver");
+        expect(router.getPathname()).toBe("/profile");
+      }
+    });
 
-    // Sin cambios no hay nada que guardar.
-    expect(screen.getByRole("button", { name: "Guardar cambios" })).toBeDisabled();
+    it("al volver de una sección, el resumen muestra lo que se cambió", async () => {
+      await start(statefulBackend(), "/profile", NEW_TOKENS);
+      await press(/^Comentario de tus comidas/);
+      await fireEvent.press(await screen.findByRole("radio", { name: "Roast" }));
+      expect(await screen.findByText(/^Guardamos tu elección/)).toBeOnTheScreen();
+
+      await press("Volver");
+      expect(
+        await screen.findByRole("button", { name: "Comentario de tus comidas, Roast" }),
+      ).toBeOnTheScreen();
+    });
+
+    it("si no carga, lo dice y las secciones siguen a mano", async () => {
+      const router = await start(
+        (call) =>
+          call.path === "/users/me" ? apiError(503, "SERVICE_UNAVAILABLE") : profileBackend()(call),
+        "/profile",
+        NEW_TOKENS,
+      );
+      expect(
+        await screen.findByText(
+          "El servicio no está disponible ahora. Probá de nuevo en unos minutos.",
+        ),
+      ).toBeOnTheScreen();
+      expect(screen.getByRole("button", { name: "Reintentar" })).toBeOnTheScreen();
+      await press("Tus datos");
+      expect(router.getPathname()).toBe("/profile/data");
+    });
   });
 
-  it("al guardar manda solo lo que cambió y muestra las metas nuevas sin salir de la pantalla", async () => {
-    const response = deferred<Response>();
-    await start(
-      profileBackend(() => response.promise),
-      "/profile",
-      NEW_TOKENS,
-    );
+  describe("tus metas diarias", () => {
+    it("las metas y el aviso, sin IMC ni etiquetas sobre el cuerpo, y un atajo a tus datos", async () => {
+      const router = await start(profileBackend(), "/profile/targets", NEW_TOKENS);
 
-    await fireEvent.changeText(await screen.findByLabelText("Peso (kg)"), "58,5");
-    await fireEvent.press(screen.getByRole("radio", { name: "Bajar de peso" }));
-    await fireEvent.press(screen.getByText("Guardar cambios"));
+      expect(await screen.findByText("2093")).toBeOnTheScreen();
+      expect(screen.getByLabelText("Proteínas: 108 gramos")).toBeOnTheScreen();
+      expect(screen.getByText(HEALTH_DISCLAIMER)).toBeOnTheScreen();
+      for (const banned of [/IMC/i, /sobrepeso/i, /obesidad/i, /bajo peso/i]) {
+        expect(screen.queryByText(banned)).not.toBeOnTheScreen();
+      }
 
-    // Mientras guarda: loading, campos bloqueados y un solo PATCH aunque se toque de nuevo.
-    await fireEvent.press(screen.getByText("Guardar cambios"));
-    expect(screen.getByRole("button", { name: "Guardar cambios" })).toBeBusy();
-    expect(screen.getByLabelText("Peso (kg)")).toHaveProp("editable", false);
-    expect(patches()).toHaveLength(1);
-    expect(sentBody("/users/me", "PATCH")).toEqual({ profile: { weightKg: 58.5, goal: "lose" } });
-
-    const targets: Targets = { kcal: 1555, proteinG: 105, carbsG: 191, fatG: 43 };
-    await act(async () =>
-      response.resolve(
-        json(200, me({ profile: { ...PROFILE, weightKg: 58.5, goal: "lose" }, targets })),
-      ),
-    );
-
-    expect(await screen.findByText("1555")).toBeOnTheScreen();
-    expect(screen.queryByText("2093")).not.toBeOnTheScreen();
-    expect(screen.getByLabelText("Proteína: 105 gramos")).toBeOnTheScreen();
-    expect(
-      screen.getByText("Guardamos tus cambios y tus metas ya están actualizadas."),
-    ).toBeOnTheScreen();
-    expect(screen.getByRole("button", { name: "Guardar cambios" })).toBeDisabled();
-    expect(calls.filter((call) => call.method === "GET" && call.path === "/users/me")).toHaveLength(
-      1,
-    );
+      await press("Cambiar tus datos");
+      expect(router.getPathname()).toBe("/profile/data");
+    });
   });
 
-  it("valida en el campo antes de mandar", async () => {
-    await start(profileBackend(), "/profile", NEW_TOKENS);
+  describe("tus datos", () => {
+    it("muestra los datos cargados; sin cambios no hay nada que guardar", async () => {
+      await start(profileBackend(), "/profile/data", NEW_TOKENS);
 
-    await fireEvent.changeText(await screen.findByLabelText("Altura (cm)"), "260");
-    await fireEvent.press(screen.getByText("Guardar cambios"));
+      expect(await screen.findByRole("radio", { name: "Femenino" })).toBeChecked();
+      expect(screen.getByRole("button", { name: "Fecha de nacimiento" })).toHaveProp(
+        "accessibilityValue",
+        { text: "10 de abril de 2002" },
+      );
+      expect(screen.getByLabelText("Altura (cm)")).toHaveProp("value", "165");
+      expect(screen.getByLabelText("Peso (kg)")).toHaveProp("value", "60");
+      expect(screen.getByRole("radio", { name: "Moderada" })).toBeChecked();
+      expect(screen.getByRole("radio", { name: "Mantener mi peso" })).toBeChecked();
+      for (const banned of [/IMC/i, /sobrepeso/i, /obesidad/i, /bajo peso/i]) {
+        expect(screen.queryByText(banned)).not.toBeOnTheScreen();
+      }
+      expect(screen.getByRole("button", { name: "Guardar cambios" })).toBeDisabled();
+    });
 
-    expect(screen.getByText("Tiene que estar entre 100 y 250 cm.")).toBeOnTheScreen();
-    expect(patches()).toHaveLength(0);
-  });
+    it("al guardar manda solo lo que cambió y avisa la meta nueva", async () => {
+      const response = deferred<Response>();
+      await start(
+        profileBackend(() => response.promise),
+        "/profile/data",
+        NEW_TOKENS,
+      );
 
-  it("si la API devuelve un error, lo muestra con un mensaje entendible", async () => {
-    await start(
-      profileBackend(() => apiError(400, "VALIDATION_ERROR")),
-      "/profile",
-      NEW_TOKENS,
-    );
+      await fireEvent.changeText(await screen.findByLabelText("Peso (kg)"), "58,5");
+      await fireEvent.press(screen.getByRole("radio", { name: "Bajar de peso" }));
+      await fireEvent.press(screen.getByText("Guardar cambios"));
 
-    await fireEvent.changeText(await screen.findByLabelText("Peso (kg)"), "61");
-    await fireEvent.press(screen.getByText("Guardar cambios"));
+      // Mientras guarda: loading, campos bloqueados y un solo PATCH aunque se toque de nuevo.
+      await fireEvent.press(screen.getByText("Guardar cambios"));
+      expect(screen.getByRole("button", { name: "Guardar cambios" })).toBeBusy();
+      expect(screen.getByLabelText("Peso (kg)")).toHaveProp("editable", false);
+      expect(patches()).toHaveLength(1);
+      expect(sentBody("/users/me", "PATCH")).toEqual({
+        profile: { weightKg: 58.5, goal: "lose" },
+      });
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Revisá los datos e intentá de nuevo.",
-    );
-    expect(screen.getByText("2093")).toBeOnTheScreen();
+      const targets: Targets = { kcal: 1555, proteinG: 105, carbsG: 191, fatG: 43 };
+      await act(async () =>
+        response.resolve(
+          json(200, me({ profile: { ...PROFILE, weightKg: 58.5, goal: "lose" }, targets })),
+        ),
+      );
+
+      expect(
+        await screen.findByText("Guardamos tus datos. Tu meta ahora es de 1.555 kcal por día."),
+      ).toBeOnTheScreen();
+      expect(screen.getByRole("button", { name: "Guardar cambios" })).toBeDisabled();
+      expect(
+        calls.filter((call) => call.method === "GET" && call.path === "/users/me"),
+      ).toHaveLength(1);
+    });
+
+    it("valida en el campo antes de mandar", async () => {
+      await start(profileBackend(), "/profile/data", NEW_TOKENS);
+
+      await fireEvent.changeText(await screen.findByLabelText("Altura (cm)"), "260");
+      await fireEvent.press(screen.getByText("Guardar cambios"));
+
+      expect(screen.getByText("Tiene que estar entre 100 y 250 cm.")).toBeOnTheScreen();
+      expect(patches()).toHaveLength(0);
+    });
+
+    it("si la API devuelve un error, lo muestra con un mensaje entendible", async () => {
+      await start(
+        profileBackend(() => apiError(400, "VALIDATION_ERROR")),
+        "/profile/data",
+        NEW_TOKENS,
+      );
+
+      await fireEvent.changeText(await screen.findByLabelText("Peso (kg)"), "61");
+      await fireEvent.press(screen.getByText("Guardar cambios"));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Revisá los datos e intentá de nuevo.",
+      );
+      expect(screen.getByLabelText("Peso (kg)")).toHaveProp("value", "61");
+    });
+
+    it("con cambios sin guardar, Volver pregunta antes de descartarlos", async () => {
+      const router = await start(profileBackend(), "/profile", NEW_TOKENS);
+      await press(/^Tus datos/);
+      await fireEvent.changeText(await screen.findByLabelText("Peso (kg)"), "58");
+      const alerts = spyAlerts();
+
+      await press("Volver");
+      expect(alerts.last().title).toBe("¿Descartar los cambios?");
+      expect(alerts.last().buttons.map((button) => button.text)).toEqual([
+        "Seguir editando",
+        "Descartar",
+      ]);
+      await alerts.press("Seguir editando");
+      expect(router.getPathname()).toBe("/profile/data");
+      expect(screen.getByLabelText("Peso (kg)")).toHaveProp("value", "58");
+
+      await press("Volver");
+      await alerts.press("Descartar");
+      expect(router.getPathname()).toBe("/profile");
+      expect(patches()).toHaveLength(0);
+    });
   });
 
   describe("tono del comentario", () => {
     const toneRadio = (name: string) => screen.getByRole("radio", { name });
 
     it("viene marcado el tono guardado y cada opción explica qué hace", async () => {
-      await start(profileBackend(), "/profile", NEW_TOKENS);
+      await start(profileBackend(), "/profile/tone", NEW_TOKENS);
 
-      expect(await screen.findByText("Comentario de tus comidas")).toBeOnTheScreen();
+      expect(
+        await screen.findByRole("header", { name: "Comentario de tus comidas" }),
+      ).toBeOnTheScreen();
       expect(screen.getByLabelText("Tono del comentario")).toHaveProp(
         "accessibilityRole",
         "radiogroup",
@@ -444,13 +564,11 @@ describe("perfil", () => {
       const response = deferred<Response>();
       await start(
         profileBackend(() => response.promise),
-        "/profile",
+        "/profile/tone",
         NEW_TOKENS,
       );
 
-      // Un cambio sin guardar en el formulario no viaja con el tono ni se pierde.
-      await fireEvent.changeText(await screen.findByLabelText("Peso (kg)"), "58");
-      await fireEvent.press(toneRadio("Roast"));
+      await fireEvent.press(await screen.findByRole("radio", { name: "Roast" }));
 
       expect(toneRadio("Roast")).toBeChecked();
       expect(toneRadio("Roast")).toBeDisabled();
@@ -468,16 +586,10 @@ describe("perfil", () => {
       expect(toneRadio("Roast")).toBeChecked();
       expect(toneRadio("Roast")).toBeEnabled();
       expect(screen.queryByText("Guardando tu elección…")).not.toBeOnTheScreen();
-      // El formulario sigue como estaba: el peso sin guardar y el botón activo.
-      expect(screen.getByLabelText("Peso (kg)")).toHaveProp("value", "58");
-      expect(screen.getByRole("button", { name: "Guardar cambios" })).toBeEnabled();
-      expect(
-        screen.queryByText("Guardamos tus cambios y tus metas ya están actualizadas."),
-      ).not.toBeOnTheScreen();
     });
 
     it("elegir el tono que ya está no manda nada", async () => {
-      await start(profileBackend(), "/profile", NEW_TOKENS);
+      await start(profileBackend(), "/profile/tone", NEW_TOKENS);
 
       await fireEvent.press(await screen.findByRole("radio", { name: "Neutro" }));
       expect(patches()).toHaveLength(0);
@@ -488,7 +600,7 @@ describe("perfil", () => {
         profileBackend(() => {
           throw new TypeError("Network request failed");
         }),
-        "/profile",
+        "/profile/tone",
         NEW_TOKENS,
       );
 

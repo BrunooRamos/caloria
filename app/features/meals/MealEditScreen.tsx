@@ -1,8 +1,19 @@
-import { router, useLocalSearchParams, usePreventRemove } from "expo-router";
+import { useLocalSearchParams, usePreventRemove } from "expo-router";
 import { Hourglass } from "lucide-react-native";
 import { useEffect, useState } from "react";
-import { Alert, StyleSheet, View } from "react-native";
-import { Button, FormError, Input, Screen, Skeleton, Text } from "@/components";
+import { StyleSheet, View } from "react-native";
+import {
+  Button,
+  FormError,
+  Input,
+  Notice,
+  Screen,
+  Skeleton,
+  Text,
+  confirmAction,
+  goBack,
+  useToast,
+} from "@/components";
 import { ApiError } from "@/services/api-error";
 import { errorMessage } from "@/services/error-messages";
 import { correctMeal, getMeal } from "@/services/meals";
@@ -16,7 +27,7 @@ import { ItemEditor, RemovedItem } from "./edit/ItemEditor";
 import { RangeField } from "./edit/RangeField";
 import { useMealEditor } from "./edit/useMealEditor";
 import { DISH_MAX_CHARS, ITEMS_MAX } from "./edit/validation";
-import { NotFoundState, Notice } from "./result/FailedState";
+import { NotFoundState } from "./result/FailedState";
 
 const MACRO_LABELS: Record<MacroKey, string> = {
   protein: "Proteínas (g)",
@@ -41,18 +52,17 @@ export default function MealEditScreen() {
     );
   } else if (meal) {
     content = (
-      <>
-        <Notice
-          icon={Hourglass}
-          title="Todavía no se puede corregir"
-          detail={
-            meal.status === "processing"
-              ? "Estamos analizando esta comida. Cuando esté lista, vas a poder corregirla."
-              : "Esta comida no tiene un análisis para corregir."
-          }
-        />
-        <Button variant="secondary" title="Volver" onPress={() => router.back()} />
-      </>
+      <Notice
+        icon={Hourglass}
+        title="Todavía no se puede corregir"
+        detail={
+          meal.status === "processing"
+            ? "Estamos analizando esta comida. Cuando esté lista, vas a poder corregirla."
+            : "Esta comida no tiene un análisis para corregir."
+        }
+      >
+        <Button variant="secondary" title="Volver" onPress={goBack} />
+      </Notice>
     );
   } else {
     content = (
@@ -106,6 +116,7 @@ function useMealToEdit(id: string) {
 
 function MealEditForm({ meal }: { meal: ReadyMeal }) {
   const cache = useMealCache();
+  const toast = useToast();
   // La comida como estaba al abrir: contra eso se compara, aunque el store se actualice.
   const [base] = useState<MealValues>(() => ({
     dish: meal.dish,
@@ -118,6 +129,7 @@ function MealEditForm({ meal }: { meal: ReadyMeal }) {
     const updated = await correctMeal(meal.id, body);
     // El detalle que la tiene abierta la muestra corregida sin pedirla de nuevo.
     if (cache.get(meal.id)) cache.set(meal.id, updated);
+    toast("Guardamos la corrección.");
     setLeaving("saved");
   });
   const { draft, autoTotal, errors } = editor;
@@ -126,21 +138,21 @@ function MealEditForm({ meal }: { meal: ReadyMeal }) {
   // Con cambios sin guardar pregunta antes de salir; mientras guarda no deja salir.
   usePreventRemove((editor.changed || editor.saving) && !leaving, ({ repeat }) => {
     if (editor.saving) return;
-    Alert.alert("¿Descartar los cambios?", "Lo que corregiste no se va a guardar.", [
-      { text: "Seguir editando", style: "cancel" },
-      {
-        text: "Descartar",
-        onPress: () => {
-          setLeaving("discarded");
-          repeat();
-        },
-      },
-    ]);
+    void confirmAction({
+      title: "¿Descartar los cambios?",
+      message: "Lo que corregiste no se va a guardar.",
+      confirmTitle: "Descartar",
+      cancelTitle: "Seguir editando",
+    }).then((discard) => {
+      if (!discard) return;
+      setLeaving("discarded");
+      repeat();
+    });
   });
 
   // Guardada: vuelve al detalle después del render que deja de bloquear la salida.
   useEffect(() => {
-    if (leaving === "saved") router.back();
+    if (leaving === "saved") goBack();
   }, [leaving]);
 
   const active = draft.items.filter((item) => !item.removed);
@@ -223,7 +235,7 @@ function MealEditForm({ meal }: { meal: ReadyMeal }) {
             Calorías y macros
           </Text>
           <RangeField
-            label="Kcal totales"
+            label="Calorías totales"
             unit="kcal"
             draft={draft.kcal}
             current={autoTotal.kcal}

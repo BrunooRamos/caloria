@@ -91,14 +91,19 @@ export function resolveDay(requested: string | undefined, today: string): string
   return requested;
 }
 
-/** "Hoy", "Ayer", "lunes 20 de octubre"; con el año si no es el de hoy. */
-export function dayTitle(day: string, today: string): string {
-  if (day === today) return "Hoy";
-  if (isValidDay(today) && day === previousDay(today)) return "Ayer";
+/** "lunes 20 de octubre"; con el año si no es el de `today`. */
+export function longDayLabel(day: string, today: string): string {
   const utc = toUtc(day);
   if (!utc) return day;
   const label = `${WEEKDAYS[utc.getUTCDay()]} ${utc.getUTCDate()} de ${MONTHS[utc.getUTCMonth()]}`;
   return today.slice(0, 4) === day.slice(0, 4) ? label : `${label} de ${utc.getUTCFullYear()}`;
+}
+
+/** "Hoy", "Ayer", "lunes 20 de octubre"; con el año si no es el de hoy. */
+export function dayTitle(day: string, today: string): string {
+  if (day === today) return "Hoy";
+  if (isValidDay(today) && day === previousDay(today)) return "Ayer";
+  return longDayLabel(day, today);
 }
 
 /** La hora de `capturedAt` (ISO) en `timeZone`, en 24 h: `13:05`, `00:40`. */

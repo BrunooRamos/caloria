@@ -4,7 +4,7 @@ import { Images, X } from "lucide-react-native";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, AppState, Pressable, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { FormError, IconButton, Text } from "@/components";
+import { FormError, HeaderButton, IconButton, Text } from "@/components";
 import { borderWidth, colors, opacity, radius, sizes, spacing } from "@/theme";
 import { PermissionStep } from "./PermissionStep";
 
@@ -75,7 +75,7 @@ export function CameraStep({ busy, error, onPhoto, onPickFromGallery, onClose }:
       )}
       <SafeAreaView style={styles.overlay}>
         <View style={styles.top}>
-          <IconButton icon={X} label="Cerrar" variant="camera" onPress={onClose} />
+          <HeaderButton icon={X} title="Cerrar" variant="camera" onPress={onClose} />
         </View>
 
         <View style={styles.middle}>
@@ -95,6 +95,7 @@ export function CameraStep({ busy, error, onPhoto, onPickFromGallery, onClose }:
             <IconButton
               icon={Images}
               label="Elegir de la galería"
+              caption="Galería"
               variant="camera"
               disabled={busy}
               onPress={onPickFromGallery}

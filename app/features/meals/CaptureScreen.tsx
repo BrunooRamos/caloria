@@ -1,6 +1,7 @@
 import * as ImagePicker from "expo-image-picker";
-import { router } from "expo-router";
+import { router, usePreventRemove } from "expo-router";
 import { useState } from "react";
+import { confirmAction } from "@/components";
 import { CameraStep } from "./CameraStep";
 import { preparePhoto } from "./prepare-photo";
 import type { PreparedPhoto } from "./prepare-photo";
@@ -17,7 +18,26 @@ export default function CaptureScreen() {
   const [photo, setPhoto] = useState<PreparedPhoto | null>(null);
   const [preparing, setPreparing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const audio = useAudioNote();
+
+  const disablePrevention = usePreventRemove(
+    (sending || audio.note !== null) && !leaving,
+    ({ repeat }) => {
+      if (sending) return;
+      void confirmAction({
+        title: photo ? "¿Descartar la foto y el audio?" : "¿Descartar el audio?",
+        message: "Si cerrás ahora, no se guardan.",
+        confirmTitle: "Descartar",
+      }).then((discard) => {
+        if (!discard) return;
+        audio.stopPlayback();
+        setLeaving(true);
+        repeat();
+      });
+    },
+  );
 
   async function handlePhoto(uri: string) {
     setPreparing(true);
@@ -45,11 +65,19 @@ export default function CaptureScreen() {
     }
   }
 
+  function showResult(mealId: string, photoUri: string) {
+    setLeaving(true);
+    disablePrevention();
+    router.replace({ pathname: "/meals/[id]", params: { id: mealId, photoUri } });
+  }
+
   if (photo) {
     return (
       <PreviewStep
         photo={photo}
         audio={audio}
+        onSendingChange={setSending}
+        onSent={showResult}
         onRetake={() => {
           audio.stopPlayback();
           setPhoto(null);

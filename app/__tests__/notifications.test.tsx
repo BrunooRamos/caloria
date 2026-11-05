@@ -16,6 +16,7 @@ import {
   json,
   memoryStorage,
 } from "@/test-utils/fake-api";
+import { spyAlerts } from "@/test-utils/alert";
 import type { Call, Handler } from "@/test-utils/fake-api";
 
 // Helpers del mock manual de `__mocks__/expo-notifications.ts`.
@@ -118,7 +119,7 @@ beforeEach(() => {
 
 describe("permiso y token", () => {
   it("con el permiso sin pedir, ofrece activarlo y al aceptar registra el token", async () => {
-    await start(backend(), "/profile");
+    await start(backend(), "/profile/notifications");
 
     await fireEvent.press(await screen.findByText("Activar avisos"));
 
@@ -132,7 +133,7 @@ describe("permiso y token", () => {
 
   it("si el usuario no acepta, no registra nada y deja volver a intentar", async () => {
     mockNotifications.answerRequestWith(DENIED);
-    await start(backend(), "/profile");
+    await start(backend(), "/profile/notifications");
 
     await fireEvent.press(await screen.findByText("Activar avisos"));
 
@@ -143,7 +144,7 @@ describe("permiso y token", () => {
   it("si el sistema ya no pregunta, manda a la configuración", async () => {
     mockNotifications.setPermission(BLOCKED);
     const openSettings = jest.spyOn(Linking, "openSettings").mockResolvedValue();
-    await start(backend(), "/profile");
+    await start(backend(), "/profile/notifications");
 
     await fireEvent.press(await screen.findByText("Abrir configuración"));
 
@@ -154,7 +155,7 @@ describe("permiso y token", () => {
 
   it("si Expo no da el token, lo dice, no manda nada y deja reintentar", async () => {
     mockNotifications.setToken(new Error("ERR_NOTIFICATIONS_NO_EXPERIENCE_ID"));
-    await start(backend(), "/profile");
+    await start(backend(), "/profile/notifications");
 
     await fireEvent.press(await screen.findByText("Activar avisos"));
 
@@ -202,8 +203,9 @@ describe("cerrar sesión", () => {
     JSON.parse(String(calls.find((call) => call.path === "/auth/logout")?.body)) as object;
 
   async function signOut() {
-    await fireEvent.press(await screen.findByText("Cerrar sesión"));
-    await fireEvent.press(screen.getByText("Sí, cerrar sesión"));
+    const alerts = spyAlerts();
+    await fireEvent.press(await screen.findByRole("button", { name: "Cerrar sesión" }));
+    await alerts.press("Cerrar sesión");
     await waitFor(() => expect(screen).toHavePathname("/login"));
   }
 
@@ -231,7 +233,7 @@ describe("preferencias", () => {
     const response = deferred<Response>();
     await start(
       backend(() => response.promise),
-      "/profile",
+      "/profile/notifications",
     );
 
     const streak = await screen.findByRole("switch", { name: "Racha en riesgo" });
@@ -256,7 +258,7 @@ describe("preferencias", () => {
         call.path === "/users/me" && call.method === "GET"
           ? json(200, me({ ...ALL_ON, wrappedReady: false }))
           : backend(() => apiError(503, "SERVICE_UNAVAILABLE"))(call),
-      "/profile",
+      "/profile/notifications",
     );
 
     const wrapped = await screen.findByRole("switch", { name: "Resumen semanal" });
@@ -304,6 +306,16 @@ describe("tocar un aviso", () => {
 
     await act(async () => mockNotifications.tap(response));
     expect(screen).toHavePathname(`/meals/${MEAL_ID}`);
+  });
+
+  it("el aviso de racha lleva a la pestaña Inicio, sin apilar otra copia de las pestañas", async () => {
+    const router = await start(backend(), "/profile");
+    await act(() => Promise.resolve());
+
+    await act(async () => mockNotifications.tap(tapResponse({ type: "streakRisk" })));
+    expect(screen).toHavePathname("/");
+    const appStack = router.getRouterState()?.routes[0]?.state?.routes[0]?.state?.routes;
+    expect(appStack?.map((route) => route.name)).toEqual(["(tabs)"]);
   });
 
   it("si no se tocó el aviso sino una acción, no navega", async () => {

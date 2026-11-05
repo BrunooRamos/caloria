@@ -133,8 +133,10 @@ describe("resultado de una comida", () => {
       ),
     ).toBeOnTheScreen();
     expect(screen.getByRole("button", { name: "Sacar otra foto" })).toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "Eliminar comida" })).toBeOnTheScreen();
 
-    await fireEvent.press(screen.getByRole("button", { name: "Volver al inicio" }));
+    // Se abrió sola, como desde el aviso o un link: "Volver" lleva al inicio.
+    await fireEvent.press(screen.getByRole("button", { name: "Volver" }));
     expect(router.getPathname()).toBe("/");
   });
 
@@ -148,10 +150,18 @@ describe("resultado de una comida", () => {
     ).toBeOnTheScreen();
   });
 
-  it("si no existe (404), lo dice y deja volver", async () => {
-    await start([() => apiError(404, "NOT_FOUND")]);
+  it("si no existe (404), lo dice y deja ir al inicio, sin ofrecer eliminarla", async () => {
+    const router = await start([() => apiError(404, "NOT_FOUND")]);
     expect(await screen.findByText("No encontramos esta comida")).toBeOnTheScreen();
-    expect(screen.getByRole("button", { name: "Volver al inicio" })).toBeOnTheScreen();
+    expect(screen.queryByRole("button", { name: "Eliminar comida" })).toBeNull();
+    await fireEvent.press(screen.getByRole("button", { name: "Ir al inicio" }));
+    expect(router.getPathname()).toBe("/");
+  });
+
+  it("el header dice dónde está y Volver va arriba a la izquierda, con texto", async () => {
+    await start([() => json(200, ready)]);
+    expect(await screen.findByRole("header", { name: "Tu comida" })).toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "Volver" })).toHaveTextContent(/Volver/);
   });
 
   it("si la photoUrl venció, pide la comida de nuevo para tener una URL fresca", async () => {

@@ -1,3 +1,4 @@
+import type { LucideIcon } from "lucide-react-native";
 import { ActivityIndicator, Pressable, StyleSheet } from "react-native";
 import type { PressableProps } from "react-native";
 import { colors, opacity, radius, sizes, spacing } from "@/theme";
@@ -12,6 +13,7 @@ export interface ButtonProps extends Omit<PressableProps, "children" | "style"> 
   title: string;
   variant?: ButtonVariant;
   loading?: boolean;
+  icon?: LucideIcon;
 }
 
 const textColors: Record<SurfaceTone, Record<ButtonVariant, ColorToken>> = {
@@ -24,6 +26,7 @@ export function Button({
   variant = "primary",
   loading = false,
   disabled = false,
+  icon: Icon,
   ...props
 }: ButtonProps) {
   const tone = useTone();
@@ -44,7 +47,15 @@ export function Button({
         disabled && styles.disabled,
       ]}
     >
-      <Text variant="label" color={textColor} style={loading && styles.hidden}>
+      {Icon && (
+        <Icon
+          color={colors[textColor]}
+          size={sizes.icon}
+          strokeWidth={sizes.iconStroke}
+          style={loading && styles.hidden}
+        />
+      )}
+      <Text variant="label" color={textColor} style={[styles.text, loading && styles.hidden]}>
         {title}
       </Text>
       {loading && <ActivityIndicator color={colors[textColor]} style={StyleSheet.absoluteFill} />}
@@ -57,6 +68,8 @@ const styles = StyleSheet.create({
     minHeight: sizes.control,
     borderRadius: radius.full,
     paddingHorizontal: spacing.xl,
+    flexDirection: "row",
+    gap: spacing.xs,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -67,5 +80,6 @@ const styles = StyleSheet.create({
   pressedPrimary: { backgroundColor: colors.primaryPressed },
   pressed: { opacity: opacity.pressed },
   disabled: { opacity: opacity.disabled },
+  text: { flexShrink: 1, textAlign: "center" },
   hidden: { opacity: 0 },
 });
