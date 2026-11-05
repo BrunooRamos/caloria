@@ -15,7 +15,7 @@ export function Skeleton({ height, width = "100%", rounded = "sm" }: SkeletonPro
   const [pulse] = useState(() => new Animated.Value(1));
 
   useEffect(() => {
-    if (reduceMotion) {
+    if (reduceMotion !== false) {
       pulse.setValue(1);
       return;
     }

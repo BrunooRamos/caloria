@@ -1,6 +1,8 @@
+# Solo nginx publica puertos (80 y 443); el resto no es alcanzable desde afuera del host.
 # Mongo, Redis y MinIO nunca están en la red dmz; el Front solo llega al Back por la red front-back.
 # Las credenciales de MinIO solo llegan a Back y Worker (usuario de servicio) y a minio/minio-init (root).
-# La clave de OpenAI solo llega al Worker, que es el único con salida a internet (red worker-egress).
+# La clave de OpenAI solo llega al Worker, el único de la red segura con salida a internet (red
+# worker-egress). certbot sale por certbot-egress, donde no hay ningún otro servicio.
 
 x-storage-env: &storage-env
   S3_ENDPOINT: http://minio:9000
@@ -11,16 +13,88 @@ x-storage-env: &storage-env
   S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?Falta S3_SECRET_ACCESS_KEY}
 
 services:
+  # HTTPS: el 80 solo sirve el desafío de Let's Encrypt y redirige; la API va por el 443.
+  # Arranca siempre: si no hay certificado de Let's Encrypt usa el temporal de tls-init, y cambia
+  # solo al real cuando certbot lo consigue (ver docs/arquitectura.md, "HTTPS y certificados").
   nginx:
     image: nginx:alpine
+    environment:
+      DOMAIN: ${DOMAIN:?Falta DOMAIN}
+      HSTS_MAX_AGE: ${HSTS_MAX_AGE:-300}
+      NGINX_ENVSUBST_FILTER: ^(DOMAIN|HSTS_MAX_AGE)$$
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/api.conf:/etc/nginx/caloria/api.conf:ro
+      - ./nginx/templates:/etc/nginx/templates:ro
+      - ./nginx/tls.sh:/docker-entrypoint.d/40-caloria-tls.sh:ro
+      - ./certs:/etc/nginx/certs:ro
+      - tls-bootstrap:/etc/nginx/bootstrap:ro
+      - letsencrypt:/etc/letsencrypt:ro
+      - certbot-webroot:/var/www/certbot:ro
     ports:
-      - "8080:80"
+      - "80:80"
+      - "443:443"
     networks:
       - dmz
     depends_on:
-      - front
+      tls-init:
+        condition: service_completed_successfully
+      front:
+        condition: service_started
+
+  # Certificado autofirmado temporal para que nginx arranque sin el de Let's Encrypt. Termina enseguida.
+  tls-init:
+    image: certbot/certbot:v5.9.0
+    entrypoint: ["sh", "/tls-init.sh"]
+    environment:
+      DOMAIN: ${DOMAIN:?Falta DOMAIN}
+    volumes:
+      - ./nginx/tls-init.sh:/tls-init.sh:ro
+      - tls-bootstrap:/etc/nginx/bootstrap
+    network_mode: none
+
+  # Let's Encrypt: pide el certificado y lo renueva. Se activa con COMPOSE_PROFILES=letsencrypt en
+  # infra/.env (en el servidor). Solo comparte volúmenes con nginx y su red solo tiene salida.
+  certbot:
+    image: certbot/certbot:v5.9.0
+    profiles: [letsencrypt]
+    entrypoint: ["sh", "/certbot.sh"]
+    environment:
+      DOMAIN: ${DOMAIN:?Falta DOMAIN}
+      LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL:-}
+      LETSENCRYPT_STAGING: ${LETSENCRYPT_STAGING:-1}
+      ACME_SERVER: ${ACME_SERVER:-}
+    volumes:
+      - ./certbot/certbot.sh:/certbot.sh:ro
+      - letsencrypt:/etc/letsencrypt
+      - certbot-webroot:/var/www/certbot
+    networks:
+      - certbot-egress
+    depends_on:
+      - nginx
+
+  # Sin dominio: HTTPS válido con un quick tunnel de Cloudflare (https://<algo>.trycloudflare.com,
+  # cambia en cada arranque). Se activa con COMPOSE_PROFILES=tunnel; la URL sale en
+  # `docker compose logs tunnel`. Entra por el 8443 de nginx (no publicado, toma la IP del cliente de
+  # CF-Connecting-IP para el rate limit) y verifica el certificado temporal.
+  tunnel:
+    image: cloudflare/cloudflared:2026.10.7
+    profiles: [tunnel]
+    command:
+      - tunnel
+      - --no-autoupdate
+      - --url
+      - https://nginx:8443
+      - --origin-server-name
+      - ${DOMAIN:?Falta DOMAIN}
+      - --origin-ca-pool
+      - /etc/nginx/bootstrap/fullchain.pem
+    volumes:
+      - tls-bootstrap:/etc/nginx/bootstrap:ro
+    networks:
+      - dmz
+    depends_on:
+      - nginx
 
   front:
     build:
@@ -126,6 +200,10 @@ services:
 
 volumes:
   minio-data: {}
+  # Certificados y claves de Let's Encrypt: persisten entre despliegues y nunca van al repo.
+  letsencrypt: {}
+  certbot-webroot: {}
+  tls-bootstrap: {}
 
 networks:
   dmz: {}
@@ -135,3 +213,5 @@ networks:
     internal: true
   # Salida a internet (API de OpenAI) solo para el Worker; Mongo, Redis y MinIO no están acá.
   worker-egress: {}
+  # Salida a Let's Encrypt para certbot, que no ve a ningún otro servicio.
+  certbot-egress: {}

@@ -1,9 +1,17 @@
-# Solo para desarrollo: publica MinIO en el host para que la app abra las URLs firmadas,
-# la consola web en http://localhost:9001 (login con MINIO_ROOT_USER / MINIO_ROOT_PASSWORD)
-# y Redis en 127.0.0.1:6379 para los tests.
+# Solo para desarrollo: la API por HTTP en http://localhost:8080 para Expo Go y los builds de
+# desarrollo, MinIO en el host para que la app abra las URLs firmadas, la consola web en
+# http://localhost:9001 (login con MINIO_ROOT_USER / MINIO_ROOT_PASSWORD) y Redis en
+# 127.0.0.1:6379 para los tests.
 # Uso: docker compose -f infra/docker-compose.yml -f infra/docker-compose.dev.yml up
 # En un teléfono real, usá la IP de la LAN en lugar de 127.0.0.1 en el puerto 9000 y en S3_PUBLIC_ENDPOINT.
 services:
+  # Un listener HTTP sin redirección, además del 80 y el 443. En el servidor no existe.
+  nginx:
+    volumes:
+      - ./nginx/dev.conf:/etc/nginx/conf.d/caloria-dev.conf:ro
+    ports:
+      - "8080:8080"
+
   minio:
     command: ["server", "/data", "--console-address", ":9001"]
     ports:
