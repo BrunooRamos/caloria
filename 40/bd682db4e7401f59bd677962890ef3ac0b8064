@@ -1,0 +1,40 @@
+docs/modelo-datos.md
+  s_affbeaa78d7365::t_4369535c692063 164
+back-service/src/models/BillingEvent.ts
+  s_affbeaa78d7365::t_2a9f1464a664ea 21
+  s_affbeaa78d7365::t_f13c22eee260a4 8-9
+back-service/test/billing.test.ts
+  s_affbeaa78d7365::t_3e06432d5edcad 329,335-339,341-367,371
+  s_affbeaa78d7365::t_defa5fb5512c66 17
+  s_affbeaa78d7365::t_7c91ff240f9ff0 368-370
+back-service/src/services/billing/service.ts
+  s_affbeaa78d7365::t_e667a4eb7ce575 281-282
+  s_affbeaa78d7365::t_5b6c7075dbe98d 158-205
+  s_affbeaa78d7365::t_d4d96ea5e97475 305-308,310-312
+  s_affbeaa78d7365::t_b74e6c9683173a 40-45
+back-service/src/services/billing/index.ts
+  s_affbeaa78d7365::t_7f418c86647498 2
+docs/api.md
+  s_affbeaa78d7365::t_cf1f7f0d2a4150 446
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "40bd682db4e7401f59bd677962890ef3ac0b8064",
+  "prompts": {},
+  "humans": {
+    "h_5b36141b16afea": {
+      "author": "pazdiaz15 <mpdiaz@correo.um.edu.uy>"
+    }
+  },
+  "sessions": {
+    "s_affbeaa78d7365": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9fea9a39-7d5f-4d1c-82af-0660aba2a510",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "pazdiaz15 <mpdiaz@correo.um.edu.uy>"
+    }
+  }
+}
