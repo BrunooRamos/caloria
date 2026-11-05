@@ -18,7 +18,7 @@ export function WrappedCardView({ card, position, active }: WrappedCardViewProps
   const seen = useRef(false);
 
   useEffect(() => {
-    if (!active || seen.current) return;
+    if (!active || seen.current || reduceMotion === null) return;
     seen.current = true;
     if (reduceMotion) {
       entered.setValue(1);

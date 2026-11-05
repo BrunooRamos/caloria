@@ -17,6 +17,7 @@ const ASPECT = sizes.shareImage.width / sizes.shareImage.height;
 
 export function SharePreview({ card, uri, sharing, onShare, onCancel }: SharePreviewProps) {
   const reduceMotion = useReduceMotion();
+  if (reduceMotion === null) return null;
   return (
     <Modal
       visible

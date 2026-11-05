@@ -1,5 +1,5 @@
 import { act, fireEvent, renderRouter, screen } from "expo-router/testing-library";
-import { Platform, StyleSheet } from "react-native";
+import { AccessibilityInfo, Animated, Platform, StyleSheet } from "react-native";
 import { createHttpClient } from "@/services/http-client";
 import type { HttpClient } from "@/services/http-client";
 import type { WeeklySummary } from "@/services/summaries";
@@ -160,7 +160,9 @@ describe("Wrapped: qué semana pide", () => {
   it("con semana en la ruta (como la abre el push) pide esa", async () => {
     await start("/wrapped/2026-W40", [() => json(200, { ...summary, week: "2026-W40" })]);
 
-    expect(await screen.findByRole("header", { name: "28 de septiembre–4 de octubre" }));
+    expect(
+      await screen.findByRole("header", { name: "28 de septiembre–4 de octubre" }),
+    ).toBeOnTheScreen();
     expect(summaryCalls().map((call) => call.path)).toEqual(["/summaries/weekly/2026-W40"]);
   });
 
@@ -358,6 +360,23 @@ describe("Wrapped: compartir una tarjeta", () => {
     expect(await screen.findByRole("header", { name: "Vista previa" })).toBeOnTheScreen();
   });
 
+  it("si sale de la pantalla mientras captura, borra la captura igual", async () => {
+    const captured = deferred<string>();
+    mockCaptureRef.mockReturnValue(captured.promise);
+    await start("/wrapped/2026-W43", [() => json(200, summary)]);
+    await layoutPager();
+    await act(async () =>
+      fireEvent.press(screen.getByRole("button", { name: "Compartir tarjeta 1" })),
+    );
+    await readyShareCard();
+    expect(mockCaptureRef).toHaveBeenCalledTimes(1);
+
+    await act(async () => screen.unmount());
+    await act(async () => captured.resolve("/tmp/ReactNative-snapshot-image.png"));
+
+    expect(mockDeleted).toEqual(["file:///tmp/ReactNative-snapshot-image.png"]);
+  });
+
   it("si la captura falla, lo dice y no abre la vista previa", async () => {
     mockCaptureRef.mockRejectedValue(new Error("snapshot failed"));
     await start("/wrapped/2026-W43", [() => json(200, summary)]);
@@ -381,5 +400,31 @@ describe("Wrapped: compartir una tarjeta", () => {
     expect(mockShareAsync).not.toHaveBeenCalled();
     expect(screen.getByText("Este dispositivo no permite compartir desde la app.")).toBeTruthy();
     expect(mockDeleted).toEqual([SHARED_FILE]);
+  });
+});
+
+describe("Wrapped: reducir movimiento", () => {
+  it("con reducir movimiento prendido no anima la entrada de las tarjetas ni la vista previa", async () => {
+    jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockResolvedValue(true);
+    const timing = jest.spyOn(Animated, "timing");
+    await start("/wrapped/2026-W43", [() => json(200, summary)]);
+    await layoutPager();
+    await act(async () =>
+      fireEvent.press(screen.getByRole("button", { name: "Compartir tarjeta 1" })),
+    );
+    await readyShareCard();
+
+    expect(await screen.findByRole("header", { name: "Vista previa" })).toBeOnTheScreen();
+    expect(timing).not.toHaveBeenCalled();
+  });
+
+  it("sin reducir movimiento, la primera tarjeta entra animada", async () => {
+    jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockResolvedValue(false);
+    const timing = jest.spyOn(Animated, "timing");
+    await start("/wrapped/2026-W43", [() => json(200, summary)]);
+    await layoutPager();
+
+    await screen.findByLabelText(/^Tu semana: registraste/);
+    expect(timing).toHaveBeenCalled();
   });
 });

@@ -221,3 +221,22 @@ Una cosa más sobre el contenido: la imagen compartida es pública, así que ant
 
 Para tests, me interesa el cálculo de la semana por defecto, incluyendo el cambio de año y distintas zonas horarias, y el manejo de cada estado de la respuesta. Antes de arrancar, contame cómo pensás armar las tarjetas y la versión para compartir, y esperá mi OK. Cuando termines, pasame capturas de las tarjetas y de una imagen compartida en iOS y en Android, y contame qué quedó pendiente.
 ```
+### 2026-11-04 13:51
+
+```text
+Este ticket es para que todo el tráfico entre la app y el servidor vaya cifrado (RNF-03). Todo pasa por nginx en `infra/`, que es el único punto expuesto a Internet. Leé las secciones de protocolos, comunicaciones y despliegue de `docs/arquitectura.md`, RNF-03 en `docs/requerimientos.md` y el riesgo del dominio en `docs/PLAN.md`, y revisá cómo están hoy `infra/docker-compose.yml` y la configuración de nginx. Trabajá desde `main` en la rama `feat/rnf-03-https`.
+
+Lo que tiene que quedar: un certificado de Let's Encrypt que se renueve solo, el puerto 80 que únicamente redirija a 443, y una alternativa documentada para cuando no tenemos dominio, sea con un túnel o con un certificado autofirmado. El dominio y el email de Let's Encrypt tienen que entrar por variables de entorno, no escritos en la configuración. La imagen oficial de nginx soporta templates con variables, usá eso.
+
+Para Let's Encrypt, sumá un contenedor de certbot que valide por HTTP con webroot. Hay un detalle que suele romper esto: la validación entra por el puerto 80, así que la regla de "el 80 solo redirige" tiene una excepción, la ruta `/.well-known/acme-challenge/`, que se sirve desde el webroot; todo lo demás redirige a HTTPS con la misma ruta y query. El otro problema clásico es el arranque: nginx no levanta si los archivos del certificado no existen, y no podemos pedir el certificado si nginx no está levantado. Resolvelo de forma que un `docker compose up` en un servidor limpio funcione, por ejemplo con un certificado temporal o un script de inicialización, y documentalo. Durante las pruebas usá el entorno de staging de Let's Encrypt, porque el de producción tiene límites de pedidos y si nos bloquea perdemos días.
+
+La renovación tiene que ser automática de punta a punta: certbot renovando periódicamente y nginx recargando la configuración cuando el certificado cambia, sin reiniciar ni cortar conexiones. Los certificados y las claves viven en un volumen persistente, nunca en el repo; asegurate de que `infra/certs` esté en el `.gitignore` salvo un README.
+
+Ya que estamos en nginx, dejá la configuración TLS bien: solo TLS 1.2 y 1.3, cifrados modernos y HSTS. Con HSTS andá con cuidado: arrancá con un `max-age` corto y sin `preload`, porque si algo sale mal, los navegadores que ya lo recibieron se niegan a entrar por HTTP durante todo ese tiempo.
+
+Para la alternativa sin dominio, quiero las dos opciones documentadas con sus pros y contras. Un túnel, como Cloudflare Tunnel o ngrok, da HTTPS válido sin dominio propio y es la mejor opción para la demo. El autofirmado sirve para probar nginx, pero tené en cuenta que iOS y Android rechazan certificados autofirmados salvo que se instale la CA en el dispositivo, así que no sirve para la app tal como está; si lo usás para desarrollo local, mkcert lo hace más simple. Dejá explicado en qué caso conviene cada una y cómo levantarlas.
+
+Aprovechá para verificar que en `docker-compose.yml` solo nginx publique puertos hacia afuera (80 y 443); el Front, el Backend, Mongo y Redis no pueden quedar expuestos. El mTLS entre el Front y el Backend es otra decisión abierta (la 9) y queda fuera de este ticket. Del lado de la app, revisá que en los builds que no son de desarrollo la URL base sea `https` y que Android no permita tráfico sin cifrar.
+
+Al terminar, quiero ver la verificación de RNF-03: un `curl` a HTTP que devuelve la redirección a HTTPS, uno a HTTPS con el certificado válido, la ruta del desafío respondiendo por el 80, un `certbot renew --dry-run` que pasa y un intento de conectarse directo a los puertos 3000 y 4000 desde afuera que falla. Documentá en el README y en `docs/arquitectura.md` cómo se configura el dominio, cómo se renueva y cómo se usa la alternativa sin dominio. Antes de tocar nada, contame el plan y cómo vas a resolver el arranque sin certificado, y esperá mi OK.
+```

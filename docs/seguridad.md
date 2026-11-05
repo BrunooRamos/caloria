@@ -33,7 +33,7 @@
 
 | Secreto | nginx | Front | Backend | Worker |
 |---|:-:|:-:|:-:|:-:|
-| Certificado TLS público | ✔ | | | |
+| Certificado TLS público y su clave (volumen `letsencrypt`, lo escribe certbot) | ✔ | | | |
 | Clave pública JWT | | ✔ | ✔ | |
 | Clave privada JWT | | | ✔ | |
 | Credenciales de Mongo / Redis | | | ✔ | ✔ |
