@@ -392,3 +392,107 @@ Para los tests, con el proveedor falso: GET /billing/plan para free (con restant
 Cuando termines, pasame qué archivos tocaste, qué proveedor usaste, si tomaste alguna decisión distinta a lo que puse acá y cómo dieron los tests.
 ```
 
+
+## Sesión `9fea9a39-7d5f-4d1c-82af-0660aba2a510` · 2026-11-04
+
+### 2026-11-04 21:18
+
+```text
+al subir el pr falló el siguiente check: "CI / shared (pull_request)" con el sigueinte output de failure: 
+
+<pasted_content id="bcbe">
+# Subtest: catálogo de errores
+    # Subtest: deriva el status de cada code según docs/api.md
+    not ok 1 - deriva el status de cada code según docs/api.md
+      ---
+      duration_ms: 3.228773
+      type: 'test'
+      location: '/home/runner/work/caloria/caloria/shared/test/errors.test.ts:2:977'
+      failureType: 'testCodeFailure'
+      error: |-
+        Expected values to be strictly deep-equal:
+        + actual - expected
+        ... Skipped lines
+        
+          {
+            AI_UNAVAILABLE: 503,
+            EMAIL_TAKEN: 409,
+            INTERNAL_ERROR: 500,
+            MEAL_NOT_READY: 409,
+        ...
+            SERVICE_UNAVAILABLE: 503,
+        +   SUBSCRIPTION_ACTIVE: 409,
+            TOKEN_EXPIRED: 401,
+            UNAUTHORIZED: 401,
+            VALIDATION_ERROR: 400
+          }
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected:
+        VALIDATION_ERROR: 400
+        UNAUTHORIZED: 401
+        TOKEN_EXPIRED: 401
+        MEAL_QUOTA_EXCEEDED: 402
+        PREMIUM_REQUIRED: 402
+        NOT_FOUND: 404
+        EMAIL_TAKEN: 409
+        MEAL_NOT_READY: 409
+        PAYLOAD_TOO_LARGE: 413
+        RATE_LIMITED: 429
+        INTERNAL_ERROR: 500
+        AI_UNAVAILABLE: 503
+        SERVICE_UNAVAILABLE: 503
+      actual:
+        VALIDATION_ERROR: 400
+        UNAUTHORIZED: 401
+        TOKEN_EXPIRED: 401
+        MEAL_QUOTA_EXCEEDED: 402
+        PREMIUM_REQUIRED: 402
+        NOT_FOUND: 404
+        EMAIL_TAKEN: 409
+        MEAL_NOT_READY: 409
+        SUBSCRIPTION_ACTIVE: 409
+        PAYLOAD_TOO_LARGE: 413
+        RATE_LIMITED: 429
+        INTERNAL_ERROR: 500
+        AI_UNAVAILABLE: 503
+        SERVICE_UNAVAILABLE: 503
+      operator: 'deepStrictEqual'
+      stack: |-
+        TestContext.<anonymous> (/home/runner/work/caloria/caloria/shared/test/errors.test.ts:7:12)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1047:25)
+        Test.start (node:internal/test_runner/test:944:17)
+        node:internal/test_runner/test:1440:71
+        node:internal/per_context/primordials:466:82
+        new Promise (<anonymous>)
+        new SafePromise (node:internal/per_context/primordials:435:3)
+        node:internal/per_context/primordials:466:9
+        Array.map (<anonymous>)
+      ...
+    # Subtest: AppError toma status y mensaje por defecto del catálogo
+    ok 2 - AppError toma status y mensaje por defecto del catálogo
+      ---
+      duration_ms: 0.263118
+      type: 'test'
+      ...
+    # Subtest: arma el sobre único y lo reconoce
+    ok 3 - arma el sobre único y lo reconoce
+      ---
+      duration_ms: 0.348272
+      type: 'test'
+      ...
+    1..3
+not ok 9 - catálogo de errores
+  ---
+  duration_ms: 4.760913
+  type: 'suite'
+  location: '/home/runner/work/caloria/caloria/shared/test/errors.test.ts:2:923'
+  failureType: 'subtestsFailed'
+  error: '1 subtest failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+</pasted_content id="bcbe">
+
+```

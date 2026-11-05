@@ -15,6 +15,7 @@ describe("catálogo de errores", () => {
         NOT_FOUND: 404,
         EMAIL_TAKEN: 409,
         MEAL_NOT_READY: 409,
+        SUBSCRIPTION_ACTIVE: 409,
         PAYLOAD_TOO_LARGE: 413,
         RATE_LIMITED: 429,
         INTERNAL_ERROR: 500,
