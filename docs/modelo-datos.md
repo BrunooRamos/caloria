@@ -1,6 +1,6 @@
 # Modelo de datos
 
-MongoDB con cuatro collections, tipadas con TypeScript + esquemas Mongoose. Solo acceden el Backend y el Worker.
+MongoDB con cuatro collections de dominio (más `billing_events`, de control del webhook de pagos), tipadas con TypeScript + esquemas Mongoose. Solo acceden el Backend y el Worker.
 
 `?` = opcional · `[]` = array embebido · `Range = { min: number; max: number }`
 
@@ -24,7 +24,15 @@ profile: {
 }
 targets: { kcal: number; proteinG: number; carbsG: number; fatG: number }   // recalculadas al editar profile
 tone: "motivador" | "neutro" | "roast" | "off"   // default "motivador"; "off" no genera comentario (RF-11)
-plan: { tier: "free" | "premium"; since: Date; renewsAt?: Date }
+plan: {
+  tier: "free" | "premium"    // nunca se compara directo: isPremium(plan, ahora) mira también currentPeriodEnd
+  since: Date                 // desde cuándo tiene ese tier
+  status?: "incomplete" | "active" | "past_due" | "canceled"   // de la suscripción, normalizado (no depende del proveedor)
+  currentPeriodEnd?: Date     // fin del período pagado; sin el campo y premium: alta manual que no vence
+  cancelAtPeriodEnd?: boolean // canceló: sigue premium hasta currentPeriodEnd y no se renueva
+  customerId?: string         // id del cliente en Stripe; índice único (parcial)
+  subscriptionId?: string     // id de la suscripción en Stripe
+}
 usage: { month: string; analyses: number }   // cupo free: "2026-10" en la zona del perfil; se reinicia al consumir en un mes posterior, nunca retrocede
 pushTokens: string[]          // tokens de Expo, del más viejo al más nuevo; hasta 10; índice
 notifications?: { analysisReady: boolean; streakRisk: boolean; wrappedReady: boolean }   // sin el campo: todo true
@@ -32,6 +40,7 @@ sessions: { tokenHash: string; family: string; expiresAt: Date; rotatedAt?: Date
 ```
 
 - `pushTokens` nunca sale de la API. `PATCH /users/me` suma tokens (un token repetido pasa al final y se descartan los más viejos por encima de 10) y se lo saca a cualquier otra cuenta que lo tuviera; por eso tiene índice. El Worker borra con `$pull` los que Expo marca como `DeviceNotRegistered`.
+- `plan` guarda la suscripción (RF-16). Reemplaza al `renewsAt` que tenía antes (ningún usuario lo tenía cargado). Solo hay ids del proveedor: nunca datos de tarjeta. Lo escriben `POST /billing/subscribe` (solo `customerId`), `POST /billing/cancel` y el webhook, siempre con el estado que devuelve Stripe. Ver [api.md](api.md#suscripción-premium).
 - `notifications` son las preferencias de avisos push (RF-13). Los usuarios creados antes no lo tienen: se leen como todo `true`, sin migración.
 - `tone` arranca en `motivador`. Las cuentas creadas antes con `neutro` (el default anterior) no se migran: es un tono válido y se cambia desde el perfil.
 - `sessions.tokenHash` es el SHA-256 del refresh (nunca el token) y tiene índice: `/auth/refresh` y `/auth/logout` buscan por ahí.
@@ -143,16 +152,29 @@ streak: { current: number; best: number; lastLogDate: string }   // "YYYY-MM-DD"
 badges: { code: string; at: Date }[]
 ```
 
+## `billing_events`
+
+Ids de los eventos del webhook de pagos ya recibidos, para procesar cada uno una sola vez. No guarda el payload.
+
+```ts
+_id: string                   // id del evento en Stripe (evt_…)
+type: string                  // ej. "checkout.session.completed"
+status: "processing" | "done" // processing: se está procesando; si falla, se borra y Stripe reintenta
+receivedAt: Date              // índice TTL: se borra a los 30 días (Stripe reintenta hasta 3)
+```
+
 ## Índices
 
 | Collection | Índice | Tipo |
 |---|---|---|
 | `users` | `email` | único |
+| `users` | `plan.customerId` | único parcial (solo si existe): el webhook busca al usuario por su cliente de Stripe |
 | `meals` | `{ userId, capturedAt }` | compuesto |
 | `meals` | `{ userId, localDate, capturedAt, _id }` | compuesto: historial del día en orden (`GET /meals`) y, por prefijo, el dashboard |
 | `meals` | `{ userId, search.dish, search.items }` | compuesto de texto (`similar_meals`), en español: comidas corregidas parecidas (RF-07) |
 | `weekly_summaries` | `{ userId, week }` | único |
 | `gamification` | `userId` | único |
+| `billing_events` | `receivedAt` | TTL de 30 días |
 
 ## Cálculo de metas (RF-02)
 

@@ -25,10 +25,10 @@ Arquitectura en tres capas: **App → Front Service → Backend → MongoDB**. V
 | App móvil (Expo / React Native) | 1 · Cliente | — | UI, captura de foto y audio, tokens en SecureStore, recibe push | Secretos, acceso a la IA ni a la base |
 | nginx | 2 · DMZ | 443 (80 → redirige) | Terminación TLS, rate limit por IP, límite de tamaño de body, reverse proxy al Front | Datos ni secretos |
 | Front Service (Express) | 2 · DMZ | 3000 | Cara pública de `/api/v1`: verifica JWT con la clave **pública**, valida y sanitiza con zod, rechaza 400/401/413, reenvía al Backend. Stateless | Conexión a Mongo, claves de IA, clave privada |
-| Backend (Express) | 3 · Red segura | 4000 | Lógica de negocio: login y firma de tokens (clave **privada**), autorización (ownership, plan, cupo), lectura/escritura en Mongo, subida de media al storage, encola análisis y responde 202. Re-verifica el JWT y solo acepta conexiones del Front | Claves de IA |
+| Backend (Express) | 3 · Red segura | 4000 | Lógica de negocio: login y firma de tokens (clave **privada**), autorización (ownership, plan, cupo), lectura/escritura en Mongo, subida de media al storage, encola análisis y responde 202. Suscripción premium con Stripe (`services/billing`, únicas claves de pagos). Re-verifica el JWT y solo acepta conexiones del Front | Claves de IA |
 | Worker de jobs | 3 · Red segura | — | Consume la cola: transcribe audio, busca platos similares, llama a la IA, guarda el análisis, reintentos con backoff, cron del Wrapped, envía push | — (único con claves de IA) |
 | Redis | 3 · Red segura | 6379 | Colas de trabajos (BullMQ): `meal-analysis` entre Backend y Worker, y `weekly-summary` para el cron del Wrapped | — |
-| MongoDB | 3 · Red segura | 27017 | Las 4 collections (`users`, `meals`, `weekly_summaries`, `gamification`) | — |
+| MongoDB | 3 · Red segura | 27017 | Las 4 collections (`users`, `meals`, `weekly_summaries`, `gamification`) y `billing_events` (ids de eventos del webhook de pagos) | — |
 | Storage privado (MinIO en local) | 3 · Red segura | 9000 | Fotos y audios en bucket sin acceso público, servidos con URLs firmadas (≤ 15 min). Solo Backend y Worker tienen credenciales, de un usuario limitado al bucket | — |
 
 ## Comunicaciones y puertos
@@ -43,6 +43,8 @@ Firewall **default deny**: todo cerrado salvo estas reglas.
 | Backend / Worker → MongoDB | Mongo wire · 27017 | Permitida (interna) |
 | Backend / Worker → Redis | RESP · 6379 | Permitida (interna) |
 | Worker → IA, Expo Push | HTTPS · 443 egreso | Permitida (allowlist de dominios). En `docker compose`, solo el Worker está en una red con salida (`worker-egress`); Mongo, Redis y MinIO quedan en la red `interna` (`internal: true`) |
+| Backend → Stripe (`api.stripe.com`) | HTTPS · 443 egreso | Permitida (allowlist: solo ese dominio). En `docker compose`, el Backend sale por la red `back-egress`; Docker no filtra por dominio, así que en el servidor la allowlist va en el firewall |
+| Stripe → nginx → Front → Backend (`POST /api/v1/billing/webhook`) | HTTPS · 443 | Permitida: ruta pública, autenticada por la firma de Stripe |
 | Worker / Backend → storage | HTTPS · 443 | Permitida |
 | Internet → Front o Backend directo | 3000 · 4000 | Denegada |
 | Front Service → MongoDB / Redis | 27017 · 6379 | Denegada |

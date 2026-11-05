@@ -1,6 +1,12 @@
 import express from "express";
 import type { Router } from "express";
-import { errorHandler, notFoundHandler, requestContext } from "@caloria/shared";
+import {
+  BILLING_WEBHOOK_BODY_LIMIT,
+  BILLING_WEBHOOK_PATH,
+  errorHandler,
+  notFoundHandler,
+  requestContext,
+} from "@caloria/shared";
 import type { Logger } from "@caloria/shared";
 
 export interface AppOptions {
@@ -15,6 +21,11 @@ export function createApp({ logger, api, mongoStatus }: AppOptions) {
   app.disable("x-powered-by");
 
   app.use(requestContext({ logger, trustIncomingId: true }));
+  // El webhook de pagos se lee crudo: la firma del proveedor va sobre los bytes exactos del body.
+  app.use(
+    BILLING_WEBHOOK_PATH,
+    express.raw({ type: () => true, limit: BILLING_WEBHOOK_BODY_LIMIT }),
+  );
   app.use(express.json());
 
   app.get("/health", (_req, res) => {

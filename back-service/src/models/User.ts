@@ -24,10 +24,20 @@ export interface Targets {
   fatG: number;
 }
 
+/** Estado de la suscripción normalizado: no depende del proveedor de pagos. */
+export const SUBSCRIPTION_STATUSES = ["incomplete", "active", "past_due", "canceled"] as const;
+export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
+
 export interface Plan {
   tier: (typeof TIERS)[number];
   since: Date;
-  renewsAt?: Date;
+  status?: SubscriptionStatus;
+  /** Fin del período pagado. Sin el campo y con tier premium: premium sin vencimiento (alta manual). */
+  currentPeriodEnd?: Date;
+  cancelAtPeriodEnd?: boolean;
+  /** Ids del proveedor de pagos. Nunca datos de tarjeta. */
+  customerId?: string;
+  subscriptionId?: string;
 }
 
 export interface Usage {
@@ -86,7 +96,11 @@ const planSchema = new Schema<Plan>(
   {
     tier: { type: String, enum: TIERS, required: true, default: "free" },
     since: { type: Date, required: true, default: Date.now },
-    renewsAt: Date,
+    status: { type: String, enum: SUBSCRIPTION_STATUSES },
+    currentPeriodEnd: Date,
+    cancelAtPeriodEnd: Boolean,
+    customerId: String,
+    subscriptionId: String,
   },
   { _id: false },
 );
@@ -143,5 +157,10 @@ userSchema.index({ email: 1 }, { unique: true });
 userSchema.index({ "sessions.tokenHash": 1 });
 // Para sacarle un token a otra cuenta cuando lo registra un usuario nuevo en el mismo teléfono.
 userSchema.index({ pushTokens: 1 });
+// El webhook del proveedor encuentra al usuario por su id de cliente.
+userSchema.index(
+  { "plan.customerId": 1 },
+  { unique: true, partialFilterExpression: { "plan.customerId": { $type: "string" } } },
+);
 
 export const UserModel = model<User>("User", userSchema);

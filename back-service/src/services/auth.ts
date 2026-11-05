@@ -6,6 +6,7 @@ import { AppError } from "@caloria/shared";
 import type { AuthResponse, LoginInput, Logger, RegisterInput } from "@caloria/shared";
 import { UserModel } from "../models/User";
 import type { Session, User } from "../models/User";
+import { effectiveTier } from "./plan";
 import { monthIn } from "./quota";
 import { computeTargets } from "./targets";
 import { hashRefreshToken, newRefreshSession, signAccessToken } from "./tokens";
@@ -124,7 +125,10 @@ export function createAuthService({ privateKey }: { privateKey: KeyObject }): Au
     const id = user._id.toString();
     const { token, session } = newRefreshSession();
     const response: AuthResponse = {
-      accessToken: signAccessToken({ sub: id, plan: user.plan.tier }, privateKey),
+      accessToken: signAccessToken(
+        { sub: id, plan: effectiveTier(user.plan, new Date()) },
+        privateKey,
+      ),
       refreshToken: token,
       user: { id, email: user.email },
     };
@@ -186,7 +190,10 @@ export function createAuthService({ privateKey }: { privateKey: KeyObject }): Au
         const id = user._id.toString();
         return {
           // El plan sale de la base ahora, no del access anterior: puede haber pasado a premium.
-          accessToken: signAccessToken({ sub: id, plan: user.plan.tier }, privateKey),
+          accessToken: signAccessToken(
+            { sub: id, plan: effectiveTier(user.plan, new Date()) },
+            privateKey,
+          ),
           refreshToken: token,
           user: { id, email: user.email },
         };

@@ -17,6 +17,42 @@ export function loadConfig(env = process.env) {
     jwtPublicKey: createPublicKey(jwtPrivateKey),
     storage: loadStorageConfig(env),
     freeMonthlyAnalyses: parseFreeMonthlyAnalyses(env.FREE_MONTHLY_ANALYSES),
+    billing: loadBillingConfig(env),
+  };
+}
+
+const BILLING_VARS = [
+  "STRIPE_SECRET_KEY",
+  "STRIPE_WEBHOOK_SECRET",
+  "STRIPE_PRICE_ID",
+  "BILLING_SUCCESS_URL",
+  "BILLING_CANCEL_URL",
+] as const;
+
+export function loadBillingConfig(env: NodeJS.ProcessEnv) {
+  const values = Object.fromEntries(BILLING_VARS.map((name) => [name, env[name]?.trim() ?? ""]));
+  const missing = BILLING_VARS.filter((name) => !values[name]);
+  if (missing.length === BILLING_VARS.length) return undefined;
+  if (missing.length > 0) {
+    throw new Error(`Billing configurado a medias: faltan ${missing.join(", ")}`);
+  }
+  if (!/^(sk|rk)_test_/.test(values.STRIPE_SECRET_KEY)) {
+    throw new Error("STRIPE_SECRET_KEY tiene que ser una clave de test (sk_test_… o rk_test_…)");
+  }
+  if (!values.STRIPE_WEBHOOK_SECRET.startsWith("whsec_")) {
+    throw new Error("STRIPE_WEBHOOK_SECRET tiene que empezar con whsec_");
+  }
+  for (const name of ["BILLING_SUCCESS_URL", "BILLING_CANCEL_URL"] as const) {
+    if (!URL.canParse(values[name]) || !/^https?:$/.test(new URL(values[name]).protocol)) {
+      throw new Error(`${name} tiene que ser una URL http(s)`);
+    }
+  }
+  return {
+    secretKey: values.STRIPE_SECRET_KEY,
+    webhookSecret: values.STRIPE_WEBHOOK_SECRET,
+    priceId: values.STRIPE_PRICE_ID,
+    successUrl: values.BILLING_SUCCESS_URL,
+    cancelUrl: values.BILLING_CANCEL_URL,
   };
 }
 

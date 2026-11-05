@@ -8,4 +8,5 @@
 | [API](api.md) | Endpoints, ejemplos de request/response, códigos HTTP y errores |
 | [Modelo de datos](modelo-datos.md) | Collections de Mongo, índices y cálculo de metas |
 | [Seguridad](seguridad.md) | Autenticación, autorización, validación, secretos y privacidad |
+| [Prueba del sandbox de pagos](billing-sandbox.md) | Cómo probar la suscripción premium contra Stripe en modo test |
 | [Plan](PLAN.md) | Metodología, avance por clase, hitos y riesgos |

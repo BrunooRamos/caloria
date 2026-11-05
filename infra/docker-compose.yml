@@ -1,6 +1,7 @@
 # Mongo, Redis y MinIO nunca están en la red dmz; el Front solo llega al Back por la red front-back.
 # Las credenciales de MinIO solo llegan a Back y Worker (usuario de servicio) y a minio/minio-init (root).
-# La clave de OpenAI solo llega al Worker, que es el único con salida a internet (red worker-egress).
+# La clave de OpenAI solo llega al Worker (red worker-egress). Las claves de Stripe solo llegan al
+# Backend, que sale a internet solo para la API del proveedor de pagos (red back-egress).
 
 x-storage-env: &storage-env
   S3_ENDPOINT: http://minio:9000
@@ -46,10 +47,17 @@ services:
       REDIS_URL: redis://redis:6379
       JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY}
       FREE_MONTHLY_ANALYSES: ${FREE_MONTHLY_ANALYSES:?Falta FREE_MONTHLY_ANALYSES}
+      # Stripe en modo test: todas o ninguna (sin ninguna, billing queda apagado y responde 503).
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_PRICE_ID: ${STRIPE_PRICE_ID:-}
+      BILLING_SUCCESS_URL: ${BILLING_SUCCESS_URL:-}
+      BILLING_CANCEL_URL: ${BILLING_CANCEL_URL:-}
       <<: *storage-env
     networks:
       - front-back
       - interna
+      - back-egress
     depends_on:
       mongo:
         condition: service_started
@@ -135,3 +143,6 @@ networks:
     internal: true
   # Salida a internet (API de OpenAI) solo para el Worker; Mongo, Redis y MinIO no están acá.
   worker-egress: {}
+  # Salida a internet del Backend, solo para la API del proveedor de pagos (api.stripe.com).
+  # Docker no filtra por dominio: la allowlist se aplica en el firewall del servidor.
+  back-egress: {}

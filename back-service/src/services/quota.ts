@@ -5,16 +5,33 @@ import { MealModel } from "../models/Meal";
 import { UserModel } from "../models/User";
 import type { User } from "../models/User";
 import { localDateIn } from "./local-date";
+import { isPremium } from "./plan";
 
 export function monthIn(timeZone: string, at: Date): string {
   return localDateIn(timeZone, at).slice(0, 7);
 }
 
-export function renewalLabel(month: string): string {
+function nextMonthStart(month: string): Date {
   const [year, monthIndex] = month.split("-").map(Number);
+  return new Date(Date.UTC(year, monthIndex, 1));
+}
+
+export function renewalLabel(month: string): string {
   return new Intl.DateTimeFormat("es", { day: "numeric", month: "long", timeZone: "UTC" }).format(
-    new Date(Date.UTC(year, monthIndex, 1)),
+    nextMonthStart(month),
   );
+}
+
+/** "2026-10" → "2026-11-01"; "2026-12" → "2027-01-01". */
+export function firstDayOfNextMonth(month: string): string {
+  return nextMonthStart(month).toISOString().slice(0, 10);
+}
+
+export interface RemainingAnalyses {
+  /** null en premium: sin límite. */
+  limit: number | null;
+  remaining: number | null;
+  resetsOn: string | null;
 }
 
 export interface QuotaReservation {
@@ -30,6 +47,8 @@ export interface QuotaContext {
 export interface QuotaService {
   reserve(userId: string, timeZone: string, context: QuotaContext): Promise<QuotaReservation>;
   release(userId: string, month: string): Promise<void>;
+  /** Análisis que le quedan en el mes, sin reservar nada. */
+  remaining(user: Pick<User, "plan" | "usage" | "profile">, at?: Date): RemainingAnalyses;
 }
 
 export interface QuotaServiceDeps {
@@ -44,14 +63,18 @@ export function createQuotaService({
 }: QuotaServiceDeps): QuotaService {
   return {
     async reserve(userId, timeZone, { requestId, log }) {
-      const month = monthIn(timeZone, now());
-      const isPremium = { $eq: ["$plan.tier", "premium"] };
+      const at = now();
+      // El plan se lee de la base (no del JWT) y se decide con isPremium: un premium vencido ya
+      // cuenta como free aunque no haya llegado el webhook de fin de suscripción.
+      const current = await UserModel.findById(userId, { plan: 1 }).lean<Pick<User, "plan">>();
+      if (current && isPremium(current.plan, at)) return {};
+
+      const month = monthIn(timeZone, at);
       const keepsMonth = { $gte: ["$usage.month", month] };
       const user = await UserModel.findOneAndUpdate(
         {
           _id: userId,
           $or: [
-            { "plan.tier": "premium" },
             { "usage.month": { $exists: false } },
             { "usage.month": { $lt: month } },
             { "usage.analyses": { $lt: freeMonthlyAnalyses } },
@@ -61,20 +84,14 @@ export function createQuotaService({
           {
             $set: {
               usage: {
-                $cond: [
-                  isPremium,
-                  "$usage",
-                  {
-                    month: { $cond: [keepsMonth, "$usage.month", month] },
-                    analyses: { $cond: [keepsMonth, { $add: ["$usage.analyses", 1] }, 1] },
-                  },
-                ],
+                month: { $cond: [keepsMonth, "$usage.month", month] },
+                analyses: { $cond: [keepsMonth, { $add: ["$usage.analyses", 1] }, 1] },
               },
             },
           },
         ],
-        { new: true, projection: { "plan.tier": 1, "usage.month": 1 } },
-      ).lean<Pick<User, "plan" | "usage">>();
+        { new: true, projection: { "usage.month": 1 } },
+      ).lean<Pick<User, "usage">>();
 
       if (!user) {
         // Solo para el mensaje: el mes que se agotó puede ser posterior al de la zona actual.
@@ -95,7 +112,20 @@ export function createQuotaService({
             `El cupo se renueva el ${renewalLabel(exhausted)}.`,
         );
       }
-      return user.plan.tier === "premium" ? {} : { month: user.usage.month };
+      return { month: user.usage.month };
+    },
+
+    remaining(user, at = now()) {
+      if (isPremium(user.plan, at)) return { limit: null, remaining: null, resetsOn: null };
+      const month = monthIn(user.profile.timezone, at);
+      const stored = user.usage?.month;
+      const counting = stored && stored >= month ? stored : month;
+      const used = stored && stored >= month ? user.usage.analyses : 0;
+      return {
+        limit: freeMonthlyAnalyses,
+        remaining: Math.max(0, freeMonthlyAnalyses - used),
+        resetsOn: firstDayOfNextMonth(counting),
+      };
     },
 
     async release(userId, month) {

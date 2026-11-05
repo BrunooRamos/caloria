@@ -3,6 +3,7 @@ import { Router } from "express";
 import type { BackendClient } from "../clients/backend";
 import { forward } from "../controllers/forward";
 import type { ForwardTarget } from "../controllers/forward";
+import { forwardBillingWebhook } from "../controllers/billing";
 import { createMeal } from "../controllers/meals";
 import { requireAuth } from "../middleware/auth";
 import { mealUpload } from "../middleware/meal-upload";
@@ -32,6 +33,9 @@ export const API_ROUTES: readonly ApiRoute[] = [
     access: "jwt",
     schema: schemas.getWeeklySummary,
   },
+  { method: "get", path: "/billing/plan", access: "jwt", schema: schemas.getBillingPlan },
+  { method: "post", path: "/billing/subscribe", access: "jwt", schema: schemas.subscribe },
+  { method: "post", path: "/billing/cancel", access: "jwt", schema: schemas.cancelSubscription },
 ];
 
 export function apiRouter(backend: BackendClient, publicKey: KeyObject): Router {
@@ -44,5 +48,7 @@ export function apiRouter(backend: BackendClient, publicKey: KeyObject): Router 
   }
   // Multipart: el JWT se verifica antes de leer el body.
   router.post("/meals", authenticated, mealUpload, createMeal(backend, schemas.createMeal));
+  // Público y sin validar: lo llama el proveedor de pagos y el Backend verifica su firma.
+  router.post("/billing/webhook", forwardBillingWebhook(backend));
   return router;
 }
