@@ -1,212 +1,122 @@
-import { useRef, useState } from "react";
+import { router } from "expo-router";
+import { Bell, MessageCircle, Target, UserRoundPen } from "lucide-react-native";
+import { useState } from "react";
 import { StyleSheet, View } from "react-native";
-import type { TextInputInstance } from "react-native";
-import { Button, DateField, FormError, Input, OptionGroup, Screen, Text } from "@/components";
-import { useForm } from "@/features/auth/useForm";
-import { validateForm } from "@/features/auth/validation";
+import { Button, FormError, ListGroup, ListRow, Screen, Text, confirmAction } from "@/components";
+import { formatNumber } from "@/features/dashboard/format";
+import { errorMessage } from "@/services/error-messages";
 import type { Me } from "@/services/users";
 import { useSession } from "@/store/session";
 import { colors, spacing } from "@/theme";
-import { HealthDisclaimer } from "./HealthDisclaimer";
-import { MeFallback } from "./MeFallback";
-import { NotificationsSection } from "./NotificationsSection";
-import { ACTIVITY_OPTIONS, GOAL_OPTIONS, SEX_OPTIONS } from "./options";
-import { TargetsCard } from "./TargetsCard";
-import { ToneSection } from "./ToneSection";
+import { GOAL_OPTIONS, NOTIFICATION_OPTIONS, TONE_OPTIONS } from "./options";
 import { useMe } from "./useMe";
-import { birthDatePicker, changedFields, profileSchema, profileToValues } from "./validation";
-import type { ProfileInput } from "./validation";
 
 export default function ProfileScreen() {
-  const { state, reload, save, saveTone, saveNotifications } = useMe();
+  const { state, reload } = useMe({ refreshOnFocus: true });
+  const me = state.status === "ready" ? state.me : null;
 
   return (
-    <Screen scroll edges={["bottom", "left", "right"]}>
-      {state.status === "ready" ? (
-        <>
-          <ProfileContent me={state.me} save={save} />
-          <View style={styles.next}>
-            <ToneSection tone={state.me.tone} save={saveTone} />
-          </View>
-          <View style={styles.next}>
-            <NotificationsSection notifications={state.me.notifications} save={saveNotifications} />
-          </View>
-        </>
-      ) : (
-        <MeFallback state={state} onRetry={reload} />
+    <Screen scroll edges={["top", "left", "right"]}>
+      <View style={styles.title}>
+        <Text variant="h1" accessibilityRole="header">
+          Perfil
+        </Text>
+        {me && <Text color="inkMuted">{me.email}</Text>}
+      </View>
+
+      {state.status === "error" && (
+        <View style={styles.error}>
+          <FormError message={errorMessage(state.error)} />
+          <Button variant="secondary" title="Reintentar" onPress={reload} />
+        </View>
       )}
+
+      <ListGroup>
+        <ListRow
+          icon={Target}
+          title="Tus metas diarias"
+          detail={me ? `${formatNumber(me.targets.kcal)} kcal por día` : undefined}
+          onPress={() => router.push("/profile/targets")}
+        />
+        <ListRow
+          icon={UserRoundPen}
+          title="Tus datos"
+          detail={me ? dataSummary(me) : undefined}
+          onPress={() => router.push("/profile/data")}
+        />
+        <ListRow
+          icon={MessageCircle}
+          title="Comentario de tus comidas"
+          detail={me ? labelOf(TONE_OPTIONS, me.tone) : undefined}
+          onPress={() => router.push("/profile/tone")}
+        />
+        <ListRow
+          icon={Bell}
+          title="Avisos"
+          detail={me ? notificationsSummary(me) : undefined}
+          onPress={() => router.push("/profile/notifications")}
+        />
+      </ListGroup>
+
       <View style={styles.spacer} />
       <SignOut />
     </Screen>
   );
 }
 
-interface ProfileContentProps {
-  me: Me;
-  save(changes: Partial<ProfileInput>): Promise<void>;
+function labelOf<T extends string>(options: { value: T; label: string }[], value: T) {
+  return options.find((option) => option.value === value)?.label;
 }
 
-function ProfileContent({ me, save }: ProfileContentProps) {
-  const weightRef = useRef<TextInputInstance>(null);
-  const [saved, setSaved] = useState(false);
-  const form = useForm({
-    schema: profileSchema,
-    initialValues: profileToValues(me.profile),
-    onChange: () => setSaved(false),
-    onSubmit: async (values) => {
-      const changes = changedFields(me.profile, values);
-      if (Object.keys(changes).length === 0) return;
-      await save(changes);
-      setSaved(true);
-    },
-  });
+/** "60 kg · Mantener mi peso". */
+function dataSummary({ profile }: Me) {
+  const weight = `${String(profile.weightKg).replace(".", ",")} kg`;
+  return [weight, labelOf(GOAL_OPTIONS, profile.goal)].filter(Boolean).join(" · ");
+}
 
-  // Con algún campo inválido el botón queda activo, para que al tocarlo se vean los errores.
-  const parsed = validateForm(profileSchema, form.values);
-  const dirty = !parsed.ok || Object.keys(changedFields(me.profile, parsed.data)).length > 0;
-  const sex = form.field("sex");
-  const birthDate = form.field("birthDate");
-  const activity = form.field("activity");
-  const goal = form.field("goal");
-
-  return (
-    <>
-      <View style={styles.section}>
-        <Text variant="h2" accessibilityRole="header">
-          Tus metas diarias
-        </Text>
-        <TargetsCard targets={me.targets} />
-        {saved && (
-          <Text variant="small" color="sageText" accessibilityLiveRegion="polite">
-            Guardamos tus cambios y tus metas ya están actualizadas.
-          </Text>
-        )}
-        <HealthDisclaimer />
-      </View>
-
-      <View style={[styles.section, styles.next]}>
-        <Text variant="h2" accessibilityRole="header">
-          Tus datos
-        </Text>
-        <Text variant="small" color="inkMuted">
-          Si cambiás algo, recalculamos tus metas al guardar.
-        </Text>
-        <View style={styles.fields}>
-          <OptionGroup
-            label="Sexo"
-            options={SEX_OPTIONS}
-            value={sex.value}
-            onChange={sex.onChangeText}
-            error={sex.error}
-            disabled={form.submitting}
-          />
-          <DateField
-            label="Fecha de nacimiento"
-            {...birthDatePicker()}
-            value={birthDate.value}
-            onChange={birthDate.onChangeText}
-            onBlur={birthDate.onBlur}
-            error={birthDate.error}
-            disabled={form.submitting}
-          />
-          <Input
-            {...form.field("heightCm")}
-            label="Altura (cm)"
-            keyboardType="number-pad"
-            inputMode="numeric"
-            editable={!form.submitting}
-            returnKeyType="next"
-            submitBehavior="submit"
-            onSubmitEditing={() => weightRef.current?.focus()}
-          />
-          <Input
-            {...form.field("weightKg")}
-            ref={weightRef}
-            label="Peso (kg)"
-            keyboardType="decimal-pad"
-            inputMode="decimal"
-            editable={!form.submitting}
-          />
-          <OptionGroup
-            label="Actividad física"
-            options={ACTIVITY_OPTIONS}
-            value={activity.value}
-            onChange={activity.onChangeText}
-            error={activity.error}
-            disabled={form.submitting}
-          />
-          <OptionGroup
-            label="Objetivo"
-            options={GOAL_OPTIONS}
-            value={goal.value}
-            onChange={goal.onChangeText}
-            error={goal.error}
-            disabled={form.submitting}
-          />
-        </View>
-        <FormError message={form.formError} />
-        <Button
-          title="Guardar cambios"
-          loading={form.submitting}
-          disabled={!dirty}
-          onPress={form.submit}
-        />
-      </View>
-    </>
-  );
+/** "Todos activados", "2 de 3 activados", "Todos desactivados". */
+function notificationsSummary({ notifications }: Me) {
+  const total = NOTIFICATION_OPTIONS.length;
+  const on = NOTIFICATION_OPTIONS.filter((option) => notifications[option.value]).length;
+  if (on === total) return "Todos activados";
+  if (on === 0) return "Todos desactivados";
+  return `${on} de ${total} activados`;
 }
 
 function SignOut() {
   const { signOut } = useSession();
-  const [confirming, setConfirming] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
 
   async function confirmSignOut() {
+    const confirmed = await confirmAction({
+      title: "¿Cerrar la sesión?",
+      message: "Para volver a entrar vas a necesitar tu email y tu contraseña.",
+      confirmTitle: "Cerrar sesión",
+    });
+    if (!confirmed) return;
     setSigningOut(true);
     await signOut();
   }
 
   return (
-    <View style={[styles.section, styles.signOut]}>
-      {confirming ? (
-        <>
-          <Text variant="h3" accessibilityRole="header">
-            ¿Querés cerrar la sesión?
-          </Text>
-          <Text color="inkMuted">
-            Para volver a entrar vas a necesitar tu email y tu contraseña.
-          </Text>
-          <View style={styles.actions}>
-            <Button
-              variant="secondary"
-              title="Sí, cerrar sesión"
-              loading={signingOut}
-              onPress={confirmSignOut}
-            />
-            <Button
-              variant="ghost"
-              title="Cancelar"
-              disabled={signingOut}
-              onPress={() => setConfirming(false)}
-            />
-          </View>
-        </>
-      ) : (
-        <Button variant="secondary" title="Cerrar sesión" onPress={() => setConfirming(true)} />
-      )}
+    <View style={styles.signOut}>
+      <Button
+        variant="secondary"
+        title="Cerrar sesión"
+        loading={signingOut}
+        onPress={() => void confirmSignOut()}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  section: { gap: spacing.sm },
-  next: { marginTop: spacing.xl },
-  fields: { gap: spacing.xl, marginVertical: spacing.sm },
+  title: { gap: spacing.xxs, marginBottom: spacing.xl },
+  error: { gap: spacing.md, marginBottom: spacing.xl },
   spacer: { flexGrow: 1, minHeight: spacing.xl },
   signOut: {
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
     paddingTop: spacing.xl,
   },
-  actions: { gap: spacing.xs, marginTop: spacing.xs },
 });

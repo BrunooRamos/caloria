@@ -44,7 +44,7 @@ export function AnalyzingState({ slow, stalled, connectionIssue, onRetry }: Anal
             Ahora no hay conexión. Seguimos intentando.
           </Text>
         )}
-        {stalled && <Button variant="secondary" title="Volver a consultar" onPress={onRetry} />}
+        {stalled && <Button variant="secondary" title="Actualizar" onPress={onRetry} />}
       </Card>
       <ResultSkeleton />
     </>

@@ -1,4 +1,4 @@
-import type { Range } from "@/services/meals";
+import type { Meal, Range } from "@/services/meals";
 
 /**
  * Un rango como se muestra en toda la app: `620–780 kcal`, `38–46 g`. Guion medio sin espacios y
@@ -15,4 +15,17 @@ export function formatRange({ min, max }: Range, unit: string): string {
 export function formatClock(seconds: number): string {
   const total = Math.max(0, Math.ceil(seconds));
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
+
+/** Lo que dice la fila de una comida (inicio e historial), según su `status`. */
+export function mealSummary(meal: Meal): { title: string; detail: string } {
+  switch (meal.status) {
+    case "ready":
+      return { title: meal.dish, detail: formatRange(meal.kcal, "kcal") };
+    case "processing":
+      return { title: "Analizando…", detail: "Todavía no suma en el total del día." };
+    case "failed":
+      // Sin rojo ni alarma: el detalle explica qué pasó.
+      return { title: "No se pudo analizar", detail: "No suma en el total del día." };
+  }
 }

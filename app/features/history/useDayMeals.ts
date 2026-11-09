@@ -1,9 +1,8 @@
 import { useFocusEffect } from "expo-router";
 import { useCallback, useRef, useState } from "react";
-import { ApiError } from "@/services/api-error";
-import { deleteMeal, listMealsByDay } from "@/services/meals";
+import { listMealsByDay } from "@/services/meals";
 import type { Meal } from "@/services/meals";
-import { mergePage, removeMeal } from "./pages";
+import { mergePage } from "./pages";
 
 export type DayMealsState =
   | { status: "loading" }
@@ -15,8 +14,9 @@ export type DayMealsState =
 type Stored = { day: string } & DayMealsState;
 
 /**
- * Las comidas de `day` (RF-08): la primera página al ganar el foco o cambiar de día (así se ve lo
- * corregido o borrado en otra pantalla) y las siguientes con el cursor, de a una por vez.
+ * Las comidas de `day`, en el historial y en el inicio: la primera página al ganar el foco o
+ * cambiar de día (así se ve lo corregido o borrado en otra pantalla) y las siguientes con el cursor,
+ * de a una por vez.
  */
 export function useDayMeals(day: string) {
   const [stored, setStored] = useState<Stored>({ day, status: "loading" });
@@ -28,10 +28,6 @@ export function useDayMeals(day: string) {
   );
   const firstPage = useRef<AbortController | null>(null);
   const nextPage = useRef<AbortController | null>(null);
-  // Una página pedida antes de borrar puede traer todavía la comida borrada: no vuelve a aparecer.
-  const deleted = useRef(new Set<string>());
-  const withoutDeleted = (meals: readonly Meal[]) =>
-    meals.filter((meal) => !deleted.current.has(meal.id));
 
   const state: DayMealsState = stored.day === day ? stored : { status: "loading" };
   const loadMoreError = loadMoreFailure?.day === day ? loadMoreFailure.error : null;
@@ -48,7 +44,7 @@ export function useDayMeals(day: string) {
       setStored({
         day,
         status: "ready",
-        meals: withoutDeleted(page.items),
+        meals: page.items,
         nextCursor: page.nextCursor,
         stale: false,
       });
@@ -95,7 +91,7 @@ export function useDayMeals(day: string) {
         prev.day === day && prev.status === "ready"
           ? {
               ...prev,
-              meals: mergePage(prev.meals, withoutDeleted(page.items)),
+              meals: mergePage(prev.meals, page.items),
               nextCursor: page.nextCursor,
             }
           : prev,
@@ -122,21 +118,15 @@ export function useDayMeals(day: string) {
     void load();
   }, [day, load]);
 
-  /**
-   * Borra la comida y la saca de la lista. Un 404 cuenta como borrada (ya no estaba); cualquier
-   * otro error se propaga para que la fila lo muestre.
-   */
-  const remove = useCallback(async (id: string) => {
-    try {
-      await deleteMeal(id);
-    } catch (error) {
-      if (!(error instanceof ApiError && error.status === 404)) throw error;
-    }
-    deleted.current.add(id);
-    setStored((prev) =>
-      prev.status === "ready" ? { ...prev, meals: removeMeal(prev.meals, id) } : prev,
-    );
-  }, []);
-
-  return { state, refreshing, refresh, retry, loadingMore, loadMoreError, loadMore, remove };
+  return {
+    state,
+    refreshing,
+    refresh,
+    retry,
+    /** Vuelve a pedir la primera página sin mostrar el indicador de pull to refresh. */
+    reload: load,
+    loadingMore,
+    loadMoreError,
+    loadMore,
+  };
 }

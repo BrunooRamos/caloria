@@ -45,9 +45,6 @@ export function NotificationsSection({ notifications, save }: NotificationsSecti
 
   return (
     <View style={styles.section}>
-      <Text variant="h2" accessibilityRole="header">
-        Avisos
-      </Text>
       <Text variant="small" color="inkMuted">
         Elegí qué avisos querés recibir. Se guarda apenas lo tocás.
       </Text>

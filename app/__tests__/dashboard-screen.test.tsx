@@ -1,9 +1,9 @@
-import { router as appRouter } from "expo-router";
 import { act, fireEvent, renderRouter, screen, within } from "expo-router/testing-library";
 import { StyleSheet } from "react-native";
 import { createHttpClient } from "@/services/http-client";
 import type { HttpClient } from "@/services/http-client";
 import type { DailyDashboard } from "@/services/dashboard";
+import type { Meal } from "@/services/meals";
 import { colors } from "@/theme";
 import {
   BASE_URL,
@@ -55,16 +55,51 @@ const emptyDay: DailyDashboard = {
   meals: { ready: 0, processing: 0, failed: 0 },
 };
 
+const readyMeal = (id: string, dish: string, capturedAt: string): Meal => ({
+  id,
+  status: "ready",
+  capturedAt,
+  photoUrl: `https://fotos.test/${id}`,
+  dish,
+  items: [],
+  kcal: { min: 400, max: 500 },
+  macros: { protein: range(20, 30), carbs: range(40, 50), fat: range(10, 15) },
+  confidence: 0.8,
+});
+const LUNCH = readyMeal("m1", "Milanesa con puré", "2026-10-26T16:30:00Z");
+const DINNER = readyMeal("m2", "Ensalada César", "2026-10-26T23:00:00Z");
+const ANALYZING: Meal = {
+  id: "m3",
+  status: "processing",
+  capturedAt: "2026-10-26T20:00:00Z",
+  photoUrl: "https://fotos.test/m3",
+};
+const FAILED: Meal = { ...ANALYZING, id: "m4", status: "failed", error: { code: "NOT_FOOD" } };
+
 let calls: Call[];
 const dashboardGets = () => calls.filter((call) => call.path === "/dashboard/daily");
+const listGets = () => calls.filter((call) => call.path.startsWith("/meals?"));
+const mealList = (items: Meal[], nextCursor: string | null = null) =>
+  json(200, { items, nextCursor });
 
-function start(responses: (() => Response | Promise<Response>)[]) {
+/**
+ * `responses` contesta cada `GET /dashboard/daily` en orden (el último se repite); `meals`, cada
+ * `GET /meals?date=` de la lista del día.
+ */
+function start(
+  responses: (() => Response | Promise<Response>)[],
+  meals: (() => Response | Promise<Response>)[] = [() => mealList([LUNCH, DINNER])],
+) {
   mockTokenStorage = memoryStorage(OLD_TOKENS);
   let index = 0;
+  let listIndex = 0;
   const fake = fakeFetch((call) => {
     if (call.path === "/auth/refresh") return json(200, { ...NEW_TOKENS });
     if (call.path === "/dashboard/daily") {
       return responses[Math.min(index++, responses.length - 1)]();
+    }
+    if (call.path.startsWith("/meals?")) {
+      return meals[Math.min(listIndex++, meals.length - 1)]();
     }
     return apiError(404, "NOT_FOUND");
   });
@@ -112,6 +147,18 @@ function paintedColors(): Set<string> {
   return found;
 }
 
+/** Los textos de la pantalla en el orden en que se ven, de arriba a abajo. */
+function textOrder(): string[] {
+  const texts: string[] = [];
+  const visit = (node: JsonNode | string) => {
+    if (typeof node === "string") texts.push(node);
+    else node.children?.forEach(visit);
+  };
+  const tree = screen.toJSON() as JsonNode | JsonNode[] | null;
+  (Array.isArray(tree) ? tree : tree ? [tree] : []).forEach(visit);
+  return texts;
+}
+
 /** El gesto de pull to refresh: el mock de ScrollView deja el RefreshControl en sus props. */
 async function pullToRefresh() {
   const scroll = hostNodes().find((node) => node.props.refreshControl);
@@ -147,11 +194,11 @@ describe("pantalla principal: progreso del día", () => {
 
     // El lector de pantalla lee el valor y la meta.
     const kcal = screen.getByLabelText(
-      "Energía: entre 1450 y 1820 kilocalorías, de una meta de 2100 kilocalorías",
+      "Calorías: entre 1450 y 1820 kilocalorías, de una meta de 2100 kilocalorías",
     );
     expect(kcal).toBeOnTheScreen();
     for (const label of [
-      "Proteína: entre 80 y 102 gramos, de una meta de 120 gramos",
+      "Proteínas: entre 80 y 102 gramos, de una meta de 120 gramos",
       "Carbohidratos: entre 150 y 190 gramos, de una meta de 240 gramos",
       "Grasas: entre 45 y 60 gramos, de una meta de 70 gramos",
     ]) {
@@ -159,8 +206,8 @@ describe("pantalla principal: progreso del día", () => {
     }
 
     // Relleno = mid / meta.
-    expect(fillOf(/^Energía/).width).toBe(`${(1635 / 2100) * 100}%`);
-    expect(fillOf(/^Proteína/).width).toBe(`${(91 / 120) * 100}%`);
+    expect(fillOf(/^Calorías/).width).toBe(`${(1635 / 2100) * 100}%`);
+    expect(fillOf(/^Proteínas/).width).toBe(`${(91 / 120) * 100}%`);
     expect(fillOf(/^Grasas/).width).toBe(`${(53 / 70) * 100}%`);
 
     // Pide el día sin date: el Backend usa hoy en la zona del usuario.
@@ -177,11 +224,11 @@ describe("pantalla principal: progreso del día", () => {
     ]);
 
     expect(await screen.findByText("2.600–3.000")).toBeOnTheScreen();
-    const kcalFill = fillOf(/^Energía/);
+    const kcalFill = fillOf(/^Calorías/);
     expect(kcalFill.width).toBe("100%");
     expect(kcalFill.backgroundColor).toBe(colors.primary);
     // Mismo color que una barra que no se pasa.
-    expect(fillOf(/^Proteína/).backgroundColor).toBe(colors.primary);
+    expect(fillOf(/^Proteínas/).backgroundColor).toBe(colors.primary);
 
     const painted = paintedColors();
     // El recorrido encuentra los colores de la pantalla: si no, el resto no probaría nada.
@@ -192,49 +239,125 @@ describe("pantalla principal: progreso del día", () => {
     expect(screen.queryByText(/pasaste|excedi|exceso|sobre la meta|demasiado/i)).toBeNull();
   });
 
-  it("indica las comidas analizándose y vuelve a pedir hasta que no queda ninguna", async () => {
-    await start([
-      () => json(200, { ...day, meals: { ready: 2, processing: 1, failed: 0 } }),
-      () => json(200, day),
-    ]);
+  it("una comida analizándose se ve distinta y pasa a lista sola, sin tocar nada", async () => {
+    await start(
+      [
+        () => json(200, { ...day, meals: { ready: 1, processing: 1, failed: 0 } }),
+        () => json(200, day),
+      ],
+      [
+        () => mealList([LUNCH, ANALYZING]),
+        () => mealList([LUNCH, { ...DINNER, id: ANALYZING.id }]),
+      ],
+    );
 
-    expect(await screen.findByText("1 comida analizándose")).toBeOnTheScreen();
-    expect(screen.getByText("El total se actualiza cuando termine el análisis.")).toBeOnTheScreen();
-    expect(screen.getByLabelText("Analizando")).toBeOnTheScreen();
+    expect(await screen.findByText("Analizando…")).toBeOnTheScreen();
+    expect(screen.getByText("Todavía no suma en el total del día.")).toBeOnTheScreen();
+    expect(
+      screen.getByText(/^1 comida analizándose: el total se actualiza cuando termine el análisis/),
+    ).toBeOnTheScreen();
+    const row = screen.getByRole("button", { name: /Analizando…/ });
+    expect(row).toBeBusy();
+    expect(StyleSheet.flatten(row.props.style).backgroundColor).toBe(colors.surfaceAlt);
+    const lunch = screen.getByRole("button", { name: /Milanesa con puré/ });
+    expect(StyleSheet.flatten(lunch.props.style).backgroundColor).toBe(colors.surface);
     expect(dashboardGets()).toHaveLength(1);
+    expect(listGets()).toHaveLength(1);
 
+    // El dashboard consulta solo mientras hay comidas analizándose; al cambiar, la lista también.
     await advance(1000);
     expect(dashboardGets()).toHaveLength(2);
-    expect(await screen.findByText("1.450–1.820")).toBeOnTheScreen();
+    expect(await screen.findByText("Ensalada César")).toBeOnTheScreen();
+    expect(screen.queryByText("Analizando…")).toBeNull();
     expect(screen.queryByText(/analizándose/)).toBeNull();
+    expect(listGets()).toHaveLength(2);
 
     // Ya no hay comidas en processing: no pide más.
     await advance(60_000);
     expect(dashboardGets()).toHaveLength(2);
+    expect(listGets()).toHaveLength(2);
   });
 
   it("varias comidas analizándose, en plural", async () => {
     await start([() => json(200, { ...day, meals: { ready: 1, processing: 2, failed: 0 } })]);
-    expect(await screen.findByText("2 comidas analizándose")).toBeOnTheScreen();
+    expect(await screen.findByText(/^2 comidas analizándose/)).toBeOnTheScreen();
   });
 
-  it("una comida que no se pudo analizar: aviso tranquilo, sin rojo", async () => {
-    await start([() => json(200, { ...day, meals: { ready: 3, processing: 0, failed: 1 } })]);
+  it("una comida que no se pudo analizar: se distingue sin rojo y lleva a su detalle", async () => {
+    const router = await start(
+      [() => json(200, { ...day, meals: { ready: 1, processing: 0, failed: 1 } })],
+      [() => mealList([LUNCH, FAILED])],
+    );
 
-    expect(await screen.findByText("1 comida no se pudo analizar")).toBeOnTheScreen();
+    const title = await screen.findByText("No se pudo analizar");
+    expect(StyleSheet.flatten(title.props.style).color).toBe(colors.warning);
+    expect(screen.getByText("No suma en el total del día.")).toBeOnTheScreen();
     expect(paintedColors().has(colors.danger.toUpperCase())).toBe(false);
+
+    await fireEvent.press(screen.getByRole("button", { name: /No se pudo analizar/ }));
+    expect(router.getPathname()).toBe(`/meals/${FAILED.id}`);
+  });
+
+  it("cada comida del día lleva a su detalle con un toque", async () => {
+    const router = await start([() => json(200, day)]);
+    await fireEvent.press(await screen.findByRole("button", { name: /Ensalada César/ }));
+    expect(router.getPathname()).toBe(`/meals/${DINNER.id}`);
+  });
+
+  it("si el día tiene más comidas que la primera página, lleva al historial", async () => {
+    const router = await start([() => json(200, day)], [() => mealList([LUNCH], "cursor-2")]);
+    await fireEvent.press(await screen.findByRole("button", { name: "Ver todas en el historial" }));
+    expect(router.getPathname()).toBe("/history");
+  });
+
+  it("primero las calorías con Registrar, después las comidas, los macros y la racha", async () => {
+    await start([() => json(200, day)]);
+    await screen.findByText("Milanesa con puré");
+
+    const order = textOrder();
+    const at = (text: string) => order.indexOf(text);
+    for (const text of [
+      "Hoy",
+      "Calorías",
+      "Registrar comida",
+      "Comidas de hoy",
+      "Proteínas",
+      "Racha",
+    ]) {
+      expect(at(text)).toBeGreaterThan(-1);
+    }
+    expect(at("Hoy")).toBeLessThan(at("Calorías"));
+    expect(at("Calorías")).toBeLessThan(at("Registrar comida"));
+    expect(at("Registrar comida")).toBeLessThan(at("Comidas de hoy"));
+    expect(at("Comidas de hoy")).toBeLessThan(at("Milanesa con puré"));
+    expect(at("Milanesa con puré")).toBeLessThan(at("Proteínas"));
+    expect(at("Proteínas")).toBeLessThan(at("Racha"));
   });
 
   it("día sin comidas: mensaje neutral, las barras en cero y el botón de registrar", async () => {
-    await start([() => json(200, emptyDay)]);
+    await start([() => json(200, emptyDay)], [() => mealList([])]);
 
     expect(await screen.findByText("Todavía no hay comidas hoy")).toBeOnTheScreen();
     expect(
-      screen.getByText("Cuando registres una, vas a ver acá cómo va tu día."),
+      screen.getByText("Sacale una foto a lo próximo que comas y la vas a ver acá."),
     ).toBeOnTheScreen();
-    expect(screen.getByLabelText(/^Energía: 0 kilocalorías/)).toBeOnTheScreen();
-    expect(fillOf(/^Energía/).width).toBe("0%");
+    expect(screen.getByLabelText(/^Calorías: 0 kilocalorías/)).toBeOnTheScreen();
+    expect(fillOf(/^Calorías/).width).toBe("0%");
     expect(screen.getByRole("button", { name: "Registrar comida" })).toBeOnTheScreen();
+  });
+
+  it("alguien nuevo no ve una pantalla de ceros: lo invita a registrar la primera comida", async () => {
+    await start(
+      [() => json(200, { ...emptyDay, streak: { current: 0, best: 0 } })],
+      [() => mealList([])],
+    );
+
+    expect(await screen.findByText("Registrá tu primera comida")).toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "Registrar comida" })).toBeOnTheScreen();
+    // Macros y racha estarían en cero: no se muestran hasta la primera comida.
+    expect(screen.queryByLabelText(/^Proteínas/)).toBeNull();
+    expect(screen.queryByText("Racha")).toBeNull();
+    expect(screen.queryByText("Todavía no hay comidas hoy")).toBeNull();
   });
 
   it("si falla, muestra el error y deja reintentar; el botón de registrar sigue", async () => {
@@ -269,12 +392,12 @@ describe("pantalla principal: progreso del día", () => {
     expect(await screen.findByText("1.450–1.820")).toBeOnTheScreen();
     expect(dashboardGets()).toHaveLength(1);
 
-    // Ir a otra pantalla (registrar, corregir o borrar) y volver.
-    await fireEvent.press(screen.getByText("Mi perfil"));
+    // Ir a otra sección (registrar, corregir o borrar) y volver con la pestaña.
+    await fireEvent.press(screen.getByRole("tab", { name: "Perfil" }));
     expect(router.getPathname()).toBe("/profile");
     expect(dashboardGets()).toHaveLength(1);
 
-    await act(() => appRouter.back());
+    await fireEvent.press(screen.getByRole("tab", { name: "Inicio" }));
     expect(router.getPathname()).toBe("/");
     expect(await screen.findByText("2.000–2.300")).toBeOnTheScreen();
     expect(dashboardGets()).toHaveLength(2);
@@ -320,8 +443,10 @@ describe("pantalla principal: racha (RF-10)", () => {
     expect(within(card).getByText("días")).toBeOnTheScreen();
     expect(within(card).getByText("Mejor racha: 12 días")).toBeOnTheScreen();
     expect(within(card).queryByText("Tu mejor racha")).toBeNull();
-    // Sale de la misma respuesta del dashboard: no hay otro pedido.
-    const apiCalls = calls.filter((call) => !call.path.startsWith("/auth/"));
+    // Sale de la misma respuesta del dashboard: no hay otro pedido (aparte de la lista del día).
+    const apiCalls = calls.filter(
+      (call) => !call.path.startsWith("/auth/") && !call.path.startsWith("/meals?"),
+    );
     expect(apiCalls.map((call) => call.path)).toEqual(["/dashboard/daily"]);
   });
 

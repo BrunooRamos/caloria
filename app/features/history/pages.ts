@@ -15,10 +15,3 @@ export function mergePage(current: readonly Meal[], page: readonly Meal[]): Meal
   // `incoming` conserva el orden de la página: van las que no estaban.
   return [...merged, ...incoming.values()];
 }
-
-/** La lista sin la comida `id`; si no estaba, la misma lista. */
-export function removeMeal(current: readonly Meal[], id: string): readonly Meal[] {
-  return current.some((meal) => meal.id === id)
-    ? current.filter((meal) => meal.id !== id)
-    : current;
-}

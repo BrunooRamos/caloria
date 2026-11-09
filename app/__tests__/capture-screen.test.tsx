@@ -2,7 +2,7 @@ import * as ImagePicker from "expo-image-picker";
 import { act, fireEvent, renderRouter, screen } from "expo-router/testing-library";
 import type * as React from "react";
 import type * as ReactNative from "react-native";
-import { AccessibilityInfo, AppState, BackHandler, Linking } from "react-native";
+import { AccessibilityInfo, AppState, Linking } from "react-native";
 import type { AppStateStatus } from "react-native";
 import { LIMIT_MESSAGE } from "@/features/meals/AudioNoteRecorder";
 import { PHOTO_MAX_BYTES } from "@/features/meals/prepare-photo";
@@ -20,6 +20,8 @@ import {
   json,
   memoryStorage,
 } from "@/test-utils/fake-api";
+import { spyAlerts } from "@/test-utils/alert";
+import { mockHardwareBack } from "@/test-utils/hardware-back";
 import type { Call, Handler } from "@/test-utils/fake-api";
 
 jest.mock("expo-splash-screen", () => ({
@@ -213,7 +215,7 @@ const appRoutes = (router: Awaited<ReturnType<typeof start>>) =>
 
 const press = async (name: string) => fireEvent.press(await screen.findByRole("button", { name }));
 
-/** Desde la home: botón flotante y disparador (interacciones 1 y 2). */
+/** Desde la home: "Registrar comida" y el disparador (interacciones 1 y 2). */
 async function takePhoto() {
   await press("Registrar comida");
   await press("Sacar foto");
@@ -274,8 +276,21 @@ describe("registrar una comida", () => {
     expect(mealPosts()).toHaveLength(1);
     expect(mealPosts()[0].body).toBeInstanceOf(FormData);
     expect(mealPosts()[0].headers["Content-Type"]).toBeUndefined();
-    // La captura ya no está en el stack: volver desde el resultado lleva a la home.
-    expect(appRoutes(router)).toEqual(["index", "meals/[id]"]);
+    // La captura ya no está en el stack: volver desde el resultado lleva a las pestañas.
+    expect(appRoutes(router)).toEqual(["(tabs)", "meals/[id]"]);
+  });
+
+  it("también desde la barra de pestañas, desde cualquier sección", async () => {
+    const router = await start();
+    await fireEvent.press(await screen.findByRole("tab", { name: "Historial" }));
+    expect(router.getPathname()).toBe("/history");
+
+    await press("Registrar");
+    await press("Sacar foto");
+    await press("Enviar");
+
+    expect(await screen.findByText("Analizando tu comida…")).toBeOnTheScreen();
+    expect(router.getPathname()).toBe(`/meals/${MEAL_ID}`);
   });
 
   it("si falla la subida la foto queda y se reintenta sin sacarla de nuevo", async () => {
@@ -353,31 +368,22 @@ describe("registrar una comida", () => {
   });
 });
 
-describe("volver desde la vista previa", () => {
-  it("la flecha sale de la captura y vuelve a la pantalla principal", async () => {
+describe("cerrar la captura", () => {
+  it("Cerrar sale de la cámara y de la vista previa a la pantalla principal", async () => {
     const router = await start();
-    await takePhoto();
+    await press("Registrar comida");
+    await press("Cerrar");
+    expect(await screen.findByRole("button", { name: "Registrar comida" })).toBeOnTheScreen();
+    expect(router.getPathname()).toBe("/");
 
-    await press("Volver al inicio");
+    await takePhoto();
+    await press("Cerrar");
     expect(await screen.findByRole("button", { name: "Registrar comida" })).toBeOnTheScreen();
     expect(router.getPathname()).toBe("/");
   });
 
   it("el atrás de Android también vuelve al inicio, salvo mientras sube la foto", async () => {
-    // Como React Native: el último listener registrado responde primero, hasta que uno lo maneja.
-    type BackListener = Parameters<typeof BackHandler.addEventListener>[1];
-    const listeners: BackListener[] = [];
-    const spy = jest
-      .spyOn(BackHandler, "addEventListener")
-      .mockImplementation((_event, listener) => {
-        listeners.push(listener);
-        return { remove: () => listeners.splice(listeners.indexOf(listener), 1) };
-      });
-    const pressBack = () =>
-      act(() => {
-        [...listeners].reverse().some((listener) => listener({} as never));
-      });
-
+    const { pressBack, spy } = mockHardwareBack();
     const response = deferred<Response>();
     const router = await start(() => response.promise);
     await takePhoto();
@@ -386,7 +392,7 @@ describe("volver desde la vista previa", () => {
     for (let i = 0; i < 20; i++) await Promise.resolve();
     await pressBack();
     expect(screen.getByText("Subiendo foto…")).toBeOnTheScreen();
-    expect(screen.getByRole("button", { name: "Volver al inicio" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cerrar" })).toBeDisabled();
 
     await act(async () => {
       response.resolve(apiError(503, "SERVICE_UNAVAILABLE"));
@@ -453,7 +459,7 @@ describe("permiso de cámara", () => {
     expect(openSettings).toHaveBeenCalledTimes(1);
   });
 
-  it("negado: no queda trabada, puede elegir de la galería o volver", async () => {
+  it("negado: no queda trabada, puede elegir de la galería o cerrar", async () => {
     mockCamera.permission = { granted: false, status: "denied", canAskAgain: true };
     jest.mocked(ImagePicker.launchImageLibraryAsync).mockResolvedValue({
       canceled: false,
@@ -469,7 +475,8 @@ describe("permiso de cámara", () => {
     expect(await screen.findByText("¿Analizamos esta foto?")).toBeOnTheScreen();
 
     await press("Sacar otra");
-    await press("Volver");
+    expect(await screen.findByText("Necesitamos tu cámara")).toBeOnTheScreen();
+    await press("Cerrar");
     expect(await screen.findByRole("button", { name: "Registrar comida" })).toBeOnTheScreen();
     expect(router.getPathname()).toBe("/");
   });
@@ -594,7 +601,14 @@ describe("audio de la preparación", () => {
     expect(await screen.findByText("Audio grabado")).toBeOnTheScreen();
     expect(mockAudio.player.source).toEqual({ uri: "file:///cache/ExpoAudio/toma-2.m4a" });
 
+    const alerts = spyAlerts();
     await press("Descartar audio");
+    expect(alerts.last().title).toBe("¿Descartar el audio?");
+    await alerts.press("Cancelar");
+    expect(screen.getByText("Audio grabado")).toBeOnTheScreen();
+
+    await press("Descartar audio");
+    await alerts.press("Descartar");
     expect(await screen.findByText("Contá cómo la preparaste")).toBeOnTheScreen();
     expect(mockAudio.player.source).toBeNull();
 
@@ -642,13 +656,51 @@ describe("audio de la preparación", () => {
     }
   });
 
+  it("con un audio grabado, Cerrar pregunta antes de descartarlo", async () => {
+    const router = await start();
+    await takePhoto();
+    await recordFor(5);
+    const alerts = spyAlerts();
+
+    await press("Cerrar");
+    expect(alerts.last().title).toBe("¿Descartar la foto y el audio?");
+    expect(alerts.last().buttons.map((button) => button.text)).toEqual(["Cancelar", "Descartar"]);
+    await alerts.press("Cancelar");
+    expect(router.getPathname()).toBe("/capture");
+    expect(screen.getByText("Audio grabado")).toBeOnTheScreen();
+
+    await press("Cerrar");
+    await alerts.press("Descartar");
+    expect(await screen.findByRole("button", { name: "Registrar comida" })).toBeOnTheScreen();
+    expect(router.getPathname()).toBe("/");
+    expect(mealPosts()).toHaveLength(0);
+  });
+
+  it("con un audio grabado, el atrás de Android pregunta lo mismo que Cerrar", async () => {
+    const { pressBack, spy } = mockHardwareBack();
+    const router = await start();
+    await takePhoto();
+    await recordFor(5);
+    const alerts = spyAlerts();
+
+    await pressBack();
+    expect(alerts.last().title).toBe("¿Descartar la foto y el audio?");
+    await alerts.press("Cancelar");
+    expect(router.getPathname()).toBe("/capture");
+
+    await pressBack();
+    await alerts.press("Descartar");
+    expect(router.getPathname()).toBe("/");
+    spy.mockRestore();
+  });
+
   it("salir de la pantalla mientras graba corta la grabación", async () => {
     const router = await start();
     await takePhoto();
 
     await press(RECORD);
     await screen.findByText("Grabando…");
-    await press("Volver al inicio");
+    await press("Cerrar");
     expect(await screen.findByRole("button", { name: "Registrar comida" })).toBeOnTheScreen();
     expect(router.getPathname()).toBe("/");
     expect(mockAudio.recorder.stop).toHaveBeenCalledTimes(1);

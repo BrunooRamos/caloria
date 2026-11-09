@@ -1,12 +1,11 @@
-import { router } from "expo-router";
-import { ChevronLeft } from "lucide-react-native";
-import { useEffect, useRef, useState } from "react";
-import { BackHandler, Image, StyleSheet, View } from "react-native";
-import { Button, FormError, IconButton, Screen, Text } from "@/components";
+import { X } from "lucide-react-native";
+import { useRef, useState } from "react";
+import { Image, StyleSheet, View } from "react-native";
+import { Button, FormError, HeaderButton, Screen, Text } from "@/components";
 import { errorMessage } from "@/services/error-messages";
 import type { ErrorMessageOverrides } from "@/services/error-messages";
 import { createMeal } from "@/services/meals";
-import { colors, radius, sizes, spacing } from "@/theme";
+import { colors, radius, spacing } from "@/theme";
 import { AudioNoteRecorder } from "./AudioNoteRecorder";
 import { buildMealForm } from "./meal-form";
 import { exceedsMaxBytes } from "./prepare-photo";
@@ -32,11 +31,21 @@ export interface PreviewStepProps {
   photo: PreparedPhoto;
   /** Vive en la captura, así "Sacar otra" no pierde el audio. */
   audio: UseAudioNote;
+  /** Mientras sube, la captura no deja salir (ni con el atrás de Android ni con el gesto de iOS). */
+  onSendingChange(sending: boolean): void;
+  onSent(mealId: string, photoUri: string): void;
   onRetake(): void;
   onClose(): void;
 }
 
-export function PreviewStep({ photo, audio, onRetake, onClose }: PreviewStepProps) {
+export function PreviewStep({
+  photo,
+  audio,
+  onSendingChange,
+  onSent,
+  onRetake,
+  onClose,
+}: PreviewStepProps) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // El estado tarda un render en deshabilitar el botón: el ref frena un segundo toque inmediato.
@@ -45,27 +54,23 @@ export function PreviewStep({ photo, audio, onRetake, onClose }: PreviewStepProp
   const recording = audio.status === "recording";
   const withAudio = audio.note !== null;
 
-  useEffect(() => {
-    const subscription = BackHandler.addEventListener("hardwareBackPress", () => inFlight.current);
-    return () => subscription.remove();
-  }, []);
-
   async function send() {
     if (inFlight.current || tooLarge || recording) return;
     inFlight.current = true;
     audio.stopPlayback();
     setSending(true);
+    onSendingChange(true);
     setError(null);
     try {
       const { mealId } = await createMeal(
         buildMealForm({ photo, ...(audio.note && { audio: audio.note }) }),
       );
-      // Reemplaza la captura: volver atrás desde el resultado lleva a la home, no a la cámara.
-      router.replace({ pathname: "/meals/[id]", params: { id: mealId, photoUri: photo.uri } });
+      onSent(mealId, photo.uri);
     } catch (err) {
       // La foto queda en pantalla para reintentar sin sacarla de nuevo.
       inFlight.current = false;
       setSending(false);
+      onSendingChange(false);
       setError(errorMessage(err, withAudio ? UPLOAD_ERRORS_WITH_AUDIO : UPLOAD_ERRORS));
     }
   }
@@ -73,13 +78,8 @@ export function PreviewStep({ photo, audio, onRetake, onClose }: PreviewStepProp
   return (
     <Screen>
       <View style={styles.content}>
-        <View style={styles.back}>
-          <IconButton
-            icon={ChevronLeft}
-            label="Volver al inicio"
-            disabled={sending}
-            onPress={onClose}
-          />
+        <View style={styles.close}>
+          <HeaderButton icon={X} title="Cerrar" disabled={sending} onPress={onClose} />
         </View>
         <Text variant="h1" accessibilityRole="header">
           ¿Analizamos esta foto?
@@ -123,7 +123,8 @@ export function PreviewStep({ photo, audio, onRetake, onClose }: PreviewStepProp
 
 const styles = StyleSheet.create({
   content: { flex: 1, gap: spacing.md, paddingBottom: spacing.xl },
-  back: { alignSelf: "flex-start", marginLeft: -(sizes.touchTarget - sizes.icon) / 2 },
+  // A la misma altura que "Cerrar" en la cámara.
+  close: { marginTop: spacing.xs - spacing.xl },
   photo: { flex: 1, borderRadius: radius.lg, backgroundColor: colors.surfaceAlt },
   actions: { gap: spacing.sm },
   centered: { textAlign: "center" },

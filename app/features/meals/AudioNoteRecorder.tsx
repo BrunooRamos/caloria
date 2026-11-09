@@ -1,7 +1,7 @@
 import { Mic, Pause, Play, RotateCcw, Square, Trash } from "lucide-react-native";
 import { useEffect, useRef } from "react";
 import { AccessibilityInfo, Linking, StyleSheet, View } from "react-native";
-import { Button, Card, FormError, IconButton, Text } from "@/components";
+import { Button, Card, FormError, IconButton, Text, confirmAction } from "@/components";
 import { spacing } from "@/theme";
 import { formatClock } from "./format";
 import { AUDIO_MAX_SECONDS } from "./useAudioNote";
@@ -86,14 +86,16 @@ export function AudioNoteRecorder({ audio, disabled }: AudioNoteRecorderProps) {
             <IconButton
               icon={RotateCcw}
               label="Regrabar audio"
+              caption="Regrabar"
               disabled={disabled}
               onPress={() => void audio.record()}
             />
             <IconButton
               icon={Trash}
               label="Descartar audio"
+              caption="Descartar"
               disabled={disabled}
-              onPress={audio.discard}
+              onPress={() => void discard(audio)}
             />
           </>
         )}
@@ -108,6 +110,15 @@ export function AudioNoteRecorder({ audio, disabled }: AudioNoteRecorderProps) {
       <FormError message={audio.error} />
     </Card>
   );
+}
+
+async function discard(audio: UseAudioNote) {
+  const confirmed = await confirmAction({
+    title: "¿Descartar el audio?",
+    message: "Se borra lo que grabaste. La foto queda.",
+    confirmTitle: "Descartar",
+  });
+  if (confirmed) audio.discard();
 }
 
 /** Sin micrófono el audio no se puede grabar, pero la foto se manda igual. */

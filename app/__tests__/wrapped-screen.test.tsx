@@ -1,4 +1,4 @@
-import { act, fireEvent, renderRouter, screen } from "expo-router/testing-library";
+import { act, fireEvent, renderRouter, screen, within } from "expo-router/testing-library";
 import { AccessibilityInfo, Animated, Platform, StyleSheet } from "react-native";
 import { createHttpClient } from "@/services/http-client";
 import type { HttpClient } from "@/services/http-client";
@@ -132,7 +132,8 @@ async function readyShareCard({ area = 400, text = 200 } = {}) {
   await act(async () =>
     fireEvent(screen.getByTestId("share-card-text", hidden), "layout", layout(text)),
   );
-  const logo = screen.getByLabelText("CalorIA", hidden);
+  // El logo de la tarjeta: el inicio, debajo, tiene el suyo.
+  const logo = within(card).getByLabelText("CalorIA", hidden);
   await act(async () => fireEvent(logo, "load"));
 }
 
@@ -153,23 +154,24 @@ describe("Wrapped: qué semana pide", () => {
   it("sin semana en la ruta pide la última completa en la zona del usuario", async () => {
     await start("/wrapped", [() => json(200, summary)]);
 
-    expect(await screen.findByRole("header", { name: "19–25 de octubre" })).toBeOnTheScreen();
+    // Es la pestaña "Semana": lleva su título y la semana abajo.
+    expect(await screen.findByRole("header", { name: "Tu semana" })).toBeOnTheScreen();
+    expect(screen.getByText("19–25 de octubre")).toBeOnTheScreen();
     expect(summaryCalls().map((call) => call.path)).toEqual(["/summaries/weekly/2026-W43"]);
   });
 
   it("con semana en la ruta (como la abre el push) pide esa", async () => {
     await start("/wrapped/2026-W40", [() => json(200, { ...summary, week: "2026-W40" })]);
 
-    expect(
-      await screen.findByRole("header", { name: "28 de septiembre–4 de octubre" }),
-    ).toBeOnTheScreen();
+    expect(await screen.findByRole("header", { name: "Tu semana" })).toBeOnTheScreen();
+    expect(screen.getByText("28 de septiembre–4 de octubre")).toBeOnTheScreen();
     expect(summaryCalls().map((call) => call.path)).toEqual(["/summaries/weekly/2026-W40"]);
   });
 
   it("una semana inválida o que todavía no terminó cae en la última completa", async () => {
     await start("/wrapped/2026-W44", [() => json(200, summary)]);
 
-    expect(await screen.findByRole("header", { name: "19–25 de octubre" })).toBeOnTheScreen();
+    expect(await screen.findByText("19–25 de octubre")).toBeOnTheScreen();
     expect(summaryCalls().map((call) => call.path)).toEqual(["/summaries/weekly/2026-W43"]);
   });
 });
@@ -236,7 +238,8 @@ describe("Wrapped: estados de la respuesta", () => {
     expect(screen.getAllByRole("button").map((button) => button.props.accessibilityLabel)).toEqual(
       expect.not.arrayContaining([expect.stringMatching(/premium|suscrib|plan|comprar/i)]),
     );
-    expect(screen.getByRole("button", { name: "Volver al inicio" })).toBeOnTheScreen();
+    // Sin botones de más: se sale con "Volver" del header, como en cualquier detalle.
+    expect(screen.getByRole("button", { name: "Volver" })).toBeOnTheScreen();
   });
 
   it("500: el mensaje de error y reintentar", async () => {
@@ -404,6 +407,13 @@ describe("Wrapped: compartir una tarjeta", () => {
 });
 
 describe("Wrapped: reducir movimiento", () => {
+  /**
+   * Las animaciones que se ven: la navegación de pestañas también llama a `Animated.timing`, pero
+   * con duración 0 (sin transición entre pestañas), y eso no mueve nada.
+   */
+  const visible = (timing: jest.SpyInstance) =>
+    timing.mock.calls.filter(([, config]) => (config as { duration?: number }).duration !== 0);
+
   it("con reducir movimiento prendido no anima la entrada de las tarjetas ni la vista previa", async () => {
     jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockResolvedValue(true);
     const timing = jest.spyOn(Animated, "timing");
@@ -415,7 +425,7 @@ describe("Wrapped: reducir movimiento", () => {
     await readyShareCard();
 
     expect(await screen.findByRole("header", { name: "Vista previa" })).toBeOnTheScreen();
-    expect(timing).not.toHaveBeenCalled();
+    expect(visible(timing)).toEqual([]);
   });
 
   it("sin reducir movimiento, la primera tarjeta entra animada", async () => {
@@ -425,6 +435,6 @@ describe("Wrapped: reducir movimiento", () => {
     await layoutPager();
 
     await screen.findByLabelText(/^Tu semana: registraste/);
-    expect(timing).toHaveBeenCalled();
+    expect(visible(timing).length).toBeGreaterThan(0);
   });
 });

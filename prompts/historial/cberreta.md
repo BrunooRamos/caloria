@@ -240,3 +240,37 @@ Aprovechá para verificar que en `docker-compose.yml` solo nginx publique puerto
 
 Al terminar, quiero ver la verificación de RNF-03: un `curl` a HTTP que devuelve la redirección a HTTPS, uno a HTTPS con el certificado válido, la ruta del desafío respondiendo por el 80, un `certbot renew --dry-run` que pasa y un intento de conectarse directo a los puertos 3000 y 4000 desde afuera que falla. Documentá en el README y en `docs/arquitectura.md` cómo se configura el dominio, cómo se renueva y cómo se usa la alternativa sin dominio. Antes de tocar nada, contame el plan y cómo vas a resolver el arranque sin certificado, y esperá mi OK.
 ```
+
+### 2026-11-04 20:11
+
+```text
+Vamos a hacer una pasada de usabilidad sobre la app. Partí de la rama `app-permisos-y-preferencias-de-notificaciones` y creá una nueva, `feat/ux-navegacion-dashboard`. La app ya tiene casi todas sus pantallas, pero se fueron armando ticket por ticket y hay lugares donde no es obvio cómo volver, el dashboard tiene información que cuesta encontrar y en general no se siente fluida. El objetivo es que alguien que la abre por primera vez la entienda sin explicaciones. Como siempre, todo lo visual sigue la skill `caloria-design`.
+
+Primero recorré el código de todas las pantallas de `app/` y armá un mapa de la navegación: qué pantallas hay, desde dónde se llega a cada una y cómo se sale. Con eso, haceme una lista de los problemas que encuentres, por ejemplo pantallas sin salida, acciones escondidas o que solo se entienden por un ícono, flujos que obligan a ir y volver, inconsistencias entre pantallas (botones de volver en lugares distintos, textos que dicen lo mismo de formas diferentes) y estados vacíos, de carga o de error que dejan a la persona sin saber qué hacer. Junto a la lista, proponeme cómo lo resolverías. Esperá mi OK antes de implementar.
+
+Hay tres cosas que tienen que quedar resueltas sí o sí.
+
+La primera es que desde cualquier pantalla se pueda volver a la principal. Pensá si conviene una barra de pestañas abajo con las secciones principales (inicio, historial, resumen, perfil, o la división que tenga más sentido) y la acción de registrar comida siempre a mano, porque es el patrón que la gente ya conoce y resuelve gran parte del problema. Las pantallas de detalle tienen que tener un botón de volver visible y siempre en el mismo lugar. Ojo con las pantallas que se abren desde una notificación, como el resultado de un análisis o el Wrapped: ahí no hay historial, así que "volver" tiene que llevar a la principal en vez de no hacer nada o cerrar la app. En Android, el botón atrás del sistema tiene que comportarse igual que el de la pantalla.
+
+La segunda es el dashboard. Cuando alguien lo abre, quiere saber en un vistazo cuánto comió hoy contra su meta, y quiere poder registrar algo rápido. Eso va primero y bien visible; los macros, la racha y la lista de comidas del día vienen después, en ese orden de importancia o en el que propongas con argumentos. Las comidas que todavía se están analizando tienen que verse distintas de las listas, y cada comida tiene que llevar a su detalle con un toque. Para alguien nuevo, sin comidas, el dashboard no puede verse vacío: tiene que invitar a registrar la primera. Y registrar una comida desde acá tiene que seguir llevando 3 interacciones o menos (RNF-06).
+
+La tercera es que la app se sienta amable. Los íconos solos se entienden poco, así que las acciones importantes llevan texto. Después de guardar, borrar o corregir algo, tiene que haber una confirmación breve de que salió bien. Las acciones que borran cosas piden confirmación. Los textos, en español rioplatense, cortos y con el mismo tono en toda la app. Y lo de siempre de la skill: targets táctiles de 44 como mínimo, que funcione con la fuente del sistema agrandada y nada de tono de alarma con la comida.
+
+Algunos límites: este ticket es solo de la app, sin cambios en el Backend ni en el Front Service, y no agrega funcionalidades nuevas, solo reorganiza y pule lo que ya existe. Los flujos que hoy andan tienen que seguir andando. Si para resolver algo hace falta un componente nuevo, como la barra de pestañas o un header común, va en `components/` y sumalo a la skill, así las próximas pantallas lo usan sin que haya que pedirlo. Hacé commits chicos por área (navegación, dashboard, textos), así es más fácil revisar el PR.
+
+Al terminar, pasame el mapa de navegación actualizado, la lista de problemas con cómo quedó cada uno, y un recorrido para probar en el teléfono que pase por todas las pantallas verificando que desde cada una se vuelve a la principal.
+```
+
+## Sesión `eedcac97-83ac-4577-bdc8-74d64397ba82` · 2026-11-04
+
+### 2026-11-04 21:15
+
+```text
+algunos arreglos: en la tab de abajo, el icono de historial pone tipo un reloj con flecha en sentido antihorario, y en el de semana que sea el de calendario que ahora tenemos en historial. despues la pantalla de perfil, que sea estilo "configuracion" y haya botones para las distintas secciones que tenemos hoy ahi para que no quede tan larga
+```
+
+### 2026-11-04 21:15
+
+```text
+y tambien agregar el logo en la pantalla de inicio
+```

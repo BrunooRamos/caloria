@@ -101,7 +101,7 @@ describe("corregir una comida", () => {
     await type("Plato", "Milanesa napolitana con puré");
     await type("Kcal de Milanesa", "520");
     // Sin tocar el total, pasa a ser la suma de los ingredientes.
-    expect(field("Kcal totales")).toHaveProp("placeholder", "700–750 kcal");
+    expect(field("Calorías totales")).toHaveProp("placeholder", "700–750 kcal");
     expect(screen.getByText("Suma de los ingredientes.")).toBeOnTheScreen();
     expect(saveButton()).toBeEnabled();
 
@@ -117,6 +117,7 @@ describe("corregir una comida", () => {
     });
 
     expect(router.getPathname()).toBe(`/meals/${MEAL_ID}`);
+    expect(screen.getByText("Guardamos la corrección.")).toBeOnTheScreen();
     expect(await screen.findByText("Milanesa napolitana con puré")).toBeOnTheScreen();
     expect(screen.getByText("700–750 kcal")).toBeOnTheScreen();
     expect(screen.getByText("150–190 g · 520 kcal")).toBeOnTheScreen();
@@ -150,7 +151,7 @@ describe("corregir una comida", () => {
 
   it("el total escrito a mano se respeta aunque cambien los ingredientes, y se puede volver a la suma", async () => {
     await openEditor();
-    await type("Kcal totales", "800");
+    await type("Calorías totales", "800");
     await press("Quitar Milanesa");
     expect(
       screen.getByRole("button", { name: "Usar la suma de los ingredientes: 180–230 kcal" }),
@@ -162,11 +163,11 @@ describe("corregir una comida", () => {
 
   it("volver a la suma vacía el total", async () => {
     await openEditor();
-    await type("Kcal totales", "800");
+    await type("Calorías totales", "800");
     await press("Quitar Milanesa");
     await press("Usar la suma de los ingredientes: 180–230 kcal");
-    expect(field("Kcal totales")).toHaveProp("value", "");
-    expect(field("Kcal totales")).toHaveProp("placeholder", "180–230 kcal");
+    expect(field("Calorías totales")).toHaveProp("value", "");
+    expect(field("Calorías totales")).toHaveProp("placeholder", "180–230 kcal");
   });
 
   it("el rango completo queda para quien lo quiera, con el mínimo que no pasa al máximo", async () => {
@@ -258,6 +259,7 @@ describe("corregir una comida", () => {
         "¿Descartar los cambios?",
         "Lo que corregiste no se va a guardar.",
         expect.any(Array),
+        expect.objectContaining({ cancelable: true }),
       );
       expect(buttons?.map((button) => button.text)).toEqual(["Seguir editando", "Descartar"]);
       // No es una acción destructiva: no va en rojo.

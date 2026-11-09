@@ -1,6 +1,6 @@
-import { CameraOff } from "lucide-react-native";
+import { CameraOff, X } from "lucide-react-native";
 import { Linking, StyleSheet, View } from "react-native";
-import { Button, Screen, Text } from "@/components";
+import { Button, HeaderButton, Screen, Text } from "@/components";
 import { colors, sizes, spacing } from "@/theme";
 
 export interface PermissionStepProps {
@@ -11,7 +11,7 @@ export interface PermissionStepProps {
   onClose(): void;
 }
 
-/** Permiso de cámara negado: explica para qué se usa y deja seguir por la galería o volver. */
+/** Permiso de cámara negado: explica para qué se usa y deja seguir por la galería o cerrar. */
 export function PermissionStep({
   canAskAgain,
   onRequest,
@@ -20,6 +20,9 @@ export function PermissionStep({
 }: PermissionStepProps) {
   return (
     <Screen>
+      <View style={styles.close}>
+        <HeaderButton icon={X} title="Cerrar" onPress={onClose} />
+      </View>
       <View style={styles.content}>
         <CameraOff color={colors.primary} size={sizes.icon} strokeWidth={sizes.iconStroke} />
         <Text variant="h1" accessibilityRole="header">
@@ -41,13 +44,13 @@ export function PermissionStep({
           <Button title="Abrir configuración" onPress={() => void Linking.openSettings()} />
         )}
         <Button variant="secondary" title="Elegir de la galería" onPress={onPickFromGallery} />
-        <Button variant="ghost" title="Volver" onPress={onClose} />
       </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  close: { marginTop: spacing.xs - spacing.xl },
   content: { flex: 1, justifyContent: "center", gap: spacing.sm },
   actions: { gap: spacing.sm },
 });

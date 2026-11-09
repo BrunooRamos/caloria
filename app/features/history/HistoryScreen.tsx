@@ -1,21 +1,22 @@
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import { ChevronLeft, ChevronRight, UtensilsCrossed } from "lucide-react-native";
+import { Camera, ChevronLeft, ChevronRight, UtensilsCrossed } from "lucide-react-native";
 import { useCallback, useState } from "react";
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Button, Card, FormError, IconButton, Skeleton, Text } from "@/components";
+import { Button, FormError, IconButton, Notice, Text, TextButton } from "@/components";
+import { MealListSkeleton, MealRow } from "@/features/meals/MealRow";
 import { deviceTimeZone } from "@/features/profile/timezone";
 import { errorMessage } from "@/services/error-messages";
 import type { Meal } from "@/services/meals";
-import { colors, radius, sizes, spacing, typography } from "@/theme";
+import { colors, sizes, spacing } from "@/theme";
 import { dayTitle, formatTime, nextDay, previousDay, resolveDay, todayIn } from "./day";
-import { MEAL_THUMBNAIL, MealRow } from "./MealRow";
+import { STALE_MESSAGE, TODAY_EMPTY } from "@/features/meals/texts";
 import { useDayMeals } from "./useDayMeals";
 
 /**
- * Historial por día (RF-08): las comidas de un día, de la más temprana a la más tardía, con flechas
- * para ir a días anteriores y volver hasta hoy. El día va en la ruta (`/history?date=YYYY-MM-DD`)
- * y se calcula en la zona del usuario.
+ * Historial por día: las comidas de un día, de la más temprana a la más tardía, con
+ * "Anterior" y "Siguiente" para moverse entre días y "Ir a hoy" para volver. El día va en la ruta
+ * (`/history?date=YYYY-MM-DD`) y se calcula en la zona del usuario.
  */
 export default function HistoryScreen() {
   const params = useLocalSearchParams<{ date?: string }>();
@@ -32,7 +33,7 @@ export default function HistoryScreen() {
   const goTo = (date: string) => router.setParams({ date });
 
   let empty;
-  if (state.status === "loading") empty = <ListSkeleton />;
+  if (state.status === "loading") empty = <MealListSkeleton />;
   else if (state.status === "error") {
     empty = (
       <View style={styles.error}>
@@ -40,27 +41,51 @@ export default function HistoryScreen() {
         <Button variant="secondary" title="Reintentar" onPress={history.retry} />
       </View>
     );
-  } else empty = <EmptyDay today={day === today} />;
+  } else if (day === today) {
+    empty = (
+      <Notice icon={UtensilsCrossed} title={TODAY_EMPTY.title} detail={TODAY_EMPTY.detail}>
+        <Button icon={Camera} title="Registrar comida" onPress={() => router.push("/capture")} />
+      </Notice>
+    );
+  } else {
+    empty = (
+      <Notice
+        icon={UtensilsCrossed}
+        title="No hay comidas este día"
+        detail="Probá con otro día o volvé a hoy."
+      />
+    );
+  }
 
   const meals = state.status === "ready" ? state.meals : [];
 
   return (
-    <SafeAreaView edges={["bottom", "left", "right"]} style={styles.root}>
-      <View style={styles.navigator}>
-        <IconButton
-          icon={ChevronLeft}
-          label="Día anterior"
-          onPress={() => goTo(previousDay(day))}
-        />
-        <Text variant="h3" accessibilityRole="header" style={styles.title}>
-          {dayTitle(day, today)}
+    <SafeAreaView edges={["top", "left", "right"]} style={styles.root}>
+      <View style={styles.header}>
+        <Text variant="h1" accessibilityRole="header">
+          Historial
         </Text>
-        <IconButton
-          icon={ChevronRight}
-          label="Día siguiente"
-          disabled={!next}
-          onPress={() => next && goTo(next)}
-        />
+        <View style={styles.navigator}>
+          <IconButton
+            icon={ChevronLeft}
+            label="Día anterior"
+            caption="Anterior"
+            onPress={() => goTo(previousDay(day))}
+          />
+          <View style={styles.day}>
+            <Text variant="h3" accessibilityRole="header" style={styles.centered}>
+              {dayTitle(day, today)}
+            </Text>
+            {day !== today && <TextButton title="Ir a hoy" onPress={() => goTo(today)} />}
+          </View>
+          <IconButton
+            icon={ChevronRight}
+            label="Día siguiente"
+            caption="Siguiente"
+            disabled={!next}
+            onPress={() => next && goTo(next)}
+          />
+        </View>
       </View>
       <FlatList<Meal>
         testID="history-list"
@@ -71,13 +96,12 @@ export default function HistoryScreen() {
             meal={item}
             time={formatTime(item.capturedAt, timeZone)}
             onOpen={() => router.push({ pathname: "/meals/[id]", params: { id: item.id } })}
-            onDelete={() => history.remove(item.id)}
           />
         )}
         ListHeaderComponent={
           state.status === "ready" && state.stale ? (
             <Text variant="small" color="inkMuted" accessibilityLiveRegion="polite">
-              No pudimos actualizar. Estás viendo lo último que cargó.
+              {STALE_MESSAGE}
             </Text>
           ) : undefined
         }
@@ -129,66 +153,17 @@ function ListFooter({
   );
 }
 
-/** Día sin comidas: neutral, sin presión, como en el dashboard. */
-function EmptyDay({ today }: { today: boolean }) {
-  return (
-    <Card accessibilityLiveRegion="polite">
-      <UtensilsCrossed color={colors.inkMuted} size={sizes.icon} strokeWidth={sizes.iconStroke} />
-      <Text variant="bodyStrong">
-        {today ? "Todavía no hay comidas hoy" : "No hay comidas este día"}
-      </Text>
-      <Text variant="small" color="inkMuted">
-        {today
-          ? "Cuando registres una, la vas a ver acá."
-          : "Probá con otro día con las flechas de arriba."}
-      </Text>
-    </Card>
-  );
-}
-
-/** La forma de la lista mientras carga: tres filas con foto, hora, plato y kcal. */
-function ListSkeleton() {
-  return (
-    <View
-      accessible
-      accessibilityLabel="Cargando las comidas"
-      accessibilityState={{ busy: true }}
-      style={styles.skeleton}
-    >
-      {[0, 1, 2].map((key) => (
-        <View key={key} style={styles.skeletonRow}>
-          <Skeleton height={MEAL_THUMBNAIL} width={MEAL_THUMBNAIL} rounded="md" />
-          <View style={styles.skeletonText}>
-            <Skeleton height={typography.caption.lineHeight} width="20%" />
-            <Skeleton height={typography.bodyStrong.lineHeight} width="70%" />
-            <Skeleton height={typography.small.lineHeight} width="40%" />
-          </View>
-        </View>
-      ))}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
-  navigator: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.xs,
+  header: {
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.sm,
   },
-  title: { flex: 1, textAlign: "center" },
+  navigator: { flexDirection: "row", alignItems: "flex-start", gap: spacing.xs },
+  day: { flex: 1, alignItems: "center", minHeight: sizes.touchTarget, justifyContent: "center" },
+  centered: { textAlign: "center" },
   list: { flexGrow: 1, gap: spacing.sm, paddingHorizontal: spacing.lg, paddingBottom: spacing.xl },
   error: { gap: spacing.md },
-  skeleton: { gap: spacing.sm },
-  skeletonRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    padding: spacing.sm,
-    borderRadius: radius.lg,
-    backgroundColor: colors.surface,
-  },
-  skeletonText: { flex: 1, gap: spacing.xxs },
 });

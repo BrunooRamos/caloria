@@ -36,8 +36,8 @@ export const sizes = {
   iconDense: 20,
   iconStroke: 2,
   iconStrokeLight: 1.75,
-  logo: { width: 160, shareWidth: 96 },
-  fab: 64,
+  logo: { width: 160, shareWidth: 96, homeWidth: 112 },
+  tabBar: 72,
   shutter: 72,
   /** Alto de la ProgressBar (skill §5) y de la principal del dashboard, que es más grande. */
   progress: 10,
@@ -57,6 +57,7 @@ export const motion = {
   skeletonPulse: 900,
   enter: 220,
   enterOffset: 12,
+  toast: 3000,
 } as const;
 
 export const shadow = {

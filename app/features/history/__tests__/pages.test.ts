@@ -1,6 +1,5 @@
 import type { Meal } from "@/services/meals";
-import { mealSummary } from "../format";
-import { mergePage, removeMeal } from "../pages";
+import { mergePage } from "../pages";
 
 const processing = (id: string, capturedAt = "2026-10-27T12:00:00Z"): Meal => ({
   id,
@@ -41,35 +40,5 @@ describe("mergePage", () => {
   it("una página vacía deja la lista igual", () => {
     expect(ids(mergePage([processing("a")], []))).toEqual(["a"]);
     expect(ids(mergePage([], [processing("a")]))).toEqual(["a"]);
-  });
-});
-
-describe("removeMeal", () => {
-  it("saca la comida", () => {
-    expect(ids(removeMeal([processing("a"), processing("b"), processing("c")], "b"))).toEqual([
-      "a",
-      "c",
-    ]);
-  });
-
-  it("si no estaba, devuelve la misma lista", () => {
-    const meals = [processing("a")];
-    expect(removeMeal(meals, "x")).toBe(meals);
-  });
-});
-
-describe("mealSummary", () => {
-  it("ready: el plato y las kcal en rango", () => {
-    expect(mealSummary(ready("a", "Ensalada César"))).toEqual({
-      title: "Ensalada César",
-      detail: "620–780 kcal",
-    });
-  });
-
-  it("processing y failed avisan que no suman, sin alarma", () => {
-    expect(mealSummary(processing("a")).title).toBe("Analizando…");
-    expect(
-      mealSummary({ ...processing("a"), status: "failed", error: { code: "NOT_FOOD" } }),
-    ).toEqual({ title: "No se pudo analizar", detail: "No suma en el total del día." });
   });
 });

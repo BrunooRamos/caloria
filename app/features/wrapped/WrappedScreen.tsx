@@ -1,10 +1,9 @@
-import { router, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import { CalendarClock, Sparkles } from "lucide-react-native";
-import type { LucideIcon } from "lucide-react-native";
 import { memo, useCallback, useMemo, useState } from "react";
 import { FlatList, StyleSheet, View } from "react-native";
 import type { LayoutChangeEvent, ListRenderItem, ListViewToken } from "react-native";
-import { Button, Card, FormError, Screen, Skeleton, Text } from "@/components";
+import { Button, FormError, Notice, Screen, Skeleton, Text } from "@/components";
 import { deviceTimeZone } from "@/features/profile/timezone";
 import { todayIn } from "@/features/history/day";
 import { errorMessage } from "@/services/error-messages";
@@ -19,16 +18,19 @@ import { useWeeklySummary } from "./useWeeklySummary";
 import { resolveWeek, weekLabel } from "./week";
 import { WrappedCardView } from "./WrappedCardView";
 
-const goHome = () => router.dismissTo("/");
-
+/**
+ * El Wrapped semanal. Sin semana en la ruta es la pestaña "Semana" (la última semana
+ * completa) y lleva su propio título; con semana (`/wrapped/2026-W43`, como la abre el aviso) es una
+ * pantalla de detalle con el header común.
+ */
 export default function WrappedScreen() {
   const params = useLocalSearchParams<{ week?: string }>();
   const [timeZone] = useState(deviceTimeZone);
   const week = resolveWeek(params.week, todayIn(timeZone));
-  return <WeekView key={week} week={week} />;
+  return <WeekView key={week} week={week} tab={params.week === undefined} />;
 }
 
-function WeekView({ week }: { week: string }) {
+function WeekView({ week, tab }: { week: string; tab: boolean }) {
   const { state, reload } = useWeeklySummary(week);
   const label = weekLabel(week);
 
@@ -48,11 +50,9 @@ function WeekView({ week }: { week: string }) {
           icon={CalendarClock}
           title="Todavía no hay resumen de esta semana"
           detail="Se arma los lunes a la mañana con lo que registraste la semana anterior. Si esa semana no registraste comidas, no hay resumen."
-        />
-        <View style={styles.actions}>
+        >
           <Button variant="secondary" title="Actualizar" onPress={reload} />
-          <Button variant="ghost" title="Volver al inicio" onPress={goHome} />
-        </View>
+        </Notice>
       </>
     );
   } else if (state.status === "premiumRequired") {
@@ -67,11 +67,17 @@ function WeekView({ week }: { week: string }) {
   }
 
   return (
-    <Screen edges={["bottom", "left", "right"]}>
+    <Screen edges={tab ? ["top", "left", "right"] : ["bottom", "left", "right"]}>
       <View style={styles.root}>
-        <Text variant="h2" accessibilityRole="header">
-          {label}
-        </Text>
+        {/* Como detalle, "Tu semana" va en el header común; la semana, siempre como subtítulo. */}
+        <View style={styles.title}>
+          {tab && (
+            <Text variant="h1" accessibilityRole="header">
+              Tu semana
+            </Text>
+          )}
+          <Text color="inkMuted">{label}</Text>
+        </View>
         {body}
       </View>
     </Screen>
@@ -214,39 +220,17 @@ function Indicator({ count, active }: { count: number; active: number }) {
 
 function PremiumRequiredState() {
   return (
-    <>
-      <Notice
-        icon={Sparkles}
-        title="El resumen semanal es parte de premium"
-        detail="Lo incluye el plan premium. Tus registros de la semana siguen guardados."
-      />
-      <Button variant="secondary" title="Volver al inicio" onPress={goHome} />
-    </>
-  );
-}
-
-function Notice({
-  icon: Icon,
-  title,
-  detail,
-}: {
-  icon: LucideIcon;
-  title: string;
-  detail: string;
-}) {
-  return (
-    <Card accessibilityLiveRegion="polite">
-      <Icon color={colors.inkMuted} size={sizes.icon} strokeWidth={sizes.iconStroke} />
-      <Text variant="h3" accessibilityRole="header">
-        {title}
-      </Text>
-      <Text color="inkMuted">{detail}</Text>
-    </Card>
+    <Notice
+      icon={Sparkles}
+      title="El resumen semanal es parte de premium"
+      detail="Lo incluye el plan premium. Tus registros de la semana siguen guardados."
+    />
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, gap: spacing.md },
+  title: { gap: spacing.xxs },
   fill: { flex: 1 },
   actions: { gap: spacing.sm },
   page: { flex: 1, gap: spacing.md },

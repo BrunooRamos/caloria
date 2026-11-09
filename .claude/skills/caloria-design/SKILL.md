@@ -112,7 +112,7 @@ Las formas son redondeadas como la llama del logo; nada de esquinas rectas.
 
 Bordes: 1 dp en `border` por defecto. Foco de input: 2 dp en `primary`. Error de input: 1.5 dp en `danger`. Divisores con `StyleSheet.hairlineWidth` en `border`.
 
-Sombras: el estilo es plano. Las tarjetas se separan del fondo por `surface` blanco + borde, no por sombra. La sombra (`shadow.float`) se reserva para lo que flota: el botón de cámara, bottom sheets y toasts.
+Sombras: el estilo es plano. Las tarjetas se separan del fondo por `surface` blanco + borde, no por sombra. La sombra (`shadow.float`) se reserva para lo que flota: el botón "Registrar" de la barra de pestañas, bottom sheets y toasts.
 
 ```ts
 float: {
@@ -129,13 +129,39 @@ float: {
 Toda pantalla se arma con estos componentes. Si falta uno, se crea en `components/` siguiendo estas reglas, no se estiliza inline.
 
 - **Text**: wrapper de `Text` con prop `variant` (los tokens de la escala) y `color` (tokens de color). Por defecto `body` en `ink`. Nunca usar el `Text` de React Native directo en pantallas.
-- **Button**: altura 52, `radius.full`, texto `label`. Variantes: `primary` (fondo `primary`, texto `onPrimary`), `secondary` (fondo `sageSoft`, texto `primary`), `ghost` (sin fondo, texto `primary`). Presionado: `primaryPressed` o leve opacidad 0.85. Deshabilitado: opacidad 0.4. Estado loading con spinner del color del texto, manteniendo el ancho.
+- **Button**: altura 52, `radius.full`, texto `label`. Variantes: `primary` (fondo `primary`, texto `onPrimary`), `secondary` (fondo `sageSoft`, texto `primary`), `ghost` (sin fondo, texto `primary`). Presionado: `primaryPressed` o leve opacidad 0.85. Deshabilitado: opacidad 0.4. Estado loading con spinner del color del texto, manteniendo el ancho. Con `icon`, el ícono va antes del texto y del mismo color; el texto va siempre.
+- **IconButton**: círculo de 44 con un ícono de 24. Lleva `label` para el lector de pantalla y, si la acción importa, `caption`: el texto visible debajo del ícono, dentro del mismo botón ("Galería", "Anterior", "Descartar"). Un ícono solo queda para controles que todo el mundo entiende (reproducir, pausar) y siempre con texto al lado.
 - **Input**: altura 52, fondo `surface`, borde 1 `borderStrong`, `radius.md`, padding horizontal `md`. Label arriba en `small` Medium `ink`; ayuda o error abajo en `small`. Foco con borde 2 `primary`.
 - **Card**: fondo `surface`, borde 1 `border`, `radius.lg`, padding `md`–`lg`. Sin sombra.
 - **Chip / Badge**: `radius.full`, fondo `sageSoft`, texto `caption` en `primary`. Seleccionado: fondo `primary`, texto `onPrimary`.
 - **ConfidenceBadge**: alta → fondo `sageSoft`, texto `primary`; media → fondo `surfaceAlt`, texto `sageText`; baja → fondo `warningSoft`, texto `warning`. Siempre con la palabra ("Confianza alta"), nunca solo color.
 - **ProgressBar**: altura 10, `radius.full`, track `surfaceAlt`. El consumido se dibuja como relleno `primary` hasta el mínimo del rango y una banda `sage` desde el mínimo hasta el máximo, para que la incertidumbre se vea. Si se pasa de la meta, la barra queda llena en `primary`, sin rojo.
-- **Screen**: contenedor con fondo `background`, safe area y padding horizontal `lg`.
+- **Screen**: contenedor con fondo `background`, safe area y padding horizontal `lg`. En las pestañas va con `edges={["top", "left", "right"]}` (abajo está la barra); en los detalles, con `["bottom", "left", "right"]` (arriba está el header).
+- **ListGroup / ListRow**: menú estilo configuración. `ListGroup` es una tarjeta (`surface`, borde, `radius.lg`) con las filas separadas por un divisor alineado con el texto; cada `ListRow` lleva el ícono en un círculo `sageSoft`, el título, el resumen de lo que hay adentro en `small` `inkMuted` ("1.200 kcal por día", "Neutro") y la flecha, y abre la pantalla de esa sección. Una pantalla con varias secciones (como Perfil) es un menú así, no una lista larga de formularios.
+- **Notice**: el estado vacío, de espera o de error de un bloque: ícono de línea en `inkMuted`, título `h3`, explicación en `inkMuted` y, como `children`, la acción con texto ("Reintentar", "Registrar comida"). Nunca un estado sin salida y nunca en rojo por la comida.
+- **Toast** (`useToast()`): confirmación breve de que algo salió bien después de guardar, borrar o corregir: fondo `primary`, texto `bodyStrong` en `onPrimary`, ícono de check, `radius.lg` y `shadow.float`. Va abajo, encima de la barra, dura 3 s (`motion.toast`), no se toca y el lector de pantalla lo anuncia. El texto, en pasado y corto: "Guardamos la corrección.", "Eliminamos la comida.".
+- **confirmAction**: antes de borrar o descartar algo, el diálogo del sistema. Título como pregunta ("¿Eliminar esta comida?"), qué se pierde en el mensaje y dos botones: "Cancelar" y el verbo de la acción ("Eliminar", "Descartar", "Cerrar sesión"). Sin estilo `destructive`: no va en rojo.
+
+## 5b. Navegación
+
+La app se recorre con una barra de pestañas y pantallas de detalle encima. Las pantallas nuevas entran en uno de estos dos lugares; ninguna queda sin salida.
+
+- **TabBar** (`app/src/app/(app)/(tabs)/_layout.tsx`): Inicio (`House`) · Historial (`History`, el reloj con la flecha) · **Registrar** (`Camera`) · Semana (`CalendarDays`) · Perfil (`CircleUserRound`). Cada pestaña lleva ícono y texto `caption`. La activa va en `primary` con el ícono sobre una pastilla `sageSoft`, y la inactiva en `inkMuted`. "Registrar" no es una pestaña: es un círculo `primary` de 52 con `shadow.float`, que sobresale de la barra y abre la cámara. Los textos de la barra y del header crecen hasta 1.3× con la fuente del sistema.
+- **Pestañas**: cada una tiene su título `h1` arriba ("Hoy", "Historial", "Tu semana", "Perfil") y no lleva header. El inicio lleva además el logo a color centrado arriba (`<Logo variant="color" width={sizes.logo.homeWidth} />`). El atrás de Android en una pestaña vuelve a Inicio; en Inicio, cierra la app.
+- **Detalles** (Tu comida, Corregir comida, la semana de un aviso): van en el Stack de `(app)`, encima de las pestañas, con el header común (**ScreenHeader**): "‹ Volver" con texto arriba a la izquierda (**HeaderButton**) y, debajo, el título en `h2` (negrita) alineado con el contenido; si es largo, baja de línea. Debajo siempre quedan las pestañas (`anchor`), así una pantalla que se abre sola, por un aviso o un link, vuelve al inicio con "Volver", con el atrás de Android o con el gesto de iOS. Para volver desde código, `goBack()`; para ir al inicio, `goHome()`.
+- **Pantallas completas** (la cámara): sin header ni barra, con "✕ Cerrar" (`HeaderButton`) arriba a la izquierda. Si cerrar pierde algo (un audio grabado), pregunta con `confirmAction`, también con el atrás de Android (`usePreventRemove`).
+
+**Textos de navegación y acciones**, siempre iguales:
+
+| Situación | Texto |
+|---|---|
+| Volver a la pantalla anterior | "Volver" (en el header) |
+| Ir al inicio desde un estado sin salida (por ejemplo, un 404) | "Ir al inicio" |
+| Salir de una pantalla completa | "Cerrar" |
+| Algo falló | "Reintentar" |
+| Todavía no está (un análisis que tarda, un resumen que no se armó) | "Actualizar" |
+| Registrar una comida | "Registrar comida" (en la barra, "Registrar") |
+| Energía del día | "Calorías"; macros: "Proteínas", "Carbohidratos", "Grasas" |
 
 ## 6. Íconos e imágenes
 
@@ -145,7 +171,7 @@ Las fotos de comida van con `radius.md` en listas y `radius.lg` en el detalle, s
 
 ## 7. Logo
 
-- Isotipo (la llama) y wordmark "CalorIA", con "Calor" en `primary` e "IA" en `sage`.
+- Isotipo (la llama) y wordmark "CalorIA", con "Calor" en `primary` e "IA" en `sage`. En código, `<Logo variant="color" />` (`assets/logo/logo-color*.png`) sobre `cream` o blanco y `<Logo />` (la crema) sobre `primary`.
 - Va sobre `cream` o blanco. Sobre fondo `primary` se usa la versión monocroma en `cream`.
 - No recolorear, deformar, rotar, ponerle sombra ni ubicarlo sobre `sage` o sobre fotos.
 - Espacio libre alrededor de al menos la mitad del ancho de la llama. Tamaño mínimo del isotipo: 24 dp.
@@ -167,4 +193,7 @@ En v1 la app es solo clara. Igual, todo pasa por tokens para que agregar un tema
 4. Los rangos se escriben `min–max unidad`.
 5. Pasarse de la meta no se muestra en rojo ni con tono de alarma.
 6. Targets táctiles ≥ 44 y safe areas respetadas.
-7. Se probó con la fuente del sistema agrandada y en iOS y Android.
+7. Las acciones importantes tienen texto visible, no solo un ícono.
+8. Desde la pantalla se vuelve al inicio (pestañas o "Volver"), también si se abrió sola, y el atrás de Android hace lo mismo que el botón.
+9. Guardar, borrar o corregir confirma con un Toast; borrar o descartar pregunta antes con `confirmAction`.
+10. Se probó con la fuente del sistema agrandada y en iOS y Android.
