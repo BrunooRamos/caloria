@@ -25,6 +25,8 @@ export interface BackendRequest {
   body?: unknown;
   /** Multipart: fetch arma el Content-Type con el boundary. Excluyente con `body`. */
   form?: FormData;
+  /** Body crudo (webhook de pagos): se manda tal cual, con su Content-Type. Excluyente con `body` y `form`. */
+  raw?: { body: Buffer; contentType: string };
   headers?: Record<string, string>;
 }
 
@@ -74,7 +76,7 @@ export function createBackendClient({
   dispatcher,
 }: BackendClientOptions): BackendClient {
   return {
-    async request<T>({ method, path, requestId, query, body, form, headers }: BackendRequest) {
+    async request<T>({ method, path, requestId, query, body, form, raw, headers }: BackendRequest) {
       const url = new URL(path, baseUrl);
       for (const [key, value] of Object.entries(query ?? {})) {
         for (const item of [value].flat()) {
@@ -85,11 +87,14 @@ export function createBackendClient({
       const outgoing = new Headers(headers);
       outgoing.set(REQUEST_ID_HEADER, requestId);
       if (body !== undefined) outgoing.set("content-type", "application/json");
+      if (raw) outgoing.set("content-type", raw.contentType);
 
       const init: RequestInit & { dispatcher?: Dispatcher } = {
         method,
         headers: outgoing,
-        body: form ?? (body === undefined ? undefined : JSON.stringify(body)),
+        body: raw
+          ? new Uint8Array(raw.body)
+          : (form ?? (body === undefined ? undefined : JSON.stringify(body))),
         redirect: "manual",
         signal: AbortSignal.timeout(timeoutMs),
         dispatcher,

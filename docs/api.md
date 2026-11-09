@@ -25,8 +25,10 @@ REST + JSON, versionada en `/api/v1`. El Front Service expone los mismos endpoin
 | DELETE | `/meals/:id` | JWT | Elimina la comida y su media | 204 | RF-08 |
 | GET | `/dashboard/daily?date=` | JWT | Consumido vs. meta del día (la racha llega con RF-10) | 200 | RF-09, RF-10 |
 | GET | `/summaries/weekly/:week` | JWT | Wrapped de la semana ISO (`2026-W43`): métricas e insights | 200 | RF-12 |
-| GET | `/billing/plan` | JWT | Plan vigente y análisis restantes del mes | 200 | RF-14, RF-16 |
-| POST | `/billing/subscribe` | JWT | Alta premium (pago sandbox) | 200 | RF-16 |
+| GET | `/billing/plan` | JWT | Plan efectivo, fin del período (si se renueva o termina) y análisis restantes del mes | 200 | RF-14, RF-16 |
+| POST | `/billing/subscribe` | JWT | Alta premium: devuelve el checkout de Stripe (sandbox), o reactiva una suscripción cancelada que sigue en período | 200 | RF-16 |
+| POST | `/billing/cancel` | JWT | Cancela al fin del período pagado (sigue premium hasta entonces). Idempotente | 200 | RF-16 |
+| POST | `/billing/webhook` | Pública (firma del proveedor) | Eventos de Stripe: confirma el alta, renovaciones y fin de la suscripción | 200 | RF-16 |
 
 ## Ejemplos
 
@@ -124,6 +126,8 @@ Authorization: Bearer <accessToken>
 ```
 
 `notifications` son las preferencias de avisos push (RF-13); un usuario que nunca las cambió tiene todo en `true`. Los push tokens nunca salen en la respuesta.
+
+`plan.tier` es el plan efectivo (`isPremium`, ver [Suscripción](#suscripción-premium)): un premium cuyo período terminó sale como `free` aunque no haya llegado el webhook de fin. `plan.renewsAt` aparece solo si es premium y se renueva (no si canceló). El detalle del plan está en `GET /billing/plan`.
 
 ```http
 PATCH /api/v1/users/me
@@ -358,6 +362,91 @@ Authorization: Bearer <accessToken>
 { "error": { "code": "VALIDATION_ERROR", "message": "La solicitud no es válida", "requestId": "a81f…" } }
 ```
 
+### Suscripción premium
+
+Proveedor: **Stripe en modo test** (sandbox). Toda la integración está detrás de `back-service/src/services/billing/`: una interfaz propia (`createSubscription`, `getSubscription`, `cancelAtPeriodEnd`, `resumeSubscription`, `verifyWebhook`) con una implementación de Stripe (`stripe.ts`, el único archivo que importa el SDK; lo controla ESLint) y una falsa para los tests (`fake.ts`). Nuestra API nunca recibe datos de tarjeta: el pago se carga en el checkout hosteado por Stripe y el Backend solo guarda los ids de cliente y suscripción.
+
+Si el Backend arranca sin las claves de Stripe, billing queda apagado: `GET /billing/plan` anda, y `subscribe`, `cancel` y `webhook` responden 503 `SERVICE_UNAVAILABLE`.
+
+#### Plan efectivo (`isPremium`)
+
+Un único helper, `isPremium(plan, ahora)` (`src/services/plan.ts`), decide si alguien es premium. Lo usan `requirePremium`, el cupo de `POST /meals`, `GET /billing/plan`, `GET /users/me` y el claim `plan` del JWT. Es premium si `plan.tier` es `premium` y el período pagado no terminó:
+
+- Cancelado (`cancelAtPeriodEnd`): premium hasta `currentPeriodEnd` exacto.
+- Que se renueva: hasta `currentPeriodEnd` + 48 h, el margen para que llegue el webhook de la renovación. Si el cobro falla, Stripe deja la suscripción `past_due`, `currentPeriodEnd` no avanza y el usuario vuelve a free al pasar el margen.
+- Premium sin `currentPeriodEnd` (alta manual, sin proveedor): no vence.
+
+Así, aunque se pierda el webhook de fin de suscripción, al terminar el período el usuario vuelve a free solo y recupera el cupo del mes.
+
+#### Ver el plan
+
+```http
+GET /api/v1/billing/plan
+Authorization: Bearer <accessToken>
+```
+```json
+{ "tier": "free", "periodEnd": null, "renews": false,
+  "analyses": { "limit": 40, "remaining": 37, "resetsOn": "2026-12-01" } }
+```
+```json
+{ "tier": "premium", "periodEnd": "2026-12-04T15:00:00.000Z", "renews": true,
+  "analyses": { "limit": null, "remaining": null, "resetsOn": null } }
+```
+
+- `tier`: plan efectivo. `periodEnd`: fin del período pagado (solo premium). `renews`: `true` si se renueva en `periodEnd`, `false` si termina ahí (canceló).
+- `analyses`: con la misma lógica que el cupo de `POST /meals` (mes en la zona del perfil, un contador de un mes anterior cuenta como 0, nunca retrocede). `resetsOn` es el día 1 del mes siguiente. En premium todo va en `null` (sin límite).
+
+#### Suscribirse
+
+```http
+POST /api/v1/billing/subscribe
+Authorization: Bearer <accessToken>
+```
+```json
+{ "action": "checkout", "checkoutUrl": "https://checkout.stripe.com/c/pay/cs_test_…",
+  "plan": { "tier": "free", "periodEnd": null, "renews": false, "analyses": { "limit": 40, "remaining": 37, "resetsOn": "2026-12-01" } } }
+```
+
+- Sin body. Crea el cliente en Stripe la primera vez (y guarda `plan.customerId`) y una sesión de Checkout con el precio de `STRIPE_PRICE_ID`. La app abre `checkoutUrl` en el navegador; al pagar o cancelar, Stripe vuelve a `BILLING_SUCCESS_URL` o `BILLING_CANCEL_URL`.
+- **El plan no cambia acá:** pasa a premium cuando llega el webhook que confirma el pago. Después de volver del checkout, la app consulta `GET /billing/plan` hasta ver `premium`.
+- Cancelado pero todavía en el período pagado: reactiva **la misma** suscripción (deja de estar cancelada, sin otro checkout ni cobro) y responde `{ "action": "reactivated", "plan": { … "renews": true … } }`.
+- Premium activo y sin cancelar → 409 `SUBSCRIPTION_ACTIVE`, sin llamar a Stripe.
+- Si Stripe no responde o rechaza el pedido → 503 `SERVICE_UNAVAILABLE`, con el detalle (tipo y código del error de Stripe) solo en el log, y sin cambios en la base.
+
+#### Cancelar
+
+```http
+POST /api/v1/billing/cancel
+Authorization: Bearer <accessToken>
+```
+```json
+{ "tier": "premium", "periodEnd": "2026-12-04T15:00:00.000Z", "renews": false,
+  "analyses": { "limit": null, "remaining": null, "resetsOn": null } }
+```
+
+- Sin body. Le pide a Stripe que no renueve (`cancel_at_period_end`) y marca `plan.cancelAtPeriodEnd`. No corta el premium: sigue hasta `periodEnd`.
+- Idempotente: si ya estaba cancelado, si es free o si es premium sin suscripción en Stripe, responde 200 con el plan como está, sin llamar a Stripe.
+- Si Stripe no responde → 503 `SERVICE_UNAVAILABLE` y sigue renovándose.
+
+#### Webhook
+
+```http
+POST /api/v1/billing/webhook
+Stripe-Signature: t=1730000000,v1=5257a8…
+Content-Type: application/json
+
+{ "id": "evt_…", "type": "checkout.session.completed", "data": { "object": { … } } }
+```
+```json
+{ "received": true, "duplicate": false }
+```
+
+- Público: no lleva JWT. El Front no lo valida ni lo verifica (no tiene el secreto): reenvía el body **crudo, byte a byte**, y solo los headers de firma (los que terminan en `signature`). El Backend verifica la firma de Stripe (`STRIPE_WEBHOOK_SECRET`) sobre esos bytes, con tolerancia de 5 minutos contra replays.
+- Sin firma, firma inválida o vieja → 400 `VALIDATION_ERROR` sin tocar nada; se loguea sin el body.
+- **Idempotente:** el id de cada evento se reserva en `billing_events` (`processing`) antes de procesarlo y pasa a `done` al terminar. Si llega repetido y ya está `done` → 200 con `duplicate: true` y no se hace nada. Si otra entrega lo está procesando → 503, para que Stripe reintente (un 200 cortaría los reintentos y, si esa entrega falla, el evento se perdería). Si el proceso falla, se libera el id y se responde 5xx: Stripe reintenta y se vuelve a procesar. Si el Backend se cae a mitad de camino, la reserva vence a los 2 minutos y el próximo reintento la retoma.
+- Eventos que se usan: `checkout.session.completed` y `customer.subscription.created|updated|deleted|paused|resumed`. El usuario se busca por `plan.customerId` y el estado se **vuelve a leer de Stripe** (`getSubscription`), así no importa el orden en que lleguen. `active` → premium y `currentPeriodEnd` del período nuevo; `past_due` → no cambia el período (vence solo); `canceled` → free. Un evento de una suscripción vieja no pisa la vigente. Cualquier otro evento o un cliente sin usuario → 200 sin cambios.
+- Límite del body: 100 KB.
+
 ## Códigos HTTP
 
 | Código | Cuándo |
@@ -369,10 +458,10 @@ Authorization: Bearer <accessToken>
 | 401 | Sin token, vencido o inválido |
 | 402 | Cupo del plan free agotado (`MEAL_QUOTA_EXCEEDED`) o función premium con plan free (`PREMIUM_REQUIRED`, middleware `requirePremium`; el plan se lee de la base) |
 | 404 | Recurso inexistente **o de otro usuario** (no se distingue, para no filtrar existencia) |
-| 409 | Email ya registrado, o corrección de una comida que no está `ready` (`MEAL_NOT_READY`) |
+| 409 | Email ya registrado, corrección de una comida que no está `ready` (`MEAL_NOT_READY`) o suscribirse con un premium activo sin cancelar (`SUBSCRIPTION_ACTIVE`) |
 | 413 | Foto o audio superan el límite |
 | 429 | Rate limit, con header `Retry-After` |
-| 500 / 503 | Error interno / proveedor de IA caído |
+| 500 / 503 | Error interno / proveedor de IA o de pagos caído |
 
 ## Sobre de error único
 
@@ -399,12 +488,12 @@ El catálogo, `AppError` y el middleware de errores viven en `shared/` (paquete 
 | `UNAUTHORIZED`, `TOKEN_EXPIRED` | 401 |
 | `MEAL_QUOTA_EXCEEDED`, `PREMIUM_REQUIRED` | 402 |
 | `NOT_FOUND` | 404 |
-| `EMAIL_TAKEN`, `MEAL_NOT_READY` | 409 |
+| `EMAIL_TAKEN`, `MEAL_NOT_READY`, `SUBSCRIPTION_ACTIVE` | 409 |
 | `PAYLOAD_TOO_LARGE` | 413 |
 | `RATE_LIMITED` | 429 |
 | `INTERNAL_ERROR` | 500 |
 | `AI_UNAVAILABLE` | 503 |
-| `SERVICE_UNAVAILABLE` | 503 (el Front no alcanza al Backend o vence el timeout) |
+| `SERVICE_UNAVAILABLE` | 503 (el Front no alcanza al Backend o vence el timeout; Stripe no responde o billing sin configurar) |
 
 El middleware traduce además estos errores de librerías:
 
@@ -419,4 +508,4 @@ El middleware traduce además estos errores de librerías:
 
 ### Logs
 
-Una línea JSON por evento, con `requestId`, `service`, `level` y `msg`. Cada request deja una línea con método, ruta (sin query string), status y duración. Los 4xx se loguean sin stack y los 5xx con stack. Nunca se loguean bodies, el header `Authorization`, passwords, tokens ni emails; el logger además redacta esas claves y patrones si se cuelan.
+Una línea JSON por evento, con `requestId`, `service`, `level` y `msg`. Cada request deja una línea con método, ruta (sin query string), status y duración. Los 4xx se loguean sin stack y los 5xx con stack. Nunca se loguean bodies, el header `Authorization`, passwords, tokens ni emails; el logger además redacta esas claves y patrones si se cuelan. De pagos se loguean solo ids (usuario, suscripción, evento) y estados: nunca datos de tarjeta (no pasan por la API), la URL del checkout ni el payload del webhook.

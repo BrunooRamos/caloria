@@ -1,6 +1,7 @@
 import type { KeyObject } from "node:crypto";
 import { Router } from "express";
 import { authController } from "../controllers/auth";
+import { billingController } from "../controllers/billing";
 import { dashboardController } from "../controllers/dashboard";
 import { mealsController } from "../controllers/meals";
 import { summariesController } from "../controllers/summaries";
@@ -8,6 +9,7 @@ import { usersController } from "../controllers/users";
 import { requireAuth } from "../middleware/auth";
 import { mealUpload } from "../middleware/meal-upload";
 import type { AuthService } from "../services/auth";
+import type { BillingService } from "../services/billing";
 import type { DashboardService } from "../services/dashboard";
 import type { MealService } from "../services/meals";
 import type { SummaryService } from "../services/summaries";
@@ -19,6 +21,7 @@ export interface ApiDeps {
   meals?: MealService;
   dashboard?: DashboardService;
   summaries?: SummaryService;
+  billing?: BillingService;
   publicKey: KeyObject;
 }
 
@@ -28,6 +31,7 @@ export function apiRouter({
   meals,
   dashboard,
   summaries,
+  billing,
   publicKey,
 }: ApiDeps): Router {
   const router = Router();
@@ -56,6 +60,14 @@ export function apiRouter({
   }
   if (summaries) {
     router.get("/summaries/weekly/:week", authenticated, summariesController(summaries).weekly);
+  }
+  if (billing) {
+    const billingHandlers = billingController(billing);
+    router.get("/billing/plan", authenticated, billingHandlers.plan);
+    router.post("/billing/subscribe", authenticated, billingHandlers.subscribe);
+    router.post("/billing/cancel", authenticated, billingHandlers.cancel);
+    // Público: lo llama el proveedor de pagos. Se autentica con su firma, no con JWT.
+    router.post("/billing/webhook", billingHandlers.webhook);
   }
   return router;
 }

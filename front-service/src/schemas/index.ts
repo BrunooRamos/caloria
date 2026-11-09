@@ -47,4 +47,8 @@ export const schemas = {
   deleteMeal: route({ params: mealIdParamsSchema }),
   getDailyDashboard: route({ query: dailyDashboardQuerySchema }),
   getWeeklySummary: route({ params: weeklySummaryParamsSchema }),
+  getBillingPlan: route({}),
+  // Sin body: lo que mande el cliente no se reenvía.
+  subscribe: route({}),
+  cancelSubscription: route({}),
 } satisfies Record<string, RouteSchema>;

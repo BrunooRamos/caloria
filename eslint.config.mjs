@@ -33,6 +33,26 @@ export default defineConfig([
     files: ["front-service/**/*.ts", "back-service/**/*.ts", "shared/**/*.ts", "**/*.mjs"],
     languageOptions: { globals: globals.node },
   },
+  // El SDK del proveedor de pagos solo se usa detrás de services/billing (cambiar de proveedor
+  // toca solo ese módulo).
+  {
+    files: ["**/*.{ts,tsx,js,mjs}"],
+    ignores: ["back-service/src/services/billing/stripe.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              regex: "^(stripe|@stripe/.+)(/.*)?$",
+              message:
+                "El SDK de pagos solo se importa en back-service/src/services/billing/stripe.ts.",
+            },
+          ],
+        },
+      ],
+    },
+  },
   // Archivos de config en CommonJS (metro.config.js, babel.config.js, app.config.js, ...).
   {
     files: ["**/*.{js,cjs}"],

@@ -3,11 +3,13 @@ import { createApp } from "./app";
 import { loadConfig } from "./config";
 import { connectMongo, mongoStatus } from "./config/db";
 import { createMealAnalysisQueue } from "./jobs/meal-analysis";
+import { BillingEventModel } from "./models/BillingEvent";
 import { MealModel } from "./models/Meal";
 import { UserModel } from "./models/User";
 import { WeeklySummaryModel } from "./models/WeeklySummary";
 import { apiRouter } from "./routes";
 import { createAuthService } from "./services/auth";
+import { createBillingService, createStripeBillingProvider } from "./services/billing";
 import { createDashboardService } from "./services/dashboard";
 import { createMealService } from "./services/meals";
 import { createMediaService } from "./services/media";
@@ -20,10 +22,18 @@ const logger = createLogger({ service: "back" });
 async function main() {
   const config = loadConfig();
   const auth = createAuthService({ privateKey: config.jwtPrivateKey });
+  const quota = createQuotaService({ freeMonthlyAnalyses: config.freeMonthlyAnalyses });
   const meals = createMealService({
     media: createMediaService(config.storage),
     queue: createMealAnalysisQueue({ redisUrl: config.redisUrl, logger }),
-    quota: createQuotaService({ freeMonthlyAnalyses: config.freeMonthlyAnalyses }),
+    quota,
+  });
+  if (!config.billing) {
+    logger.warn("billing apagado: faltan las claves del proveedor de pagos (ver .env.example)");
+  }
+  const billing = createBillingService({
+    provider: config.billing && createStripeBillingProvider(config.billing),
+    quota,
   });
   const api = apiRouter({
     auth,
@@ -31,6 +41,7 @@ async function main() {
     meals,
     dashboard: createDashboardService(),
     summaries: createSummaryService(),
+    billing,
     publicKey: config.jwtPublicKey,
   });
   createApp({ logger, api, mongoStatus }).listen(config.port, () => {
@@ -42,6 +53,7 @@ async function main() {
   await UserModel.syncIndexes();
   await MealModel.syncIndexes();
   await WeeklySummaryModel.syncIndexes();
+  await BillingEventModel.syncIndexes();
 }
 
 main().catch((err: unknown) => {

@@ -355,3 +355,144 @@ Cuando termines, pasame qué archivos tocaste, qué rutas quedaron marcadas como
 ```text
 me das una descripcion def pr con los cambios impelemntados?
 ```
+
+## Sesión `b53686f2-ede0-48be-83d9-5522da16c68a` · 2026-11-04
+
+### 2026-11-04 20:29
+
+```text
+Tengo que implementar el ticket de la suscripción premium en modo sandbox: ver el plan, suscribirse y cancelar, con el proveedor de pagos en modo de prueba.
+
+Para el contexto, fijate en docs/requerimientos.md, en docs/api.md (contrato de /billing), en docs/seguridad.md y en lo que hicimos en el ticket de feature gating: el middleware requirePremium, el cálculo del cupo con reinicio mensual y la lectura del plan desde la base.
+
+Los criterios de aceptación son estos: GET /billing/plan devuelve el plan, la fecha de renovación y los análisis restantes; POST /billing/subscribe da de alta la suscripción con el proveedor en sandbox; POST /billing/cancel mantiene el premium hasta el fin del período ya pagado; y toda la integración con el proveedor queda detrás de services/billing.
+
+Algunas cosas que pensé y quiero que se respeten:
+
+Usá el proveedor de pagos que figure en los docs. Si no está definido, avisame antes de elegir uno. Las claves del sandbox van por variables de entorno (agregalas al .env.example sin valores) y solo las tiene el Backend. Agregá el dominio del proveedor a la allowlist de egreso si la tenemos configurada en algún lado.
+
+services/billing tiene que exponer una interfaz propia (algo como createSubscription, cancelAtPeriodEnd, getSubscription y la verificación de webhooks) y el resto del código no puede importar nada del SDK del proveedor. Así, si mañana cambiamos de proveedor, solo se toca ese módulo. Hacé también una implementación falsa de esa interfaz para los tests.
+
+Nosotros nunca tocamos datos de tarjeta. El alta se hace con el checkout o el formulario del proveedor, y el Backend solo recibe y guarda los ids que nos da (cliente y suscripción). Nada de números de tarjeta en la base, en los logs ni pasando por nuestra API.
+
+En users guardá el estado de la suscripción: plan, status, currentPeriodEnd, cancelAtPeriodEnd y los ids del proveedor. Si el modelo ya tiene parte de esto, extendelo en lugar de duplicar.
+
+Si el proveedor confirma el pago de forma asíncrona (lo normal), el plan no pasa a premium en el subscribe sino cuando llega la confirmación por webhook. Para eso hace falta un POST /billing/webhook que es público (no lleva JWT, así que el Front no lo verifica y solo lo reenvía), pero el Backend tiene que verificar la firma del proveedor y rechazar cualquier evento sin firma válida. Que sea idempotente: guardá el id de cada evento procesado y si llega repetido, respondé 200 sin hacer nada. Si en el sandbox del proveedor el alta es sincrónica, avisame y lo simplificamos.
+
+La cancelación no corta el premium: marca cancelAtPeriodEnd, le avisa al proveedor que no renueve y el usuario sigue siendo premium hasta currentPeriodEnd. Cancelar dos veces devuelve lo mismo, no es un error. Si un usuario cancelado se vuelve a suscribir antes de que termine el período, que se reactive la misma suscripción en lugar de crear otra.
+
+Para decidir si alguien es premium, hacé un único helper tipo isPremium(user, ahora) que mire el plan y que currentPeriodEnd no haya pasado, y usalo en requirePremium y en el cálculo del cupo. Así, aunque se pierda el webhook de vencimiento, al terminar el período el usuario vuelve a free solo. Revisá que el código del ticket anterior use este helper y no compare el plan directamente.
+
+GET /billing/plan devuelve el plan efectivo (usando ese helper), si se renueva o termina y en qué fecha, y los análisis restantes del mes con la misma lógica del feature gating. Para premium, los restantes van en null (sin límite).
+
+Errores con el sobre de siempre. Suscribirse teniendo ya un premium activo que no está cancelado da 409 (agregá el código al catálogo y a docs/api.md si no existe). Si el proveedor no responde, 503 con el detalle en el log, sin cambiar nada en la base. Actualizá docs/api.md con la forma final de las respuestas y el webhook.
+
+Para los tests, con el proveedor falso: GET /billing/plan para free (con restantes) y para premium (con fecha de renovación y restantes en null); subscribe crea la suscripción y, con el webhook de confirmación, el usuario pasa a premium; webhook con firma inválida da 400 o 401 y no cambia nada; el mismo webhook dos veces se procesa una sola vez; cancel deja al usuario premium hasta currentPeriodEnd y después de esa fecha requirePremium lo rechaza y vuelve a tener cupo; cancel repetido no da error; volver a suscribirse estando cancelado reactiva; subscribe con premium activo da 409; proveedor caído da 503; y ningún log contiene datos de pago. Además, si podés, una prueba manual contra el sandbox real, documentada en scripts/ o en docs/ con los pasos para reproducirla.
+
+Cuando termines, pasame qué archivos tocaste, qué proveedor usaste, si tomaste alguna decisión distinta a lo que puse acá y cómo dieron los tests.
+```
+
+
+## Sesión `9fea9a39-7d5f-4d1c-82af-0660aba2a510` · 2026-11-04
+
+### 2026-11-04 21:18
+
+```text
+al subir el pr falló el siguiente check: "CI / shared (pull_request)" con el sigueinte output de failure: 
+
+<pasted_content id="bcbe">
+# Subtest: catálogo de errores
+    # Subtest: deriva el status de cada code según docs/api.md
+    not ok 1 - deriva el status de cada code según docs/api.md
+      ---
+      duration_ms: 3.228773
+      type: 'test'
+      location: '/home/runner/work/caloria/caloria/shared/test/errors.test.ts:2:977'
+      failureType: 'testCodeFailure'
+      error: |-
+        Expected values to be strictly deep-equal:
+        + actual - expected
+        ... Skipped lines
+        
+          {
+            AI_UNAVAILABLE: 503,
+            EMAIL_TAKEN: 409,
+            INTERNAL_ERROR: 500,
+            MEAL_NOT_READY: 409,
+        ...
+            SERVICE_UNAVAILABLE: 503,
+        +   SUBSCRIPTION_ACTIVE: 409,
+            TOKEN_EXPIRED: 401,
+            UNAUTHORIZED: 401,
+            VALIDATION_ERROR: 400
+          }
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected:
+        VALIDATION_ERROR: 400
+        UNAUTHORIZED: 401
+        TOKEN_EXPIRED: 401
+        MEAL_QUOTA_EXCEEDED: 402
+        PREMIUM_REQUIRED: 402
+        NOT_FOUND: 404
+        EMAIL_TAKEN: 409
+        MEAL_NOT_READY: 409
+        PAYLOAD_TOO_LARGE: 413
+        RATE_LIMITED: 429
+        INTERNAL_ERROR: 500
+        AI_UNAVAILABLE: 503
+        SERVICE_UNAVAILABLE: 503
+      actual:
+        VALIDATION_ERROR: 400
+        UNAUTHORIZED: 401
+        TOKEN_EXPIRED: 401
+        MEAL_QUOTA_EXCEEDED: 402
+        PREMIUM_REQUIRED: 402
+        NOT_FOUND: 404
+        EMAIL_TAKEN: 409
+        MEAL_NOT_READY: 409
+        SUBSCRIPTION_ACTIVE: 409
+        PAYLOAD_TOO_LARGE: 413
+        RATE_LIMITED: 429
+        INTERNAL_ERROR: 500
+        AI_UNAVAILABLE: 503
+        SERVICE_UNAVAILABLE: 503
+      operator: 'deepStrictEqual'
+      stack: |-
+        TestContext.<anonymous> (/home/runner/work/caloria/caloria/shared/test/errors.test.ts:7:12)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1047:25)
+        Test.start (node:internal/test_runner/test:944:17)
+        node:internal/test_runner/test:1440:71
+        node:internal/per_context/primordials:466:82
+        new Promise (<anonymous>)
+        new SafePromise (node:internal/per_context/primordials:435:3)
+        node:internal/per_context/primordials:466:9
+        Array.map (<anonymous>)
+      ...
+    # Subtest: AppError toma status y mensaje por defecto del catálogo
+    ok 2 - AppError toma status y mensaje por defecto del catálogo
+      ---
+      duration_ms: 0.263118
+      type: 'test'
+      ...
+    # Subtest: arma el sobre único y lo reconoce
+    ok 3 - arma el sobre único y lo reconoce
+      ---
+      duration_ms: 0.348272
+      type: 'test'
+      ...
+    1..3
+not ok 9 - catálogo de errores
+  ---
+  duration_ms: 4.760913
+  type: 'suite'
+  location: '/home/runner/work/caloria/caloria/shared/test/errors.test.ts:2:923'
+  failureType: 'subtestsFailed'
+  error: '1 subtest failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+</pasted_content id="bcbe">
+
+```

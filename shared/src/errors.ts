@@ -7,6 +7,7 @@ export const ERROR_CATALOG = {
   NOT_FOUND: { status: 404, message: "Recurso inexistente" },
   EMAIL_TAKEN: { status: 409, message: "El email ya está registrado" },
   MEAL_NOT_READY: { status: 409, message: "La comida no tiene un análisis para corregir" },
+  SUBSCRIPTION_ACTIVE: { status: 409, message: "Ya tenés una suscripción premium activa" },
   PAYLOAD_TOO_LARGE: { status: 413, message: "La solicitud supera el tamaño permitido" },
   RATE_LIMITED: { status: 429, message: "Demasiadas solicitudes" },
   INTERNAL_ERROR: { status: 500, message: "Error interno" },

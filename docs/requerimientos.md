@@ -157,12 +157,12 @@ Endpoints: `GET /meals?date=&cursor=`, `GET /meals/:id`, `DELETE /meals/:id`.
 #### RF-16 — Suscripción
 
 - [ ] La app muestra el precio y qué incluye cada plan antes de suscribirse, sin pasos ocultos.
-- [ ] El alta premium se procesa con un proveedor de pagos en modo sandbox.
-- [ ] El usuario ve su plan, la fecha de renovación y puede cancelar desde la app.
-- [ ] Al cancelar, mantiene premium hasta el fin del período pagado.
-- [ ] La integración de pago está detrás de un service (`services/billing`) que permite cambiar a un proveedor real.
+- [x] El alta premium se procesa con un proveedor de pagos en modo sandbox (Stripe test mode, Checkout hosteado; el plan pasa a premium con el webhook de confirmación).
+- [ ] El usuario ve su plan, la fecha de renovación y puede cancelar desde la app. (API lista: `GET /billing/plan` y `POST /billing/cancel`; falta la pantalla.)
+- [x] Al cancelar, mantiene premium hasta el fin del período pagado.
+- [x] La integración de pago está detrás de un service (`services/billing`) que permite cambiar a un proveedor real.
 
-Endpoints: `GET /billing/plan`, `POST /billing/subscribe`.
+Endpoints: `GET /billing/plan`, `POST /billing/subscribe`, `POST /billing/cancel`, `POST /billing/webhook` (público, firmado por el proveedor).
 
 ## Requerimientos no funcionales
 
@@ -185,9 +185,9 @@ Endpoints: `GET /billing/plan`, `POST /billing/subscribe`.
 2. **Metas de macros:** la presentación guarda solo `kcal` y `proteinG`, pero RF-09 muestra todos los macros. Se agregaron `carbsG` y `fatG`.
 3. ~~**Valor de N:** cuántos análisis por mes tiene el plan free (RF-14).~~ Resuelto: N = 40. Se configura con la variable de entorno `FREE_MONTHLY_ANALYSES` (obligatoria en el Back, sin valor por defecto en el código).
 4. **Qué ve el free del Wrapped:** el premium tiene "Wrapped completo", pero no está definido qué parte ve el free.
-5. **Precio del premium** y proveedor de pagos sandbox (Stripe test mode, Mercado Pago sandbox).
+5. **Precio del premium** y ~~proveedor de pagos sandbox~~. Proveedor resuelto: Stripe test mode (`services/billing/stripe.ts`). El precio sigue abierto: es el `price` de Stripe que se configure en `STRIPE_PRICE_ID`.
 6. **Código HTTP para cupo agotado:** la presentación no lo define. Se propone 402.
-7. **Cancelar suscripción:** RF-16 lo pide, pero no hay endpoint. Se propone `POST /billing/cancel`.
+7. ~~**Cancelar suscripción:** RF-16 lo pide, pero no hay endpoint.~~ Resuelto: `POST /billing/cancel`, cancela al fin del período pagado y es idempotente.
 8. ~~**Preferencias de notificaciones:** dónde se guardan (se propone `users.notifications`).~~ Resuelto en #38: `users.notifications`, un booleano por tipo (`analysisReady`, `streakRisk`, `wrappedReady`), todos en `true` por defecto. Un usuario sin el campo tiene todo prendido. Se cambian con `PATCH /users/me` y salen en `GET /users/me`.
 9. **mTLS entre Front y Backend:** la presentación lo plantea, pero el `docker-compose` actual usa HTTP. Decidir si se implementa o queda para producción.
 10. **Dominio y hosting:** el RFC dice "si conseguimos un dominio barato" y la presentación usa `api.caloria.app` y DigitalOcean. El despliegue está marcado como "a definir".

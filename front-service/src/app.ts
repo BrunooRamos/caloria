@@ -1,6 +1,12 @@
 import express from "express";
 import type { Router } from "express";
-import { errorHandler, notFoundHandler, requestContext } from "@caloria/shared";
+import {
+  BILLING_WEBHOOK_BODY_LIMIT,
+  BILLING_WEBHOOK_PATH,
+  errorHandler,
+  notFoundHandler,
+  requestContext,
+} from "@caloria/shared";
 import type { Logger } from "@caloria/shared";
 import { backendErrorPassthrough } from "./middleware/backend-errors";
 
@@ -18,6 +24,11 @@ export function createApp({ logger, api }: AppOptions) {
 
   // El Front es la cara pública: nunca confía en el X-Request-Id del cliente.
   app.use(requestContext({ logger, trustIncomingId: false }));
+  // El webhook de pagos se reenvía crudo: el Backend verifica la firma sobre los bytes exactos.
+  app.use(
+    BILLING_WEBHOOK_PATH,
+    express.raw({ type: () => true, limit: BILLING_WEBHOOK_BODY_LIMIT }),
+  );
   app.use(express.json({ limit: JSON_BODY_LIMIT }));
 
   app.get("/health", (_req, res) => {

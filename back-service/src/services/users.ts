@@ -2,6 +2,7 @@ import { AppError, DEFAULT_NOTIFICATIONS, MAX_PUSH_TOKENS } from "@caloria/share
 import type { MeResponse, UpdateMeInput } from "@caloria/shared";
 import { UserModel } from "../models/User";
 import type { User } from "../models/User";
+import { isPremium } from "./plan";
 import { computeTargets } from "./targets";
 
 const MAX_UPDATE_ATTEMPTS = 3;
@@ -26,7 +27,10 @@ export interface UserService {
 }
 
 function toMe(user: MeFields): MeResponse {
-  const { tier, since, renewsAt } = user.plan;
+  const { since, currentPeriodEnd, cancelAtPeriodEnd } = user.plan;
+  const premium = isPremium(user.plan, new Date());
+  // renewsAt solo si de verdad se renueva: un premium cancelado termina y no se renueva.
+  const renewsAt = premium && !cancelAtPeriodEnd ? currentPeriodEnd : undefined;
   return {
     id: user._id.toString(),
     email: user.email,
@@ -34,7 +38,7 @@ function toMe(user: MeFields): MeResponse {
     targets: user.targets,
     tone: user.tone,
     plan: {
-      tier,
+      tier: premium ? "premium" : "free",
       since: since.toISOString(),
       ...(renewsAt && { renewsAt: renewsAt.toISOString() }),
     },
