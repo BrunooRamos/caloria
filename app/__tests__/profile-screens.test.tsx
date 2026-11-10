@@ -71,6 +71,13 @@ const me = (overrides: Partial<Me> = {}): Me => ({
   ...overrides,
 });
 
+const FREE_PLAN = {
+  tier: "free",
+  periodEnd: null,
+  renews: false,
+  analyses: { limit: 40, remaining: 37, resetsOn: "2026-12-01" },
+};
+
 const registered = () =>
   json(201, { ...NEW_TOKENS, user: { id: "u1", email: "cami@example.com" } });
 
@@ -319,6 +326,7 @@ describe("perfil", () => {
       if (call.path === "/auth/refresh") return json(200, { ...NEW_TOKENS });
       if (call.path === "/users/me" && call.method === "GET") return json(200, me());
       if (call.path === "/users/me" && call.method === "PATCH") return patch(call);
+      if (call.path === "/billing/plan") return json(200, FREE_PLAN);
       return apiError(404, "NOT_FOUND");
     };
   }
@@ -353,6 +361,7 @@ describe("perfil", () => {
 
       expect(await screen.findByText("cami@example.com")).toBeOnTheScreen();
       for (const name of [
+        "Tu plan, Free · te quedan 37 análisis",
         "Tus metas diarias, 2.093 kcal por día",
         "Tus datos, 60 kg · Mantener mi peso",
         "Comentario de tus comidas, Neutro",
@@ -369,6 +378,7 @@ describe("perfil", () => {
     it("cada fila abre su sección y Volver regresa al perfil", async () => {
       const router = await start(profileBackend(), "/profile", NEW_TOKENS);
       for (const [row, path, header] of [
+        [/^Tu plan/, "/plan", "Tu plan"],
         [/^Tus metas diarias/, "/profile/targets", "Tus metas diarias"],
         [/^Tus datos/, "/profile/data", "Tus datos"],
         [/^Comentario de tus comidas/, "/profile/tone", "Comentario de tus comidas"],

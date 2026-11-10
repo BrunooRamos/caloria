@@ -32,6 +32,8 @@ export { Screen } from "./Screen";
 export type { ScreenProps } from "./Screen";
 export { goBack, goHome, ScreenHeader } from "./ScreenHeader";
 export type { ScreenHeaderProps } from "./ScreenHeader";
+export { Sheet } from "./Sheet";
+export type { SheetProps } from "./Sheet";
 export { Skeleton } from "./Skeleton";
 export type { SkeletonProps } from "./Skeleton";
 export { SwitchRow } from "./SwitchRow";

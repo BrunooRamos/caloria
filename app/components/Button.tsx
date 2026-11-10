@@ -68,6 +68,7 @@ const styles = StyleSheet.create({
     minHeight: sizes.control,
     borderRadius: radius.full,
     paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.xs,
     flexDirection: "row",
     gap: spacing.xs,
     alignItems: "center",

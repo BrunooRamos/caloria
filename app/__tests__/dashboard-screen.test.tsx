@@ -443,9 +443,13 @@ describe("pantalla principal: racha (RF-10)", () => {
     expect(within(card).getByText("días")).toBeOnTheScreen();
     expect(within(card).getByText("Mejor racha: 12 días")).toBeOnTheScreen();
     expect(within(card).queryByText("Tu mejor racha")).toBeNull();
-    // Sale de la misma respuesta del dashboard: no hay otro pedido (aparte de la lista del día).
+    // Sale de la misma respuesta del dashboard: no hay otro pedido (aparte de la lista del día y
+    // del plan, que pide la barra para saber si "Registrar" abre la cámara).
     const apiCalls = calls.filter(
-      (call) => !call.path.startsWith("/auth/") && !call.path.startsWith("/meals?"),
+      (call) =>
+        !call.path.startsWith("/auth/") &&
+        !call.path.startsWith("/meals?") &&
+        call.path !== "/billing/plan",
     );
     expect(apiCalls.map((call) => call.path)).toEqual(["/dashboard/daily"]);
   });

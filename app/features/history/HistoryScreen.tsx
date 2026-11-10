@@ -5,6 +5,7 @@ import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View } from "r
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button, FormError, IconButton, Notice, Text, TextButton } from "@/components";
 import { MealListSkeleton, MealRow } from "@/features/meals/MealRow";
+import { useOpenCapture } from "@/features/billing/captureGate";
 import { deviceTimeZone } from "@/features/profile/timezone";
 import { errorMessage } from "@/services/error-messages";
 import type { Meal } from "@/services/meals";
@@ -28,6 +29,7 @@ export default function HistoryScreen() {
   const day = resolveDay(params.date, today);
   const next = nextDay(day, today);
   const history = useDayMeals(day);
+  const openCapture = useOpenCapture();
   const { state } = history;
 
   const goTo = (date: string) => router.setParams({ date });
@@ -44,7 +46,7 @@ export default function HistoryScreen() {
   } else if (day === today) {
     empty = (
       <Notice icon={UtensilsCrossed} title={TODAY_EMPTY.title} detail={TODAY_EMPTY.detail}>
-        <Button icon={Camera} title="Registrar comida" onPress={() => router.push("/capture")} />
+        <Button icon={Camera} title="Registrar comida" onPress={openCapture} />
       </Notice>
     );
   } else {

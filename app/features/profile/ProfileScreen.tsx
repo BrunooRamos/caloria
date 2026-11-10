@@ -1,19 +1,24 @@
 import { router } from "expo-router";
-import { Bell, MessageCircle, Target, UserRoundPen } from "lucide-react-native";
+import { Bell, CreditCard, MessageCircle, Target, UserRoundPen } from "lucide-react-native";
 import { useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { Button, FormError, ListGroup, ListRow, Screen, Text, confirmAction } from "@/components";
+import { planSummary } from "@/features/billing/planView";
+import { useBillingPlan } from "@/features/billing/usePlan";
 import { formatNumber } from "@/features/dashboard/format";
 import { errorMessage } from "@/services/error-messages";
 import type { Me } from "@/services/users";
 import { useSession } from "@/store/session";
 import { colors, spacing } from "@/theme";
 import { GOAL_OPTIONS, NOTIFICATION_OPTIONS, TONE_OPTIONS } from "./options";
+import { deviceTimeZone } from "./timezone";
 import { useMe } from "./useMe";
 
 export default function ProfileScreen() {
   const { state, reload } = useMe({ refreshOnFocus: true });
   const me = state.status === "ready" ? state.me : null;
+  const billing = useBillingPlan();
+  const [timeZone] = useState(deviceTimeZone);
 
   return (
     <Screen scroll edges={["top", "left", "right"]}>
@@ -31,32 +36,47 @@ export default function ProfileScreen() {
         </View>
       )}
 
-      <ListGroup>
-        <ListRow
-          icon={Target}
-          title="Tus metas diarias"
-          detail={me ? `${formatNumber(me.targets.kcal)} kcal por día` : undefined}
-          onPress={() => router.push("/profile/targets")}
-        />
-        <ListRow
-          icon={UserRoundPen}
-          title="Tus datos"
-          detail={me ? dataSummary(me) : undefined}
-          onPress={() => router.push("/profile/data")}
-        />
-        <ListRow
-          icon={MessageCircle}
-          title="Comentario de tus comidas"
-          detail={me ? labelOf(TONE_OPTIONS, me.tone) : undefined}
-          onPress={() => router.push("/profile/tone")}
-        />
-        <ListRow
-          icon={Bell}
-          title="Avisos"
-          detail={me ? notificationsSummary(me) : undefined}
-          onPress={() => router.push("/profile/notifications")}
-        />
-      </ListGroup>
+      <View style={styles.groups}>
+        <ListGroup>
+          <ListRow
+            icon={CreditCard}
+            title="Tu plan"
+            detail={
+              billing.status === "ready"
+                ? planSummary(billing.plan, timeZone, new Date())
+                : undefined
+            }
+            onPress={() => router.push("/plan")}
+          />
+        </ListGroup>
+
+        <ListGroup>
+          <ListRow
+            icon={Target}
+            title="Tus metas diarias"
+            detail={me ? `${formatNumber(me.targets.kcal)} kcal por día` : undefined}
+            onPress={() => router.push("/profile/targets")}
+          />
+          <ListRow
+            icon={UserRoundPen}
+            title="Tus datos"
+            detail={me ? dataSummary(me) : undefined}
+            onPress={() => router.push("/profile/data")}
+          />
+          <ListRow
+            icon={MessageCircle}
+            title="Comentario de tus comidas"
+            detail={me ? labelOf(TONE_OPTIONS, me.tone) : undefined}
+            onPress={() => router.push("/profile/tone")}
+          />
+          <ListRow
+            icon={Bell}
+            title="Avisos"
+            detail={me ? notificationsSummary(me) : undefined}
+            onPress={() => router.push("/profile/notifications")}
+          />
+        </ListGroup>
+      </View>
 
       <View style={styles.spacer} />
       <SignOut />
@@ -113,6 +133,7 @@ function SignOut() {
 const styles = StyleSheet.create({
   title: { gap: spacing.xxs, marginBottom: spacing.xl },
   error: { gap: spacing.md, marginBottom: spacing.xl },
+  groups: { gap: spacing.xl },
   spacer: { flexGrow: 1, minHeight: spacing.xl },
   signOut: {
     borderTopWidth: StyleSheet.hairlineWidth,

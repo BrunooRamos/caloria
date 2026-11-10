@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { CalendarClock, Sparkles } from "lucide-react-native";
 import { memo, useCallback, useMemo, useState } from "react";
 import { FlatList, StyleSheet, View } from "react-native";
@@ -224,7 +224,9 @@ function PremiumRequiredState() {
       icon={Sparkles}
       title="El resumen semanal es parte de premium"
       detail="Lo incluye el plan premium. Tus registros de la semana siguen guardados."
-    />
+    >
+      <Button variant="secondary" title="Ver planes" onPress={() => router.push("/plan")} />
+    </Notice>
   );
 }
 

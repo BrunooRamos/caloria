@@ -7,4 +7,5 @@ Cómo y cuándo usar cada uno está en la skill `caloria-design` (secciones 5 y 
 - `Toast` (`ToastProvider`, `useToast`): la confirmación breve después de guardar, borrar o corregir.
 - `ListGroup` y `ListRow`: menús estilo configuración, como el perfil.
 - `Notice`: estados vacíos, de espera o de error con su acción.
+- `Sheet`: hoja desde abajo para un aviso con acciones de la app (por ejemplo, sin análisis en el mes).
 - `confirmAction`: el diálogo del sistema antes de borrar o descartar.

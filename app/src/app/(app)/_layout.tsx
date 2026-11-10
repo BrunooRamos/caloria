@@ -37,6 +37,11 @@ export default function AppLayout() {
             <Stack.Screen name="profile/data" options={{ title: "Tus datos" }} />
             <Stack.Screen name="profile/tone" options={{ title: "Comentario de tus comidas" }} />
             <Stack.Screen name="profile/notifications" options={{ title: "Avisos" }} />
+            <Stack.Screen name="plan" options={{ title: "Tu plan" }} />
+            <Stack.Screen
+              name="billing/return"
+              options={{ headerShown: false, animation: "none" }}
+            />
           </Stack.Protected>
         </Stack>
       </MealCacheProvider>

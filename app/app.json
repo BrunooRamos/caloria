@@ -69,7 +69,8 @@
           "icon": "./assets/android-icon-monochrome.png",
           "color": "#1F5637"
         }
-      ]
+      ],
+      "expo-web-browser"
     ]
   }
 }

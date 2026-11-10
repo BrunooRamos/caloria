@@ -274,3 +274,29 @@ algunos arreglos: en la tab de abajo, el icono de historial pone tipo un reloj c
 ```text
 y tambien agregar el logo en la pantalla de inicio
 ```
+
+### 2026-11-09 11:04
+
+```text
+Toca la pantalla de planes y suscripción. Partí de `main` y creá la rama `feat/rf-16-plans-screen`.
+
+Leé el RFC, RF-14 a RF-16 en `docs/requerimientos.md`, los endpoints de billing en `docs/api.md` y la skill `caloria-design`, que ya incluye la navegación y los componentes que sumamos en la pasada de usabilidad.
+
+Lo que tiene que quedar: antes de suscribirse, la persona ve el precio y qué incluye cada plan; en todo momento puede ver su plan vigente, cuántos análisis le quedan en el mes y cuándo se renueva; y puede suscribirse y cancelar desde la app sin pasos ocultos.
+
+Antes de diseñar, fijate qué existe en el Backend. Sé que hay `GET /billing/plan` y `POST /billing/subscribe`, pero no hay endpoint de cancelación, y todavía no definimos ni el cupo del plan free, ni el precio del premium, ni el proveedor de pagos. No resuelvas eso en este ticket: contame qué falta y, mientras tanto, trabajá contra un fixture fácil de sacar. Los precios, el cupo y lo que incluye cada plan tienen que venir de la API, nunca escritos en la app.
+
+Para que "sin pasos ocultos" sea algo verificable, la pantalla tiene que cumplir con esto. Antes de confirmar se ve el precio con moneda y período, cuándo se renueva y cómo se cancela. Nada de pruebas que se convierten solas en pago, opciones premarcadas ni botones de cerrar escondidos. Cancelar lleva la misma cantidad de pasos que suscribirse, y el texto para cancelar no intenta convencer ni hacer sentir culpa a nadie. Si alguien cancela, sigue con premium hasta el fin del período y la pantalla le dice hasta cuándo. Quedarse sin análisis no se muestra en rojo ni con urgencia.
+
+Si el proveedor que elijamos usa un checkout externo, abrilo con `expo-web-browser` y manejá la vuelta con un deep link. Como la confirmación puede llegar por webhook y tardar unos segundos, al volver mostrá que se está confirmando el pago en lugar de un error. Dejá la integración detrás de una interfaz: para publicar en las tiendas probablemente tengamos que pasarnos a las compras integradas de Apple y Google, y ese cambio no debería obligarnos a rehacer la pantalla.
+
+Se tiene que poder llegar a la pantalla desde el perfil y desde los mensajes de `MEAL_QUOTA_EXCEEDED` y `PREMIUM_REQUIRED`. Como en todas las pantallas, tiene que quedar clara la forma de volver a la principal.
+
+Sumá tests de la lógica que decide qué mostrar en cada estado (free, premium, premium cancelado pero vigente, pago confirmándose) y del formato de precios y fechas en la zona horaria del usuario. Contame primero qué encontraste en el Backend y cómo encararías el pago, y esperá mi OK. Al final, pasame capturas de cada estado y los dos recorridos, suscribirse y cancelar, con sus pasos contados.
+```
+
+### 2026-11-10 10:49
+
+```text
+no deberia ni dejarte sacar la foto si no tenemos usage disponible. que salga un popup con lo del plan y que ahi te navegue a la pantalla de planes si queres
+```
