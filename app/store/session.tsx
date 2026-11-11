@@ -3,16 +3,27 @@ import type { PropsWithChildren } from "react";
 import { api, tokenStorage } from "@/services/api";
 import * as auth from "@/services/auth";
 import type { AuthResponse, Credentials, RegisterInput } from "@/services/auth";
-import { takeDevicePushToken } from "@/services/users";
+import { clearLocalData } from "@/services/local-data";
+import { deleteAccount as deleteAccountOnServer, takeDevicePushToken } from "@/services/users";
 
 export type SessionStatus = "loading" | "authenticated" | "unauthenticated";
+
+/** Lo que el login cuenta al llegar: por ahora, que la cuenta se eliminó. */
+export type SessionNotice = "accountDeleted";
 
 export interface Session {
   status: SessionStatus;
   pendingGoals: boolean;
+  notice: SessionNotice | null;
   signIn(credentials: Credentials): Promise<void>;
   signUp(input: RegisterInput): Promise<void>;
   signOut(): Promise<void>;
+  /**
+   * Borra la cuenta. Hasta que el servidor confirma no se toca nada local: si falla,
+   * lanza y se puede reintentar. Confirmado, limpia los tokens y los archivos del teléfono y
+   * vuelve al login con el aviso.
+   */
+  deleteAccount(): Promise<void>;
   finishOnboarding(): void;
 }
 
@@ -43,6 +54,7 @@ async function startSession({ accessToken, refreshToken }: AuthResponse): Promis
 export function SessionProvider({ children }: PropsWithChildren) {
   const [status, setStatus] = useState<SessionStatus>("loading");
   const [pendingGoals, setPendingGoals] = useState(false);
+  const [notice, setNotice] = useState<SessionNotice | null>(null);
 
   useEffect(
     () =>
@@ -69,11 +81,13 @@ export function SessionProvider({ children }: PropsWithChildren) {
 
   const signIn = useCallback(async (credentials: Credentials) => {
     await startSession(await auth.login(credentials));
+    setNotice(null);
     setStatus("authenticated");
   }, []);
 
   const signUp = useCallback(async (input: RegisterInput) => {
     await startSession(await auth.register(input));
+    setNotice(null);
     setPendingGoals(true);
     setStatus("authenticated");
   }, []);
@@ -90,11 +104,34 @@ export function SessionProvider({ children }: PropsWithChildren) {
     }
   }, []);
 
+  const deleteAccount = useCallback(async () => {
+    await deleteAccountOnServer();
+    // El token de avisos de este teléfono se borró con la cuenta.
+    takeDevicePushToken();
+    try {
+      await api.clearSession();
+      await clearLocalData();
+    } finally {
+      setPendingGoals(false);
+      setNotice("accountDeleted");
+      setStatus("unauthenticated");
+    }
+  }, []);
+
   const finishOnboarding = useCallback(() => setPendingGoals(false), []);
 
   const session = useMemo(
-    () => ({ status, pendingGoals, signIn, signUp, signOut, finishOnboarding }),
-    [status, pendingGoals, signIn, signUp, signOut, finishOnboarding],
+    () => ({
+      status,
+      pendingGoals,
+      notice,
+      signIn,
+      signUp,
+      signOut,
+      deleteAccount,
+      finishOnboarding,
+    }),
+    [status, pendingGoals, notice, signIn, signUp, signOut, deleteAccount, finishOnboarding],
   );
 
   return <SessionContext value={session}>{children}</SessionContext>;

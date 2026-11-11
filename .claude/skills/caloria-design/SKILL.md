@@ -129,7 +129,7 @@ float: {
 Toda pantalla se arma con estos componentes. Si falta uno, se crea en `components/` siguiendo estas reglas, no se estiliza inline.
 
 - **Text**: wrapper de `Text` con prop `variant` (los tokens de la escala) y `color` (tokens de color). Por defecto `body` en `ink`. Nunca usar el `Text` de React Native directo en pantallas.
-- **Button**: altura 52, `radius.full`, texto `label`. Variantes: `primary` (fondo `primary`, texto `onPrimary`), `secondary` (fondo `sageSoft`, texto `primary`), `ghost` (sin fondo, texto `primary`). Presionado: `primaryPressed` o leve opacidad 0.85. Deshabilitado: opacidad 0.4. Estado loading con spinner del color del texto, manteniendo el ancho. Con `icon`, el ícono va antes del texto y del mismo color; el texto va siempre.
+- **Button**: altura 52, `radius.full`, texto `label`. Variantes: `primary` (fondo `primary`, texto `onPrimary`), `secondary` (fondo `sageSoft`, texto `primary`), `ghost` (sin fondo, texto `primary`) y `destructive` (fondo `ink`, texto `onPrimary`; ver "Acciones irreversibles"). Presionado: `primaryPressed` o leve opacidad 0.85. Deshabilitado: opacidad 0.4. Estado loading con spinner del color del texto, manteniendo el ancho. Con `icon`, el ícono va antes del texto y del mismo color; el texto va siempre.
 - **IconButton**: círculo de 44 con un ícono de 24. Lleva `label` para el lector de pantalla y, si la acción importa, `caption`: el texto visible debajo del ícono, dentro del mismo botón ("Galería", "Anterior", "Descartar"). Un ícono solo queda para controles que todo el mundo entiende (reproducir, pausar) y siempre con texto al lado.
 - **Input**: altura 52, fondo `surface`, borde 1 `borderStrong`, `radius.md`, padding horizontal `md`. Label arriba en `small` Medium `ink`; ayuda o error abajo en `small`. Foco con borde 2 `primary`.
 - **Card**: fondo `surface`, borde 1 `border`, `radius.lg`, padding `md`–`lg`. Sin sombra.
@@ -142,6 +142,18 @@ Toda pantalla se arma con estos componentes. Si falta uno, se crea en `component
 - **Notice**: el estado vacío, de espera o de error de un bloque: ícono de línea en `inkMuted`, título `h3`, explicación en `inkMuted` y, como `children`, la acción con texto ("Reintentar", "Registrar comida"). Nunca un estado sin salida y nunca en rojo por la comida.
 - **Toast** (`useToast()`): confirmación breve de que algo salió bien después de guardar, borrar o corregir: fondo `primary`, texto `bodyStrong` en `onPrimary`, ícono de check, `radius.lg` y `shadow.float`. Va abajo, encima de la barra, dura 3 s (`motion.toast`), no se toca y el lector de pantalla lo anuncia. El texto, en pasado y corto: "Guardamos la corrección.", "Eliminamos la comida.".
 - **confirmAction**: antes de borrar o descartar algo, el diálogo del sistema. Título como pregunta ("¿Eliminar esta comida?"), qué se pierde en el mensaje y dos botones: "Cancelar" y el verbo de la acción ("Eliminar", "Descartar", "Cerrar sesión"). Sin estilo `destructive`: no va en rojo.
+- **TextButton**: acción chica dentro de un bloque, en `smallStrong` `primary`. Con `color="inkMuted"`, para una acción que tiene que estar a la vista sin llamar la atención ("Eliminar cuenta").
+
+### Acciones irreversibles
+
+Eliminar la cuenta es la única acción que no se puede deshacer de ninguna forma, y tiene su propio estilo. No usa `danger`: el rojo queda para errores técnicos y una decisión de la persona no es un error.
+
+- **Dónde se ofrece:** al final del perfil, debajo de "Cerrar sesión", como `TextButton` en `inkMuted`. No lleva ícono ni color, pero se encuentra si se busca.
+- **Pantalla propia, no un diálogo:** un detalle ("Eliminar cuenta") que dice qué se borra, en una lista concreta (perfil y metas, comidas con fotos y audios, resúmenes y racha), qué pasa con la suscripción si la hay y, en `bodyStrong`, "No se puede deshacer ni recuperar."
+- **Más que un toque:** el botón queda deshabilitado hasta escribir la palabra ELIMINAR en un `Input`, sin importar mayúsculas ni espacios. No se pide la contraseña: no hay forma de recuperarla, y quien la olvidó tiene que poder borrar su cuenta igual.
+- **El botón:** `Button variant="destructive"`, con fondo `ink`, texto `onPrimary` e ícono `Trash`, y el verbo con el objeto: "Eliminar mi cuenta". Va solo en el último paso, nunca como primera acción de una pantalla. El verde `primary` dice "el camino esperado" y el `ink` es serio sin ser alarma (15:1 con el blanco).
+- **Si falla:** el error va en `FormError` y se reintenta con el mismo botón. No se toca nada del teléfono hasta que el servidor confirma.
+- **Después:** la app vuelve al login con un título tranquilo, "Eliminamos tu cuenta", y una línea que dice qué se borró. No lleva toast porque ya no hay sesión.
 
 ## 5b. Navegación
 

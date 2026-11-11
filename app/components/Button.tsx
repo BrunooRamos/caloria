@@ -7,7 +7,7 @@ import { Text } from "./Text";
 import { useTone } from "./tone";
 import type { SurfaceTone } from "./tone";
 
-export type ButtonVariant = "primary" | "secondary" | "ghost";
+export type ButtonVariant = "primary" | "secondary" | "ghost" | "destructive";
 
 export interface ButtonProps extends Omit<PressableProps, "children" | "style"> {
   title: string;
@@ -17,8 +17,13 @@ export interface ButtonProps extends Omit<PressableProps, "children" | "style"> 
 }
 
 const textColors: Record<SurfaceTone, Record<ButtonVariant, ColorToken>> = {
-  default: { primary: "onPrimary", secondary: "primary", ghost: "primary" },
-  brand: { primary: "primary", secondary: "primary", ghost: "cream" },
+  default: {
+    primary: "onPrimary",
+    secondary: "primary",
+    ghost: "primary",
+    destructive: "onPrimary",
+  },
+  brand: { primary: "primary", secondary: "primary", ghost: "cream", destructive: "onPrimary" },
 };
 
 export function Button({
@@ -78,6 +83,7 @@ const styles = StyleSheet.create({
   primaryOnBrand: { backgroundColor: colors.cream },
   secondary: { backgroundColor: colors.sageSoft },
   ghost: {},
+  destructive: { backgroundColor: colors.ink },
   pressedPrimary: { backgroundColor: colors.primaryPressed },
   pressed: { opacity: opacity.pressed },
   disabled: { opacity: opacity.disabled },

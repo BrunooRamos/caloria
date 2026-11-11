@@ -103,6 +103,12 @@ Los avisos los manda el Worker:
 
 Cada aviso loguea `userId`, `type`, `devices` (a cuántos dispositivos), `ok`, `failed`, `removed` (tokens borrados) y `durationMs`, con los ids del job. Si se saltea, loguea `reason` (`disabled` o `noDevices`). Los tokens nunca van al log (y los campos no se llaman "token", porque el logger redacta esas claves). Los tests usan un `PushService` falso; el de Expo se prueba con un `fetch` falso: ninguno sale a la red.
 
+## Borrado de cuenta (RNF-04)
+
+`DELETE /users/me` (`src/services/account-deletion.ts`) borra el cliente en el proveedor de pagos si lo hay, registra el pedido en `account_deletions`, borra el usuario y sus documentos y encola la limpieza en la cola `account-deletion` con un minuto de espera. El Worker (`src/jobs/account-deletion-processor.ts`) vuelve a borrar los documentos, borra el prefijo `users/{userId}/` del bucket y marca el pedido como terminado; un barrido cada hora retoma los pendientes. `requireAuth` rechaza el token de una cuenta que no existe. El detalle está en [docs/seguridad.md](../docs/seguridad.md#borrado-de-cuenta-rnf-04).
+
+Los tests (`test/account-deletion.test.ts`) usan un bucket en memoria; `test/account-deletion.integration.test.ts` hace lo mismo contra MinIO con `S3_TEST_ENDPOINT` (ver [Media](#media-storage-privado)).
+
 ## Wrapped semanal (cron)
 
 La cola `weekly-summary` (`src/jobs/weekly-summary.ts`) tiene dos jobs:

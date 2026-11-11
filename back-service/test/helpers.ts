@@ -1,6 +1,9 @@
 import type { AddressInfo } from "node:net";
 import type { Express } from "express";
+import { Types } from "mongoose";
 import { createLogger } from "@caloria/shared";
+import { UserModel } from "../src/models/User";
+import type { User } from "../src/models/User";
 import { createQuotaService } from "../src/services/quota";
 
 export async function listen(app: Express): Promise<{ url: string; close: () => Promise<void> }> {
@@ -74,3 +77,29 @@ export const fixtures = {
 };
 
 export const unlimitedQuota = createQuotaService({ freeMonthlyAnalyses: Number.MAX_SAFE_INTEGER });
+
+/**
+ * Un usuario válido en Mongo. Los jobs del Worker descartan lo de una cuenta que ya no existe,
+ * así que toda comida o Wrapped de un test necesita a su dueño.
+ */
+export async function createOwner(fields: Partial<User> = {}): Promise<Types.ObjectId> {
+  const _id = fields._id ?? new Types.ObjectId();
+  await UserModel.create({
+    email: `${_id.toString()}@example.com`,
+    passwordHash: "x",
+    profile: {
+      sex: "female",
+      birthDate: "2002-04-10",
+      heightCm: 165,
+      weightKg: 60,
+      activity: "moderate",
+      goal: "maintain",
+      timezone: "America/Montevideo",
+    },
+    targets: { kcal: 2093, proteinG: 108, carbsG: 285, fatG: 58 },
+    tone: "off",
+    ...fields,
+    _id,
+  });
+  return _id;
+}
