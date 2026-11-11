@@ -274,7 +274,7 @@ describe("corregir una comida", () => {
     await openEditor();
     await type("Gramos de Milanesa", "600-");
     await fireEvent(field("Gramos de Milanesa"), "blur");
-    expect(screen.getByText("Escribí un número (650) o un rango (600-700).")).toBeOnTheScreen();
+    expect(screen.getByText("Escribí un número o un rango (600-700).")).toBeOnTheScreen();
 
     await type("Calorías totales", "");
     await type("Proteínas (g)", "-5");
@@ -284,7 +284,7 @@ describe("corregir una comida", () => {
     expect(patches()).toHaveLength(0);
 
     await type("Gramos de Milanesa", "160");
-    expect(screen.queryByText("Escribí un número (650) o un rango (600-700).")).toBeNull();
+    expect(screen.queryByText("Escribí un número o un rango (600-700).")).toBeNull();
   });
 
   it("los errores se ven en el campo al salir de él o al guardar, y no se manda nada", async () => {
