@@ -114,3 +114,5 @@ export type { BillingPlanResponse, SubscribeResponse } from "./billing";
 export { ACCESS_TOKEN_TTL_SECONDS, JWT_ALGORITHM, verifyAccessToken } from "./auth/jwt";
 export type { AccessTokenClaims, PlanTier } from "./auth/jwt";
 export { loadPrivateKey, loadPublicKey } from "./auth/keys";
+export { loadMtlsCredentials, MTLS_BACK_CN, MTLS_ENV, MTLS_FRONT_CN } from "./mtls";
+export type { MtlsCredentials } from "./mtls";

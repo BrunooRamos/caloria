@@ -1,5 +1,5 @@
 import { createPublicKey } from "node:crypto";
-import { loadPrivateKey } from "@caloria/shared";
+import { loadMtlsCredentials, loadPrivateKey, MTLS_BACK_CN } from "@caloria/shared";
 import { loadStorageConfig } from "./storage";
 
 /** Lee la configuración del entorno. Lanza si falta algo obligatorio: el servicio no arranca. */
@@ -18,6 +18,8 @@ export function loadConfig(env = process.env) {
     storage: loadStorageConfig(env),
     freeMonthlyAnalyses: parseFreeMonthlyAnalyses(env.FREE_MONTHLY_ANALYSES),
     billing: loadBillingConfig(env),
+    // mTLS con el Front (RNF-03): sin certificados válidos, el Backend no arranca.
+    mtls: loadMtlsCredentials(MTLS_BACK_CN, env),
   };
 }
 

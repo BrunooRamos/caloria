@@ -21,13 +21,19 @@ npm run keys:generate                      # escribe ~/.caloria/jwt (o: npm run 
 cat ~/.caloria/jwt/jwt.env >> infra/.env   # JWT_PRIVATE_KEY (back) y JWT_PUBLIC_KEY (front)
 ```
 
+El Front le habla al Backend por HTTPS con mTLS: el Backend solo acepta el certificado del Front. Generá la CA propia y los certificados una vez (quedan en `infra/certs/mtls/`, en `.gitignore`, y docker compose los monta solos):
+
+```sh
+npm run certs:generate                     # requiere openssl; --force para regenerarlos
+```
+
 La media (fotos y audios) va a un bucket privado de MinIO. Completá en `infra/.env` las credenciales root y las del usuario de servicio que usan Back y Worker (ver `infra/.env.example`). En dev, el override publica MinIO en `127.0.0.1:9000` para que la app abra las URLs firmadas, y la consola web en http://localhost:9001 (login con las credenciales root):
 
 ```sh
 docker compose -f infra/docker-compose.yml -f infra/docker-compose.dev.yml up
 ```
 
-Sin su clave o sin la config de storage, cada servicio se niega a arrancar. Sin `DOMAIN`, nginx tampoco arranca: en local, `DOMAIN=localhost` (ya viene así en `infra/.env.example`).
+Sin su clave, sin sus certificados o sin la config de storage, cada servicio se niega a arrancar. Sin `DOMAIN`, nginx tampoco arranca: en local, `DOMAIN=localhost` (ya viene así en `infra/.env.example`).
 
 En dev, la API queda en http://localhost:8080 (por ejemplo `/health`), que es lo que usan Expo Go y los builds de desarrollo. También queda https://localhost con un certificado autofirmado temporal (`curl -k`). El 80 solo redirige a HTTPS.
 
@@ -120,5 +126,7 @@ La config de nginx se prueba con Docker, igual que en CI: `nginx -t`, la redirec
 ```sh
 npm run nginx:smoke
 ```
+
+Con el stack levantado, `npm run mtls:smoke` prueba el mTLS: registra una comida por la API y le pega directo al Backend por HTTP, sin certificado y con una credencial falsa (los tres tienen que ser rechazados).
 
 Cada paquete también tiene sus propios `lint`, `typecheck`, `format` y `format:check` (requieren haber instalado la raíz y el paquete).

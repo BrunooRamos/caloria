@@ -55,6 +55,7 @@ Firewall **default deny**: todo cerrado salvo estas reglas.
 ## Protocolos
 
 - **HTTPS:** todo el tráfico cliente-servidor cifrado (RNF-03). Certificado Let's Encrypt con renovación automática en nginx; el puerto 80 solo redirige a 443, salvo el desafío de Let's Encrypt. Detalle en [HTTPS y certificados](#https-y-certificados).
+- **mTLS Front → Backend:** el único cruce DMZ → red segura va por HTTPS (TLS 1.3) con autenticación mutua. Detalle en [mTLS entre Front y Backend](#mtls-entre-front-y-backend).
 - **REST + JSON:** API versionada en la ruta (`/api/v1`), recursos sustantivos, verbos en el método HTTP y códigos estándar.
 - **multipart/form-data:** subida de foto (≤ 8 MB) y audio (≤ 60 s) en `POST /meals`. Límites validados en nginx y en la API.
 - **DNS:** `api.caloria.app` → registro A/AAAA a la IP pública de la DMZ. Los hosts de la red segura no tienen DNS público.
@@ -100,7 +101,18 @@ Los dos túneles dan un certificado válido en su borde y llegan a nginx (cloudf
 
 **App.** Un build que no es de desarrollo no arranca si `EXPO_PUBLIC_API_URL` no es `https` (`app/services/api-url.ts`). Android tiene `usesCleartextTraffic: false` (`expo-build-properties`), salvo en los builds de debug, donde Expo lo deja en `true` para Metro. iOS ya bloquea HTTP por ATS (`NSAllowsArbitraryLoads: false`).
 
-**Fuera de alcance.** El mTLS entre el Front y el Backend es la decisión abierta 9. Las URLs firmadas de la media salen de `S3_PUBLIC_ENDPOINT`: para que esas descargas también vayan cifradas, en producción tiene que ser un endpoint HTTPS (el bucket gestionado previsto). Con MinIO dentro de `docker compose`, quedaría en HTTP y además sin publicar.
+**Fuera de alcance.** Las URLs firmadas de la media salen de `S3_PUBLIC_ENDPOINT`: para que esas descargas también vayan cifradas, en producción tiene que ser un endpoint HTTPS (el bucket gestionado previsto). Con MinIO dentro de `docker compose`, quedaría en HTTP y además sin publicar.
+
+## mTLS entre Front y Backend
+
+El Backend (:4000) solo atiende por HTTPS con mTLS (RNF-03, decisión 9): cifrado y, además, solo le habla quien presente el certificado del Front.
+
+- **CA propia.** `npm run certs:generate` (`scripts/generate-mtls-certs.sh`, con openssl) crea en `infra/certs/mtls/` (en `.gitignore`) una CA y dos certificados EC P-256 firmados por ella: el del Backend (CN `caloria-back`, uso `serverAuth`, SAN `back`, `localhost` y `127.0.0.1`) y el del Front (CN `caloria-front`, uso `clientAuth`). La clave de la CA no se monta en ningún contenedor; cada servicio recibe solo su carpeta (`front/` o `back/`) en `/run/secrets/mtls`, y nginx ya no monta `infra/certs` entero, solo `infra/certs/local`.
+- **Backend** (`back-service/src/server.ts`): `https.createServer` con `requestCert` y `rejectUnauthorized`, confiando solo en la CA propia. Sin certificado, con uno de otra CA o con uno de la CA que no es de cliente (el del propio Backend), el handshake falla. Además, si el CN no es `caloria-front`, corta la conexión antes de leer el request. Cada rechazo queda en el log (`mTLS: …`, nivel `warn`).
+- **Front** (`front-service/src/index.ts`): `BACKEND_URL` tiene que ser `https://` y el cliente usa un `Agent` de undici con la CA, su certificado y su clave. Verifica el certificado del Backend contra la CA propia: no le habla a un Backend impostor.
+- **Arranque.** Los dos leen `MTLS_CA_FILE`, `MTLS_CERT_FILE` y `MTLS_KEY_FILE` (`@caloria/shared`, `loadMtlsCredentials`) y no arrancan si falta un archivo, si la clave no es la del certificado, si el certificado no lo firmó la CA, si es el del otro servicio o si está vencido.
+- **Renovación.** Los certificados duran 825 días y la CA 10 años. Para rotarlos: `npm run certs:generate -- --force` y reiniciar `front` y `back` (los dos juntos, porque cambia la CA).
+- **Prueba.** `npm run mtls:smoke` con el stack levantado: registra una comida por la API pública y le pega directo al Backend desde la red `front-back` por HTTP, sin certificado y con una credencial falsa (otra CA): los tres se rechazan, y con el certificado real responde 200.
 
 ## Flujo central: registrar una comida
 
@@ -142,6 +154,7 @@ En local, `npm run wrapped -- --week 2026-W43` (en `back-service/`) encola un fa
 | App móvil | iOS y Android | EAS Build → TestFlight / APK interno |
 | nginx, Front, Backend, Worker, Redis | A definir (DigitalOcean previsto) | GitHub Actions: build de imágenes → `docker compose` en cada merge a `main` |
 | Certificado TLS | Volumen `letsencrypt` en el servidor | certbot (perfil `letsencrypt`) lo emite y lo renueva, y nginx lo recarga solo (ver [HTTPS y certificados](#https-y-certificados)). Requiere un DNS A/AAAA del dominio y el 80 y el 443 abiertos |
+| Certificados mTLS | `infra/certs/mtls/` en el servidor | `npm run certs:generate` una vez por entorno; cada servicio monta solo su carpeta (ver [mTLS entre Front y Backend](#mtls-entre-front-y-backend)) |
 | MongoDB | A definir | Backups programados |
 | Storage | MinIO en `docker compose` (local); bucket gestionado compatible con S3 en prod (DO Spaces previsto) | Acceso solo con credenciales de Backend y Worker. Las URLs se firman con `S3_PUBLIC_ENDPOINT`, el host que alcanza la app |
 

@@ -8,6 +8,7 @@ import { MealModel } from "./models/Meal";
 import { UserModel } from "./models/User";
 import { WeeklySummaryModel } from "./models/WeeklySummary";
 import { apiRouter } from "./routes";
+import { createMtlsServer } from "./server";
 import { createAuthService } from "./services/auth";
 import { createBillingService, createStripeBillingProvider } from "./services/billing";
 import { createDashboardService } from "./services/dashboard";
@@ -44,8 +45,9 @@ async function main() {
     billing,
     publicKey: config.jwtPublicKey,
   });
-  createApp({ logger, api, mongoStatus }).listen(config.port, () => {
-    logger.info(`back-service escuchando en :${config.port}`);
+  const app = createApp({ logger, api, mongoStatus });
+  createMtlsServer(app, config.mtls, logger).listen(config.port, () => {
+    logger.info(`back-service escuchando en :${config.port} (HTTPS con mTLS)`);
   });
 
   // Mientras Mongo no conecta, /health responde 503 y Mongoose deja los comandos en espera.
