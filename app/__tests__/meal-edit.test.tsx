@@ -101,7 +101,7 @@ describe("corregir una comida", () => {
     await type("Plato", "Milanesa napolitana con puré");
     await type("Kcal de Milanesa", "520");
     // Sin tocar el total, pasa a ser la suma de los ingredientes.
-    expect(field("Calorías totales")).toHaveProp("placeholder", "700–750 kcal");
+    expect(field("Calorías totales")).toHaveProp("value", "700-750");
     expect(screen.getByText("Suma de los ingredientes.")).toBeOnTheScreen();
     expect(saveButton()).toBeEnabled();
 
@@ -124,14 +124,114 @@ describe("corregir una comida", () => {
     expect(mealGets()).toHaveLength(1);
   });
 
+  it("los campos arrancan con el valor actual: un número o el rango", async () => {
+    await openEditor();
+    expect(field("Gramos de Puré de papa")).toHaveProp("value", "200");
+    expect(field("Gramos de Milanesa")).toHaveProp("value", "150-190");
+    expect(field("Kcal de Milanesa")).toHaveProp("value", "380-470");
+    expect(field("Calorías totales")).toHaveProp("value", "620-780");
+    expect(field("Proteínas (g)")).toHaveProp("value", "38-46");
+    // Ejemplos cortos, sin explicación: esa va una vez arriba.
+    expect(field("Proteínas (g)")).toHaveProp("placeholder", "40 o 35-45");
+    expect(field("Calorías totales")).toHaveProp("placeholder", "650 o 600-700");
+    expect(field("Gramos de Milanesa")).toHaveProp("placeholder", "Ej.: 120 g");
+    expect(field("Kcal de Milanesa")).toHaveProp("placeholder", "Ej.: 300");
+    expect(field("Nombre de Milanesa")).toHaveProp("placeholder", "Ej.: arroz");
+    // Sin la opción de elegir entre un valor y un rango.
+    expect(screen.queryByRole("button", { name: /usar mínimo y máximo/ })).toBeNull();
+    expect(
+      screen.getByText("Podés poner un número exacto o un rango si no estás seguro."),
+    ).toBeOnTheScreen();
+    expect(screen.queryByText(/Escribí lo que sepas/)).toBeNull();
+  });
+
   it("un valor que vuelve a como estaba no cuenta como cambio", async () => {
     await openEditor();
     await type("Kcal de Puré de papa", "200");
     expect(saveButton()).toBeEnabled();
-    await type("Kcal de Puré de papa", "");
+    await type("Kcal de Puré de papa", "180-230");
     expect(saveButton()).toBeDisabled();
-    await type("Gramos de Puré de papa", "200");
+    await type("Gramos de Milanesa", "150 – 190");
     expect(saveButton()).toBeDisabled();
+  });
+
+  it("un rango escrito de cualquier forma se guarda, y al revés se da vuelta", async () => {
+    await openEditor();
+    await type("Gramos de Milanesa", "180 a 160");
+    await type("Kcal de Milanesa", "400 – 450");
+    await type("Grasas (g)", "30");
+    await save();
+    expect(patchBody().items?.[0]).toEqual({
+      name: "Milanesa",
+      grams: { min: 160, max: 180 },
+      kcal: { min: 400, max: 450 },
+    });
+    expect(patchBody().macros?.fat).toEqual({ min: 30, max: 30 });
+  });
+
+  it("el plato y los ingredientes bajan de renglón en vez de deslizarse; Enter confirma", async () => {
+    await openEditor();
+    for (const label of ["Plato", "Nombre de Milanesa"]) {
+      // Multilínea: el campo crece en alto con el texto.
+      expect(field(label)).toHaveProp("multiline", true);
+      // Enter no agrega un salto: cierra el teclado y confirma, como un campo de un renglón.
+      expect(field(label)).toHaveProp("submitBehavior", "blurAndSubmit");
+    }
+    const long = "Milanesa de ternera a la napolitana con jamón, queso y salsa de tomate casera";
+    await type("Plato", long);
+    expect(field("Plato")).toHaveProp("value", long);
+  });
+
+  it("el campo de nombre no tiene nada que fije su alto", async () => {
+    await openEditor();
+    for (const label of ["Plato", "Nombre de Milanesa"]) {
+      const style = [field(label).props.style].flat(Infinity) as { height?: number }[];
+      expect(style.some((entry) => entry?.height !== undefined)).toBe(false);
+      expect(field(label)).not.toHaveProp("numberOfLines");
+      // Con scroll propio: si no llegara a crecer, el renglón del cursor igual se ve.
+      expect(field(label).props.scrollEnabled).not.toBe(false);
+    }
+  });
+
+  it("los gramos y las kcal aceptan la unidad escrita, como en el ejemplo", async () => {
+    await openEditor();
+    await type("Gramos de Milanesa", "120 g");
+    await type("Kcal de Milanesa", "300 kcal");
+    await save();
+    expect(patchBody().items?.[0]).toEqual({
+      name: "Milanesa",
+      grams: { min: 120, max: 120 },
+      kcal: { min: 300, max: 300 },
+    });
+  });
+
+  it("un nombre pegado con saltos de línea queda en un renglón", async () => {
+    await openEditor();
+    await type("Plato", "Milanesa\ncon puré  \r\n de papa");
+    expect(field("Plato")).toHaveProp("value", "Milanesa con puré de papa");
+    await type("Nombre de Milanesa", "Milanesa\nde pollo");
+    await save();
+    expect(patchBody().dish).toBe("Milanesa con puré de papa");
+    expect(patchBody().items?.[0].name).toBe("Milanesa de pollo");
+  });
+
+  it("la foto sigue visible después de guardar, aunque el PATCH traiga otra firma", async () => {
+    await openEditor({
+      // Como el Backend real: cada respuesta trae la URL firmada en ese momento.
+      patch: (call) =>
+        json(200, {
+          ...ready,
+          ...(JSON.parse(call.body as string) as MealCorrection),
+          photoUrl: "https://media.test/photo.jpg?firma=2",
+        }),
+    });
+    await type("Plato", "Milanesa napolitana");
+    await save();
+
+    expect(await screen.findByText("Milanesa napolitana")).toBeOnTheScreen();
+    expect(screen.getByLabelText("Foto de tu comida")).toHaveProp("source", {
+      uri: ready.photoUrl,
+    });
   });
 
   it("quitar un ingrediente se puede deshacer; al guardar, el total es la suma de lo que queda", async () => {
@@ -161,31 +261,30 @@ describe("corregir una comida", () => {
     expect(patchBody()).toEqual({ items: [meal.items[1]], kcal: { min: 800, max: 800 } });
   });
 
-  it("volver a la suma vacía el total", async () => {
+  it("volver a la suma muestra la suma en el total, que la sigue de nuevo", async () => {
     await openEditor();
     await type("Calorías totales", "800");
     await press("Quitar Milanesa");
     await press("Usar la suma de los ingredientes: 180–230 kcal");
-    expect(field("Calorías totales")).toHaveProp("value", "");
-    expect(field("Calorías totales")).toHaveProp("placeholder", "180–230 kcal");
+    expect(field("Calorías totales")).toHaveProp("value", "180-230");
+    expect(screen.getByText("Suma de los ingredientes.")).toBeOnTheScreen();
   });
 
-  it("el rango completo queda para quien lo quiera, con el mínimo que no pasa al máximo", async () => {
+  it("algo que no se entiende, vacío o negativo muestra el error debajo y no deja guardar", async () => {
     await openEditor();
-    await press("Gramos de Milanesa: usar mínimo y máximo");
-    expect(field("Gramos de Milanesa, mínimo")).toHaveProp("value", "150");
-    expect(field("Gramos de Milanesa, máximo")).toHaveProp("value", "190");
+    await type("Gramos de Milanesa", "600-");
+    await fireEvent(field("Gramos de Milanesa"), "blur");
+    expect(screen.getByText("Escribí un número (650) o un rango (600-700).")).toBeOnTheScreen();
 
-    await type("Gramos de Milanesa, máximo", "140");
-    await fireEvent(field("Gramos de Milanesa, máximo"), "blur");
-    expect(screen.getByText("No puede ser menor que el mínimo.")).toBeOnTheScreen();
+    await type("Calorías totales", "");
+    await type("Proteínas (g)", "-5");
     await press("Guardar cambios");
+    expect(screen.getByText("Ingresá las calorías totales.")).toBeOnTheScreen();
+    expect(screen.getByText("No puede ser negativo.")).toBeOnTheScreen();
     expect(patches()).toHaveLength(0);
 
-    await type("Gramos de Milanesa, máximo", "160");
-    expect(screen.queryByText("No puede ser menor que el mínimo.")).toBeNull();
-    await save();
-    expect(patchBody().items?.[0].grams).toEqual({ min: 150, max: 160 });
+    await type("Gramos de Milanesa", "160");
+    expect(screen.queryByText("Escribí un número (650) o un rango (600-700).")).toBeNull();
   });
 
   it("los errores se ven en el campo al salir de él o al guardar, y no se manda nada", async () => {
@@ -199,7 +298,7 @@ describe("corregir una comida", () => {
     await type("Grasas (g)", "12,5");
     await press("Guardar cambios");
     expect(screen.getByText("No puede ser negativo.")).toBeOnTheScreen();
-    expect(screen.getByText("Usá un número entero, sin comas ni puntos.")).toBeOnTheScreen();
+    expect(screen.getByText("Usá números enteros, sin comas ni puntos.")).toBeOnTheScreen();
     expect(patches()).toHaveLength(0);
 
     await type("Plato", "Milanesa");

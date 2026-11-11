@@ -1,10 +1,11 @@
 import { Eye, EyeClosed } from "lucide-react-native";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { Ref } from "react";
 import { Pressable, StyleSheet, TextInput, View } from "react-native";
-import type { TextInputInstance, TextInputProps } from "react-native";
+import type { TextInputInstance, TextInputProps, ViewInstance } from "react-native";
 import { borderWidth, colors, fonts, opacity, radius, sizes, spacing, typography } from "@/theme";
 import type { ColorToken } from "@/theme";
+import { useRevealInScroll } from "./Screen";
 import { Text } from "./Text";
 import { useTone } from "./tone";
 import type { SurfaceTone } from "./tone";
@@ -19,6 +20,7 @@ export interface InputProps extends Omit<TextInputProps, "style" | "placeholderT
   revealedPlaceholder?: string;
   /** No muestra el label, que sigue llegando al lector de pantalla: lo dibuja quien arma el campo. */
   hideLabel?: boolean;
+  wrap?: boolean;
   ref?: Ref<TextInputInstance>;
 }
 
@@ -36,7 +38,9 @@ export function Input({
   placeholder,
   revealedPlaceholder,
   hideLabel = false,
+  wrap = false,
   secureTextEntry = false,
+  onChangeText,
   onFocus,
   onBlur,
   ref,
@@ -44,6 +48,9 @@ export function Input({
 }: InputProps) {
   const [focused, setFocused] = useState(false);
   const [revealed, setRevealed] = useState(false);
+  const box = useRef<ViewInstance>(null);
+  const boxHeight = useRef(0);
+  const revealInScroll = useRevealInScroll();
   const tone = useTone();
   const onBrand = tone === "brand";
   const invalid = Boolean(error);
@@ -57,6 +64,13 @@ export function Input({
         </Text>
       )}
       <View
+        ref={box}
+        onLayout={(event) => {
+          const { height } = event.nativeEvent.layout;
+          const grew = height > boxHeight.current;
+          boxHeight.current = height;
+          if (wrap && focused && grew) revealInScroll?.(box.current);
+        }}
         style={[
           styles.box,
           onBrand && styles.boxOnBrand,
@@ -73,6 +87,14 @@ export function Input({
           cursorColor={colors.primary}
           selectionColor={colors.primary}
           {...props}
+          {...(wrap && {
+            multiline: true,
+            submitBehavior: "blurAndSubmit",
+            returnKeyType: props.returnKeyType ?? "done",
+          })}
+          onChangeText={
+            wrap && onChangeText ? (text) => onChangeText(singleLine(text)) : onChangeText
+          }
           secureTextEntry={secureTextEntry && !revealed}
           onFocus={(event) => {
             setFocused(true);
@@ -82,7 +104,7 @@ export function Input({
             setFocused(false);
             onBlur?.(event);
           }}
-          style={styles.input}
+          style={[styles.input, wrap && styles.wrap]}
         />
         {secureTextEntry && (
           <Pressable
@@ -118,6 +140,11 @@ export function Input({
       ) : null}
     </View>
   );
+}
+
+/** Un texto en un solo renglón: los saltos de línea, con sus espacios alrededor, pasan a un espacio. */
+export function singleLine(text: string): string {
+  return text.replace(/[^\S\r\n]*[\r\n]+\s*/g, " ");
 }
 
 const padding = (border: number) => spacing.md - (border - borderWidth.default);
@@ -156,6 +183,12 @@ const styles = StyleSheet.create({
     ...fonts.regular,
     fontSize: typography.body.fontSize,
     color: colors.ink,
+  },
+  wrap: {
+    alignSelf: "center",
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.sm,
+    textAlignVertical: "center",
   },
   toggle: {
     width: sizes.touchTarget,
