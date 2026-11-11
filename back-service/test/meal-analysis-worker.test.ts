@@ -30,7 +30,7 @@ import type { MealAnalysisWorker } from "../src/jobs/meal-analysis-worker";
 import { MealModel } from "../src/models/Meal";
 import type { MealStatus } from "../src/models/Meal";
 import type { MediaService } from "../src/services/media";
-import { captureLogger, storageEnv } from "./helpers";
+import { captureLogger, createOwner, storageEnv } from "./helpers";
 
 const REQUEST_ID = "0b6f3c1e-7d2a-4c5b-9e8f-1a2b3c4d5e6f";
 const NOTE = "milanesa con puré, nota privada";
@@ -95,7 +95,7 @@ function recordingAnalyze() {
 }
 
 async function createMeal({ audio = false, status = "processing" as MealStatus } = {}) {
-  const userId = new mongoose.Types.ObjectId();
+  const userId = await createOwner();
   const _id = new mongoose.Types.ObjectId();
   const prefix = `users/${userId}/meals/${_id}`;
   return MealModel.create({

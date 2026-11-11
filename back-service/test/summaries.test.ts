@@ -11,7 +11,7 @@ import { createAuthService } from "../src/services/auth";
 import { createSummaryService } from "../src/services/summaries";
 import { signAccessToken } from "../src/services/tokens";
 import { createUserService } from "../src/services/users";
-import { captureLogger, listen } from "./helpers";
+import { captureLogger, listen, createOwner } from "./helpers";
 
 const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
 const REQUEST_ID = "0b6f3c1e-7d2a-4c5b-9e8f-1a2b3c4d5e6f";
@@ -68,6 +68,7 @@ describe("back-service: GET /summaries/weekly/:week", () => {
     mongo = await MongoMemoryServer.create();
     await mongoose.connect(mongo.getUri());
     await WeeklySummaryModel.init();
+    await createOwner({ _id: userId });
     const api = apiRouter({
       auth: createAuthService({ privateKey }),
       users: createUserService(),

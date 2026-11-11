@@ -26,9 +26,9 @@ Arquitectura en tres capas: **App → Front Service → Backend → MongoDB**. V
 | nginx | 2 · DMZ | 443 (80 → redirige) | Terminación TLS, rate limit por IP, límite de tamaño de body, reverse proxy al Front | Datos ni secretos |
 | Front Service (Express) | 2 · DMZ | 3000 | Cara pública de `/api/v1`: verifica JWT con la clave **pública**, valida y sanitiza con zod, rechaza 400/401/413, reenvía al Backend. Stateless | Conexión a Mongo, claves de IA, clave privada |
 | Backend (Express) | 3 · Red segura | 4000 | Lógica de negocio: login y firma de tokens (clave **privada**), autorización (ownership, plan, cupo), lectura/escritura en Mongo, subida de media al storage, encola análisis y responde 202. Suscripción premium con Stripe (`services/billing`, únicas claves de pagos). Re-verifica el JWT y solo acepta conexiones del Front | Claves de IA |
-| Worker de jobs | 3 · Red segura | — | Consume la cola: transcribe audio, busca platos similares, llama a la IA, guarda el análisis, reintentos con backoff, cron del Wrapped, envía push | — (único con claves de IA) |
-| Redis | 3 · Red segura | 6379 | Colas de trabajos (BullMQ): `meal-analysis` entre Backend y Worker, y `weekly-summary` para el cron del Wrapped | — |
-| MongoDB | 3 · Red segura | 27017 | Las 4 collections (`users`, `meals`, `weekly_summaries`, `gamification`) y `billing_events` (ids de eventos del webhook de pagos) | — |
+| Worker de jobs | 3 · Red segura | — | Consume la cola: transcribe audio, busca platos similares, llama a la IA, guarda el análisis, reintentos con backoff, cron del Wrapped, envía push, termina el borrado de cuentas (media del bucket) | — (único con claves de IA) |
+| Redis | 3 · Red segura | 6379 | Colas de trabajos (BullMQ): `meal-analysis` entre Backend y Worker, `weekly-summary` para el cron del Wrapped y `account-deletion` para terminar el borrado de cuentas | — |
+| MongoDB | 3 · Red segura | 27017 | Las 4 collections (`users`, `meals`, `weekly_summaries`, `gamification`), `billing_events` (ids de eventos del webhook de pagos) y `account_deletions` (pedidos de borrado de cuenta) | — |
 | Storage privado (MinIO en local) | 3 · Red segura | 9000 | Fotos y audios en bucket sin acceso público, servidos con URLs firmadas (≤ 15 min). Solo Backend y Worker tienen credenciales, de un usuario limitado al bucket | — |
 
 ## Comunicaciones y puertos
@@ -134,6 +134,16 @@ El Backend (:4000) solo atiende por HTTPS con mTLS (RNF-03, decisión 9): cifrad
 6. La app lo lee con `GET /summaries/weekly/:week`.
 
 En local, `npm run wrapped -- --week 2026-W43` (en `back-service/`) encola un fan-out sin esperar al lunes.
+
+## Borrado de cuenta (RNF-04)
+
+1. En el perfil, "Eliminar cuenta" abre una pantalla que explica qué se borra y que no se recupera, y pide escribir ELIMINAR. La app manda `DELETE /api/v1/users/me`; el Front verifica el JWT y lo reenvía sin body.
+2. El Backend borra el cliente en Stripe si lo hay (si falla, 503 sin tocar nada), registra el pedido en `account_deletions`, borra el usuario y sus comidas, Wrapped y racha, encola la limpieza en `account-deletion` con un minuto de espera y responde 204.
+3. El Worker toma el job `purge`: vuelve a borrar los documentos de esa cuenta, borra el prefijo `users/{userId}/` del bucket y marca el pedido como terminado. Si falla, reintenta con backoff durante cerca de una hora.
+4. Un job scheduler (`account-deletion-sweep`, cada hora) vuelve a encolar los pedidos pendientes de hace más de 10 minutos.
+5. Con el 204, la app borra los tokens, la carpeta de cache y los avisos, y vuelve al login con un mensaje.
+
+El orden, lo que está en vuelo y lo que queda fuera del alcance (backups, OpenAI, logs) están en [seguridad.md](seguridad.md#borrado-de-cuenta-rnf-04).
 
 ## Organización del repo
 

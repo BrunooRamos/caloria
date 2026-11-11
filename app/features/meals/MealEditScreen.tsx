@@ -21,18 +21,20 @@ import type { Meal, MealValues, ReadyMeal } from "@/services/meals";
 import { useCachedMeal, useMealCache } from "@/store/meals";
 import { sizes, spacing, typography } from "@/theme";
 import { formatRange } from "./format";
-import { MACRO_KEYS, errorKey, isManual } from "./edit/draft";
+import { MACRO_KEYS, isManual, rangeKey } from "./edit/draft";
 import type { MacroKey, RangePath } from "./edit/draft";
+import { keepPhoto } from "./edit/correction";
 import { ItemEditor, RemovedItem } from "./edit/ItemEditor";
+import { formatRangeInput } from "./edit/parse-range";
 import { RangeField } from "./edit/RangeField";
 import { useMealEditor } from "./edit/useMealEditor";
 import { DISH_MAX_CHARS, ITEMS_MAX } from "./edit/validation";
 import { NotFoundState } from "./result/FailedState";
 
-const MACRO_LABELS: Record<MacroKey, string> = {
-  protein: "Proteínas (g)",
-  carbs: "Carbohidratos (g)",
-  fat: "Grasas (g)",
+const MACROS: Record<MacroKey, { label: string; placeholder: string }> = {
+  protein: { label: "Proteínas (g)", placeholder: "40 o 35-45" },
+  carbs: { label: "Carbohidratos (g)", placeholder: "60 o 50-70" },
+  fat: { label: "Grasas (g)", placeholder: "30 o 25-35" },
 };
 
 /** Corregir una comida lista: plato, ingredientes, kcal y macros (RF-06). */
@@ -127,8 +129,11 @@ function MealEditForm({ meal }: { meal: ReadyMeal }) {
   const [leaving, setLeaving] = useState<"saved" | "discarded" | null>(null);
   const editor = useMealEditor(base, async (body) => {
     const updated = await correctMeal(meal.id, body);
-    // El detalle que la tiene abierta la muestra corregida sin pedirla de nuevo.
-    if (cache.get(meal.id)) cache.set(meal.id, updated);
+    // El detalle que la tiene abierta la muestra corregida sin pedirla de nuevo. Una corrección no
+    // cambia la foto: queda la URL que ya se ve, así la imagen no se vuelve a cargar de cero con la
+    // firma nueva mientras el detalle está tapado. Si vence, el detalle la renueva (onError).
+    const shown = cache.get(meal.id);
+    if (shown) cache.set(meal.id, keepPhoto(shown, updated));
     toast("Guardamos la corrección.");
     setLeaving("saved");
   });
@@ -160,7 +165,7 @@ function MealEditForm({ meal }: { meal: ReadyMeal }) {
   let totalHint: string | undefined;
   let totalAction: { title: string; onPress(): void } | undefined;
   if (autoTotal.source === "sum") {
-    if (isManual(draft.kcal)) {
+    if (isManual(draft)) {
       totalAction = {
         title: `Usar la suma de los ingredientes: ${formatRange(autoTotal.kcal, "kcal")}`,
         onPress: editor.resetTotal,
@@ -169,12 +174,6 @@ function MealEditForm({ meal }: { meal: ReadyMeal }) {
       totalHint = "Suma de los ingredientes.";
     }
   }
-
-  const rangeErrors = (path: RangePath) => ({
-    value: errors[errorKey(path, "value")],
-    min: errors[errorKey(path, "min")],
-    max: errors[errorKey(path, "max")],
-  });
 
   return (
     <Screen
@@ -193,13 +192,11 @@ function MealEditForm({ meal }: { meal: ReadyMeal }) {
       }
     >
       <View style={styles.content}>
-        <Text color="inkMuted">
-          Escribí lo que sepas: un solo número si conocés el valor exacto. Lo que dejes vacío queda
-          como estaba.
-        </Text>
+        <Text color="inkMuted">Podés poner un número exacto o un rango si no estás seguro.</Text>
 
         <Input
           label="Plato"
+          wrap
           value={draft.dish}
           maxLength={DISH_MAX_CHARS}
           editable={editable}
@@ -236,15 +233,14 @@ function MealEditForm({ meal }: { meal: ReadyMeal }) {
           </Text>
           <RangeField
             label="Calorías totales"
-            unit="kcal"
-            draft={draft.kcal}
-            current={autoTotal.kcal}
-            errors={rangeErrors(totalPath)}
+            // Automático, muestra el calculado y lo sigue si cambian los ingredientes.
+            value={draft.kcal ?? formatRangeInput(autoTotal.kcal)}
+            placeholder="650 o 600-700"
+            error={errors[rangeKey(totalPath)]}
             hint={totalHint}
             action={totalAction}
             editable={editable}
-            onChange={(next) => editor.setRange(totalPath, next)}
-            onToggle={() => editor.toggleRange(totalPath, autoTotal.kcal)}
+            onChangeText={(text) => editor.setRange(totalPath, text)}
             onBlur={() => editor.blurRange(totalPath)}
           />
           {MACRO_KEYS.map((macro) => {
@@ -252,14 +248,12 @@ function MealEditForm({ meal }: { meal: ReadyMeal }) {
             return (
               <RangeField
                 key={macro}
-                label={MACRO_LABELS[macro]}
-                unit="g"
-                draft={draft.macros[macro]}
-                current={base.macros[macro]}
-                errors={rangeErrors(path)}
+                label={MACROS[macro].label}
+                value={draft.macros[macro]}
+                placeholder={MACROS[macro].placeholder}
+                error={errors[rangeKey(path)]}
                 editable={editable}
-                onChange={(next) => editor.setRange(path, next)}
-                onToggle={() => editor.toggleRange(path, base.macros[macro])}
+                onChangeText={(text) => editor.setRange(path, text)}
                 onBlur={() => editor.blurRange(path)}
               />
             );

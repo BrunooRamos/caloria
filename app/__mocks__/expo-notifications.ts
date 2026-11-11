@@ -65,6 +65,7 @@ const fns = (shared.__expoNotificationsFns ??= {
     state.listeners.add(listener);
     return { remove: () => state.listeners.delete(listener) };
   }),
+  dismissAllNotificationsAsync: jest.fn(() => Promise.resolve()),
 });
 
 export const {
@@ -76,6 +77,7 @@ export const {
   getLastNotificationResponse,
   clearLastNotificationResponse,
   addNotificationResponseReceivedListener,
+  dismissAllNotificationsAsync,
 } = fns;
 
 /** Arma la respuesta de tocar un aviso con este `data`. */

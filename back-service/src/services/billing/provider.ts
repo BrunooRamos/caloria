@@ -37,6 +37,11 @@ export interface BillingProvider {
   /** Deshace cancelAtPeriodEnd sobre la misma suscripción (se vuelve a renovar). */
   resumeSubscription(subscriptionId: string): Promise<ProviderSubscription>;
   /**
+   * Borra el cliente al borrar la cuenta: cancela en el momento sus suscripciones, sin
+   * esperar al fin del período, y quita los medios de pago guardados. Si ya no existe, no falla.
+   */
+  deleteCustomer(customerId: string): Promise<void>;
+  /**
    * Verifica la firma sobre los bytes crudos del body y devuelve el evento normalizado.
    * Lanza InvalidWebhookSignatureError si falta la firma o no es válida.
    */

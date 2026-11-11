@@ -8,6 +8,7 @@
   - `refreshToken` de **30 días** con **rotación**: cada `/auth/refresh` invalida el anterior y emite un par nuevo de la misma familia.
 - Si se reusa un refresh token viejo, se revoca **toda la familia** (posible robo).
 - `/auth/logout` revoca los refresh tokens de la familia en la base.
+- El Backend, además de la firma, verifica en cada request que la cuenta del token exista. El access token no tiene estado y el Front solo mira la firma: sin este chequeo, el token de una cuenta borrada seguiría sirviendo hasta que vence (RNF-04).
 - La **clave privada** firma y vive solo en el Backend. La **clave pública** verifica y está en el Front Service. Si comprometen el Front, no se pueden fabricar tokens.
 - En el teléfono, los tokens viven en **SecureStore**.
 
@@ -55,5 +56,38 @@
 
 - Fotos y audios en **bucket privado**; la app los ve con **URLs firmadas de vida corta** (15 min). Se firman en cada lectura, nunca se guardan en la base y la respuesta va con `Cache-Control: no-store`.
 - Solo se comparten con el proveedor de IA necesario para el análisis.
-- `DELETE /users/me` borra cuenta, documentos (`users`, `meals`, `weekly_summaries`, `gamification`) y media: derecho al olvido de punta a punta.
+- `DELETE /users/me` borra cuenta, documentos (`users`, `meals`, `weekly_summaries`, `gamification`) y media: derecho al olvido de punta a punta. Ver [Borrado de cuenta](#borrado-de-cuenta-rnf-04).
 - Los logs no incluyen fotos, audios, transcripciones ni tokens.
+
+## Borrado de cuenta (RNF-04)
+
+Se hace una sola vez y no se puede deshacer. Lo que más importa es que no quede nada huérfano y que no se toque a nadie más.
+
+**Orden.** Lo que falle a mitad de camino se completa después, nunca queda a medias:
+
+1. **Proveedor de pagos:** si la cuenta tiene un cliente en Stripe, se borra ahí antes que nada. Eso termina la suscripción en el momento, sin reintegro proporcional del período, y quita los medios de pago guardados. Va primero porque, sin el usuario, se pierde el id del cliente y se le seguiría cobrando. Si falla, 503 y no se tocó nada.
+2. **El pedido:** se registra en `account_deletions` (solo el id de la cuenta y la fecha). Es la marca de que la cuenta se está borrando y lo que le permite al Worker terminar aunque falle lo que sigue.
+3. **El usuario:** con el documento se van las sesiones (refresh tokens), los push tokens, el email y el hash de la contraseña. Desde acá no se puede entrar ni renovar la sesión, y el Backend rechaza el access token.
+4. **Sus documentos:** comidas, Wrapped y racha.
+5. **La limpieza del Worker:** se encola con un minuto de espera, para que terminen los requests que pasaron el control de sesión justo antes. La limpieza vuelve a borrar los documentos (lo que esos requests alcanzaron a crear), borra todo el prefijo `users/{userId}/` del bucket y recién ahí marca el pedido como terminado. Si algo falla, BullMQ reintenta durante cerca de una hora.
+6. **El barrido:** cada hora, el Worker vuelve a encolar los pedidos pendientes de hace más de 10 minutos. Cubre que Redis no haya respondido al encolar, que haya perdido el job o que se hayan agotado los reintentos.
+
+**Que no toque a nadie más.** Todos los filtros se arman con el id de la cuenta ya validado como ObjectId: un id vacío o inválido lanza antes de llegar a Mongo. La limpieza no borra nada si no hay un pedido registrado para ese id. Un test con dos cuentas verifica que la que no se borra queda exactamente igual, documentos y media, también contra MinIO.
+
+**Lo que está en vuelo.** Ningún job vuelve a crear datos de una cuenta borrada:
+
+- **Análisis:** un job de una comida que ya no existe termina sin error. Si la comida todavía existe pero la cuenta no, se descarta sin bajar la foto ni mandarla a la IA.
+- **Wrapped:** el job confirma que la cuenta existe antes de llamar a la IA y otra vez antes de guardar, y tampoco crea un resumen `failed` de una cuenta que no existe. Lo que se escriba en los milisegundos entre el chequeo y el guardado lo borra la limpieza.
+- **Avisos:** se mandan a los tokens del usuario, que ya no existe. Un aviso de racha en riesgo, cuando se haga, tiene que leer la cuenta igual que los demás y nunca crear documentos.
+- **Webhooks de Stripe:** los eventos de un cliente sin usuario se aceptan y se ignoran.
+- **Regla:** cualquier escritura nueva del Worker que pueda crear un documento (un upsert) confirma antes que la cuenta existe.
+
+**En el teléfono.** Cuando el Backend confirma, la app borra los tokens, la carpeta de cache (fotos y audios de la cámara, fotos preparadas para subir, imágenes del Wrapped) y los avisos del centro de notificaciones, y vuelve al login con un mensaje. Si el pedido falla, no toca nada y se puede reintentar. Otro teléfono con la misma cuenta abierta recibe 401 en cada pedido y sale al login cuando vence su access token, en 15 minutos como mucho.
+
+**Lo que queda fuera de nuestro alcance**, dicho como es:
+
+- **Backups de Mongo:** siguen teniendo los datos hasta que rotan. Restaurar uno traería de vuelta las cuentas borradas después de esa copia, y hoy no queda registro de cuáles fueron: el pedido se borra una hora después de terminar. Antes de usar backups en producción hay que definir la retención y cómo volver a aplicar los borrados después de restaurar (por ejemplo, guardar los ids borrados mientras duren los backups).
+- **OpenAI:** las fotos, audios y textos que ya se mandaron para analizar quedan según la política de datos de su API, que guarda las entradas hasta 30 días para detectar abusos, salvo que la cuenta tenga retención cero.
+- **Logs:** tienen ids (cuenta, comida, request) y nunca contenido. Se guardan lo que dure su retención.
+- **Stripe:** conserva los registros de cobros que le exige la ley. Solo tienen el id del cliente y nuestro id de usuario, sin email.
+- **Cache de IA por foto (RNF-07):** todavía no existe. Cuando se haga, lo que guarde de una cuenta se tiene que borrar con ella.

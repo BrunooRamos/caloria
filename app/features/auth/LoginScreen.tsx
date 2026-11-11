@@ -10,7 +10,7 @@ import { useForm } from "./useForm";
 import { loginSchema } from "./validation";
 
 export default function LoginScreen() {
-  const { signIn } = useSession();
+  const { signIn, notice } = useSession();
   const passwordRef = useRef<TextInputInstance>(null);
   const form = useForm({
     schema: loginSchema,
@@ -23,12 +23,27 @@ export default function LoginScreen() {
     <Screen scroll tone="brand">
       <View style={styles.header}>
         <Logo />
-        <Text variant="h1" color="cream" accessibilityRole="header" style={styles.centered}>
-          Hola de nuevo
-        </Text>
-        <Text color="onPrimaryMuted" style={styles.centered}>
-          Ingresá con tu email y tu contraseña.
-        </Text>
+        {notice === "accountDeleted" ? (
+          // Después de eliminar la cuenta: lo confirma con calma, sin pedir nada.
+          <View accessibilityLiveRegion="polite" style={styles.header}>
+            <Text variant="h1" color="cream" accessibilityRole="header" style={styles.centered}>
+              Eliminamos tu cuenta
+            </Text>
+            <Text color="onPrimaryMuted" style={styles.centered}>
+              Borramos tu perfil, tus comidas con sus fotos y audios, y tus resúmenes. Gracias por
+              haber usado CalorIA.
+            </Text>
+          </View>
+        ) : (
+          <>
+            <Text variant="h1" color="cream" accessibilityRole="header" style={styles.centered}>
+              Hola de nuevo
+            </Text>
+            <Text color="onPrimaryMuted" style={styles.centered}>
+              Ingresá con tu email y tu contraseña.
+            </Text>
+          </>
+        )}
       </View>
 
       <View style={styles.spacer} />

@@ -300,3 +300,27 @@ Sumá tests de la lógica que decide qué mostrar en cada estado (free, premium,
 ```text
 no deberia ni dejarte sacar la foto si no tenemos usage disponible. que salga un popup con lo del plan y que ahi te navegue a la pantalla de planes si queres
 ```
+
+### 2026-11-10 18:03
+
+```text
+Este ticket es el borrado de cuenta, el derecho al olvido de punta a punta (RNF-04). Atraviesa todas las capas: la opción en la app, el reenvío en el Front Service, el `DELETE /users/me` en el Backend y la limpieza en el Worker y el bucket. Leé la sección de privacidad de `docs/seguridad.md`, RNF-04 en `docs/requerimientos.md`, las cuatro collections en `docs/modelo-datos.md` y cómo está organizada la media en el bucket. Trabajá desde `main` en la rama `feat/rnf-04-delete-account`.
+
+Los criterios: se borran los documentos de `users`, `meals`, `weekly_summaries` y `gamification` del usuario, junto con toda su media del bucket; el endpoint responde 204 y revoca las sesiones; y en la app hay una opción para hacerlo, con confirmación.
+
+Lo que más me preocupa es que esto se hace una sola vez y no se puede deshacer, así que quiero que me cuentes cómo lo vas a encarar antes de escribir código. Hay varias cosas para pensar.
+
+El orden y las fallas a mitad de camino. Si se borra Mongo y falla el bucket, quedan fotos huérfanas que nadie va a poder borrar después; si pasa al revés, queda una cuenta sin su media. Me imagino algo así: marcar primero al usuario como en proceso de borrado, para que deje de poder usar la app, borrar los documentos, y mandar la limpieza del bucket a un job del Worker con reintentos, igual que hacemos con los análisis, de forma que se complete aunque algo falle en el momento. Si para eso conviene que la media esté organizada bajo un prefijo por usuario y hoy no lo está, decímelo. Si se te ocurre algo mejor, proponelo.
+
+Lo que está en vuelo. Puede haber un análisis en la cola de Redis para una comida que ya no existe, o el cron del Wrapped corriendo justo para ese usuario. El Worker tiene que manejar esos casos sin romper y, sobre todo, sin volver a crear datos de alguien que ya se borró. Lo mismo con las notificaciones programadas, como la de racha en riesgo.
+
+Las sesiones. Revocar los refresh tokens no alcanza, porque el access token es un JWT sin estado que sigue siendo válido hasta 15 minutos, y el Front solo verifica la firma. El Backend tiene que rechazar cualquier request de un usuario que ya no existe o está en borrado, aunque el token sea válido.
+
+Lo que vive fuera de las cuatro collections. Si ya existe la cache de respuestas de la IA por hash de foto (RNF-07), esos datos también se borran. Si la persona tiene premium, hay que cancelar la suscripción con el proveedor de pagos, para que no se le siga cobrando una cuenta que ya no existe. Y los backups de Mongo van a seguir conteniendo los datos durante un tiempo: no hace falta resolverlo ahora, pero dejalo documentado con honestidad en `docs/seguridad.md`.
+
+En la app, la opción va en el perfil, al final y sin llamar la atención, pero fácil de encontrar para quien la busca. La confirmación tiene que explicar claramente qué se borra y que no se puede recuperar, y pedir algo más que un toque, como escribir una palabra o la contraseña. La skill reserva `danger` para errores técnicos, así que si creés que una acción destructiva como esta necesita su propio estilo, proponé cómo sumarlo a la skill en vez de usar el rojo de errores. Cuando el borrado termina, la app limpia todo lo local (tokens, caches, imágenes temporales) y vuelve al login con un mensaje tranquilo que confirme que la cuenta se eliminó. Si la request falla por la conexión, tiene que poder reintentarse sin dejar la app en un estado raro.
+
+El test que más me importa es el que verifica que el borrado no toque a nadie más: con dos usuarios en la base, se borra uno y el otro tiene que quedar exactamente igual, documentos y media. Un filtro mal escrito en un `deleteMany` puede borrar a todos. Además, cubrí que después del borrado no quede nada del usuario en las cuatro collections ni en el bucket (usá el storage local que tengamos para desarrollo), que su access token y su refresh token dejen de funcionar, que el job de limpieza del bucket reintente si falla, y que un análisis encolado para una comida borrada termine sin error y sin recrear nada.
+
+Esperá mi OK sobre el plan antes de implementar. Al final, pasame un resumen y la verificación de RNF-04: crear una cuenta de prueba con comidas, fotos y un Wrapped, borrarla, y mostrar que no queda nada en Mongo ni en el bucket.
+```

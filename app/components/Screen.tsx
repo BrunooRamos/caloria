@@ -1,7 +1,15 @@
 import { StatusBar } from "expo-status-bar";
+import { createContext, use, useCallback, useRef } from "react";
 import type { PropsWithChildren, ReactElement, ReactNode } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from "react-native";
-import type { RefreshControlProps } from "react-native";
+import {
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  View,
+} from "react-native";
+import type { RefreshControlProps, ScrollViewInstance, ViewInstance } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { Edge } from "react-native-safe-area-context";
 import { colors, spacing } from "@/theme";
@@ -18,6 +26,13 @@ export interface ScreenProps extends PropsWithChildren {
   footer?: ReactNode;
 }
 
+type RevealInScroll = (target: ViewInstance | null) => void;
+const RevealContext = createContext<RevealInScroll | null>(null);
+
+export function useRevealInScroll(): RevealInScroll | null {
+  return use(RevealContext);
+}
+
 export function Screen({
   children,
   scroll = false,
@@ -26,6 +41,23 @@ export function Screen({
   refreshControl,
   footer,
 }: ScreenProps) {
+  const scrollRef = useRef<ScrollViewInstance>(null);
+  const scrollY = useRef(0);
+  const reveal = useCallback<RevealInScroll>((target) => {
+    const scroll = scrollRef.current?.getNativeScrollRef();
+    if (!target || !scroll) return;
+    scroll.measureInWindow((_sx, scrollTop, _sw, scrollHeight) => {
+      target.measureInWindow((_x, top, _width, height) => {
+        // Lo visible termina donde empieza el teclado o donde termina el scroll (arriba del footer).
+        const keyboardTop = Keyboard.isVisible() ? Keyboard.metrics()?.screenY : undefined;
+        const visibleBottom = Math.min(scrollTop + scrollHeight, keyboardTop ?? Infinity);
+        const hidden = top + height + spacing.md - visibleBottom;
+        if (hidden > 0) {
+          scrollRef.current?.scrollTo({ y: scrollY.current + hidden, animated: true });
+        }
+      });
+    });
+  }, []);
   const root = [styles.root, tone === "brand" ? styles.brand : styles.default];
   const statusBar = tone === "brand" ? <StatusBar style="light" /> : null;
   const content = <ToneContext value={tone}>{children}</ToneContext>;
@@ -41,12 +73,17 @@ export function Screen({
 
   const scrollView = (
     <ScrollView
+      ref={scrollRef}
       keyboardShouldPersistTaps="handled"
       automaticallyAdjustKeyboardInsets
       refreshControl={refreshControl}
+      scrollEventThrottle={16}
+      onScroll={(event) => {
+        scrollY.current = event.nativeEvent.contentOffset.y;
+      }}
       contentContainerStyle={[styles.content, styles.grow]}
     >
-      {content}
+      <RevealContext value={reveal}>{content}</RevealContext>
     </ScrollView>
   );
   const body = (
