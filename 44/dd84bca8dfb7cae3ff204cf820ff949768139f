@@ -1,0 +1,26 @@
+app/__tests__/meal-edit.test.tsx
+  s_b1805b26704b2f::t_de047f4d1ca8b0 277,287
+back-service/test/correct-meal.test.ts
+  s_b1805b26704b2f::t_de047f4d1ca8b0 195-197
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "44dd84bca8dfb7cae3ff204cf820ff949768139f",
+  "prompts": {},
+  "humans": {
+    "h_5b36141b16afea": {
+      "author": "pazdiaz15 <mpdiaz@correo.um.edu.uy>"
+    }
+  },
+  "sessions": {
+    "s_b1805b26704b2f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "026c69f3-ce2c-473a-b315-613fe33415ff",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "pazdiaz15 <mpdiaz@correo.um.edu.uy>"
+    }
+  }
+}
