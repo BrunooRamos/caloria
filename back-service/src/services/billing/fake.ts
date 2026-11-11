@@ -28,6 +28,7 @@ export function createFakeBillingProvider({
 }: { webhookSecret?: string; now?: () => Date } = {}) {
   const subscriptions = new Map<string, ProviderSubscription>();
   const checkouts: { customerId: string; userId: string }[] = [];
+  const deletedCustomers = new Set<string>();
   const calls: string[] = [];
   let down = false;
   let seq = 0;
@@ -99,6 +100,15 @@ export function createFakeBillingProvider({
       return { ...sub };
     },
 
+    async deleteCustomer(customerId) {
+      guard("deleteCustomer");
+      deletedCustomers.add(customerId);
+      // Como Stripe: las suscripciones del cliente terminan en el momento.
+      for (const sub of subscriptions.values()) {
+        if (sub.customerId === customerId) sub.status = "canceled";
+      }
+    },
+
     verifyWebhook(payload, headers): ProviderEvent {
       const signature = headers[SIGNATURE_HEADER];
       if (typeof signature !== "string") throw new InvalidWebhookSignatureError();
@@ -125,6 +135,7 @@ export function createFakeBillingProvider({
     provider,
     subscriptions,
     checkouts,
+    deletedCustomers,
     calls,
     setDown(value: boolean) {
       down = value;

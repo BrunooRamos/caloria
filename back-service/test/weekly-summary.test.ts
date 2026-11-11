@@ -46,7 +46,7 @@ import type { InsightsService } from "../src/services/insights";
 import { applyCorrections } from "../src/services/meal-corrections";
 import { createWeeklyMetricsService, topDishOf } from "../src/services/weekly-metrics";
 import type { WeeklyData } from "../src/services/weekly-metrics";
-import { captureLogger, storageEnv } from "./helpers";
+import { captureLogger, createOwner, storageEnv } from "./helpers";
 
 const WEEK = "2026-W43"; // del lunes 2026-10-19 al domingo 2026-10-25
 const NOTE = "nota privada que no va a la IA";
@@ -374,7 +374,7 @@ describe("back-service: Wrapped semanal", () => {
     let userId: Types.ObjectId;
     const NOW = new Date("2026-10-26T09:00:05Z");
     beforeEach(async () => {
-      userId = new Types.ObjectId();
+      userId = await createOwner();
       push = fakeNotifications();
       await seedWeek(userId);
     });
@@ -557,7 +557,7 @@ describe("back-service: Wrapped semanal", () => {
     const noFanOut = () => Promise.reject(new Error("no se esperaba un fan-out"));
 
     it("loguea usuario, semana, intento y outcome", async () => {
-      const userId = new Types.ObjectId();
+      const userId = await createOwner();
       await seedWeek(userId);
       const { logger, lines } = captureLogger("worker");
       const handle = createWeeklySummaryHandler(
@@ -585,7 +585,7 @@ describe("back-service: Wrapped semanal", () => {
     });
 
     it("al agotar los reintentos deja el resumen en failed; antes no", async () => {
-      const userId = new Types.ObjectId();
+      const userId = await createOwner();
       await seedWeek(userId);
       const { logger, lines } = captureLogger("worker");
       const handle = createWeeklySummaryHandler(

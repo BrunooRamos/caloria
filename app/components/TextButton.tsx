@@ -5,6 +5,7 @@ import { Text } from "./Text";
 
 export interface TextButtonProps extends Omit<PressableProps, "children" | "style" | "hitSlop"> {
   title: string;
+  color?: "primary" | "inkMuted";
 }
 
 // Lleva el target táctil a 44 aunque el texto mida 20 de alto.
@@ -14,7 +15,7 @@ const hitSlop = {
 };
 
 /** Acción chica dentro de un bloque, como "Rango" junto al label de un campo o "Deshacer". */
-export function TextButton({ title, disabled, ...props }: TextButtonProps) {
+export function TextButton({ title, color = "primary", disabled, ...props }: TextButtonProps) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -30,7 +31,7 @@ export function TextButton({ title, disabled, ...props }: TextButtonProps) {
       disabled={disabled}
       style={({ pressed }) => [pressed && styles.pressed, disabled && styles.disabled]}
     >
-      <Text variant="smallStrong" color="primary">
+      <Text variant="smallStrong" color={color}>
         {title}
       </Text>
     </Pressable>

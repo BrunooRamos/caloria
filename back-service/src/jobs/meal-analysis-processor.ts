@@ -2,6 +2,7 @@ import { Types } from "mongoose";
 import type { Logger } from "@caloria/shared";
 import { MealModel } from "../models/Meal";
 import type { Meal } from "../models/Meal";
+import { UserModel } from "../models/User";
 import type { MediaService } from "../services/media";
 import { refundMealQuota } from "../services/quota";
 import type { MealAnalysisJob } from "./meal-analysis";
@@ -15,8 +16,11 @@ export interface MealAnalysisInput {
 /** Analiza la comida y la deja en su estado final. Llega desde afuera (`createAnalyzeMeal`). */
 export type AnalyzeMeal = (input: MealAnalysisInput, log: Logger) => Promise<void>;
 
-/** Qué pasó con el job, para el log: `missing` y `skipped` terminan sin error y sin reintento. */
-export type MealAnalysisOutcome = "analyzed" | "missing" | "skipped";
+/**
+ * Qué pasó con el job, para el log. Salvo `analyzed`, terminan sin error y sin reintento:
+ * `account-deleted` es una comida que quedó de una cuenta borrada (la limpieza la borra).
+ */
+export type MealAnalysisOutcome = "analyzed" | "missing" | "skipped" | "account-deleted";
 
 export type MealAnalysisProcessor = (
   job: MealAnalysisJob,
@@ -39,6 +43,12 @@ export function createMealAnalysisProcessor({
     if (!meal) {
       log.warn("la comida del job no existe, se descarta");
       return "missing";
+    }
+    // Cuenta borrada mientras la comida estaba en la cola: ni se baja la foto ni se le
+    // manda a la IA. La comida y su media las borra la limpieza del borrado.
+    if (!(await UserModel.exists({ _id: meal.userId }))) {
+      log.warn("la cuenta de la comida ya no existe, se descarta");
+      return "account-deleted";
     }
     // Un job repetido no pisa una comida que ya se analizó.
     if (meal.status !== "processing") {

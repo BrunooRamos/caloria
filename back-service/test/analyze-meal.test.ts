@@ -146,7 +146,7 @@ function fakeMedia(photo: Uint8Array): MediaService {
   };
 }
 
-/** Dueño de la meal con el tono pedido. Sin tono: la meal es de un usuario que no existe. */
+/** Dueño de la meal con el tono pedido. */
 async function createUser(tone: User["tone"]) {
   const user = await UserModel.create({
     email: `${new mongoose.Types.ObjectId()}@example.com`,
@@ -170,8 +170,10 @@ async function createMeal({
   audio = false,
   note = NOTE,
   transcript = undefined as string | undefined,
-  userId = new mongoose.Types.ObjectId(),
+  userId = undefined as mongoose.Types.ObjectId | undefined,
 } = {}) {
+  // Sin dueño pedido, uno con el comentario apagado: el Worker descarta las comidas sin cuenta.
+  userId ??= await createUser("off");
   const _id = new mongoose.Types.ObjectId();
   const prefix = `users/${userId}/meals/${_id}`;
   return MealModel.create({
@@ -636,7 +638,7 @@ describe("back-service: análisis con IA", () => {
 
   describe("comidas similares (RF-07)", () => {
     it("con una comida corregida parecida, la IA la recibe y se guardan su id y el promptVersion", async () => {
-      const userId = new mongoose.Types.ObjectId();
+      const userId = await createUser("off");
       const corrected = await createCorrectedMeal(userId);
       const meal = await createMeal({ userId });
       const { processor, ai, id, logger, lines } = setup(() => foodResponse());
@@ -677,7 +679,7 @@ describe("back-service: análisis con IA", () => {
     });
 
     it("sin comidas corregidas, no identifica el plato ni manda contexto", async () => {
-      const userId = new mongoose.Types.ObjectId();
+      const userId = await createUser("off");
       // Una corregida de otro usuario no cuenta.
       await createCorrectedMeal(new mongoose.Types.ObjectId());
       const meal = await createMeal({ userId });
@@ -694,7 +696,7 @@ describe("back-service: análisis con IA", () => {
     });
 
     it("si la identificación falla, busca igual con la nota", async () => {
-      const userId = new mongoose.Types.ObjectId();
+      const userId = await createUser("off");
       const corrected = await createCorrectedMeal(userId);
       const meal = await createMeal({ userId, note: "milanesas" });
       const id = fakeIdentifier(() => {
@@ -754,7 +756,7 @@ describe("back-service: análisis con IA", () => {
     }
 
     it("si la transcripción falla mientras se identifica, no queda un rechazo sin manejar", async () => {
-      const userId = new mongoose.Types.ObjectId();
+      const userId = await createUser("off");
       await createCorrectedMeal(userId);
       const meal = await createMeal({ userId, audio: true });
       const unhandled: unknown[] = [];

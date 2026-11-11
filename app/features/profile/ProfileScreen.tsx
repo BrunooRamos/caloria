@@ -2,7 +2,16 @@ import { router } from "expo-router";
 import { Bell, CreditCard, MessageCircle, Target, UserRoundPen } from "lucide-react-native";
 import { useState } from "react";
 import { StyleSheet, View } from "react-native";
-import { Button, FormError, ListGroup, ListRow, Screen, Text, confirmAction } from "@/components";
+import {
+  Button,
+  FormError,
+  ListGroup,
+  ListRow,
+  Screen,
+  Text,
+  TextButton,
+  confirmAction,
+} from "@/components";
 import { planSummary } from "@/features/billing/planView";
 import { useBillingPlan } from "@/features/billing/usePlan";
 import { formatNumber } from "@/features/dashboard/format";
@@ -80,6 +89,14 @@ export default function ProfileScreen() {
 
       <View style={styles.spacer} />
       <SignOut />
+      {/* Al final y sin llamar la atención, pero a la vista para quien la busca. */}
+      <View style={styles.deleteAccount}>
+        <TextButton
+          title="Eliminar cuenta"
+          color="inkMuted"
+          onPress={() => router.push("/profile/delete")}
+        />
+      </View>
     </Screen>
   );
 }
@@ -140,4 +157,5 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     paddingTop: spacing.xl,
   },
+  deleteAccount: { alignItems: "center", paddingVertical: spacing.lg },
 });

@@ -9,6 +9,9 @@ import {
 } from "./config/prompts";
 import { loadWorkerConfig } from "./config/worker";
 import { connectMongo } from "./config/db";
+import { ACCOUNT_DELETION_QUEUE, createAccountDeletionQueue } from "./jobs/account-deletion";
+import { createAccountPurgeProcessor, createAccountSweep } from "./jobs/account-deletion-processor";
+import { createAccountDeletionWorker } from "./jobs/account-deletion-worker";
 import { createAnalyzeMeal } from "./jobs/analyze-meal";
 import { MEAL_ANALYSIS_QUEUE } from "./jobs/meal-analysis";
 import { createMealAnalysisProcessor } from "./jobs/meal-analysis-processor";
@@ -27,6 +30,7 @@ import {
   markWeeklySummaryFailed,
 } from "./jobs/weekly-summary-processor";
 import { createWeeklySummaryWorker } from "./jobs/weekly-summary-worker";
+import { AccountDeletionModel } from "./models/AccountDeletion";
 import { WeeklySummaryModel } from "./models/WeeklySummary";
 import { createOpenAiCommenter } from "./services/comment";
 import { createOpenAiInsights } from "./services/insights";
@@ -51,6 +55,8 @@ async function main() {
   await connectMongo(config.mongoUri);
   // El índice único { userId, week } es el que evita duplicar un Wrapped.
   await WeeklySummaryModel.syncIndexes();
+  // El TTL de los pedidos de borrado terminados.
+  await AccountDeletionModel.syncIndexes();
 
   const vision = createOpenAiVision({
     apiKey: config.openai.apiKey,
@@ -80,11 +86,12 @@ async function main() {
   });
   // La usan el análisis (análisis listo) y el Wrapped (Wrapped listo).
   const notifications = createNotificationService({ push, receipts: receiptsQueue, logger });
+  const media = createMediaService(config.storage);
   const worker = createMealAnalysisWorker({
     redisUrl: config.redisUrl,
     concurrency: config.concurrency,
     processor: createMealAnalysisProcessor({
-      media: createMediaService(config.storage),
+      media,
       analyze: createAnalyzeMeal({
         vision,
         transcriber,
@@ -116,6 +123,19 @@ async function main() {
     logger,
   });
 
+  // La limpieza final de las cuentas borradas y el barrido de las que quedaron pendientes.
+  const deletionQueue = createAccountDeletionQueue({
+    redisUrl: config.redisUrl,
+    logger,
+    failFast: false,
+  });
+  const deletionWorker = createAccountDeletionWorker({
+    redisUrl: config.redisUrl,
+    purge: createAccountPurgeProcessor({ media }),
+    sweep: createAccountSweep({ queue: deletionQueue }),
+    logger,
+  });
+
   // Primero los workers (esperan los jobs en curso), después las colas, en las que esos jobs
   // todavía encolan, y al final Mongo, que también usan.
   let closing = false;
@@ -124,8 +144,13 @@ async function main() {
     closing = true;
     logger.info("worker cerrando", { signal });
     try {
-      await Promise.all([worker.close(), receiptsWorker.close(), weeklyWorker.close()]);
-      await Promise.all([receiptsQueue.close(), weeklyQueue.close()]);
+      await Promise.all([
+        worker.close(),
+        receiptsWorker.close(),
+        weeklyWorker.close(),
+        deletionWorker.close(),
+      ]);
+      await Promise.all([receiptsQueue.close(), weeklyQueue.close(), deletionQueue.close()]);
       await mongoose.disconnect();
       logger.info("worker cerrado");
       process.exit(0);
@@ -158,6 +183,10 @@ async function main() {
     model: config.openai.textModel,
     promptVersion: wrappedPrompt.version,
   });
+
+  await deletionQueue.registerSweep();
+  await deletionWorker.ready();
+  logger.info(`worker consumiendo la cola ${ACCOUNT_DELETION_QUEUE}`);
 }
 
 main().catch((err: unknown) => {

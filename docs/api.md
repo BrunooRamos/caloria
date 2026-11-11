@@ -151,6 +151,25 @@ Devuelve 200 con la misma forma que `GET`, con lo que quedó guardado.
 - Con `profile`, las metas se recalculan con la fórmula de [modelo-datos.md](modelo-datos.md#cálculo-de-metas-rf-02). Si dos PATCH llegan a la vez (por ejemplo, uno de perfil y otro de un dispositivo registrando su token), ninguno pisa los cambios del otro y las metas guardadas corresponden siempre al perfil guardado.
 - El Backend re-verifica el JWT: sin token o inválido → 401 `UNAUTHORIZED`, vencido → 401 `TOKEN_EXPIRED`. Un token válido de una cuenta que ya no existe también es 401.
 
+### Eliminar la cuenta
+
+```http
+DELETE /api/v1/users/me
+Authorization: Bearer <accessToken>
+```
+
+Responde 204 sin cuerpo: la cuenta y sus documentos (`users`, `meals`, `weekly_summaries`, `gamification`) ya no existen. La media del bucket y una última pasada por los documentos las hace el Worker un minuto después (RNF-04). El detalle de cómo se borra está en [seguridad.md](seguridad.md#borrado-de-cuenta-rnf-04).
+
+- **Orden:**
+  1. Si la cuenta tiene un cliente en el proveedor de pagos, se borra ahí primero: la suscripción termina en el momento y no se cobra más. Si el proveedor falla o billing no está configurado → 503 `SERVICE_UNAVAILABLE` y no se toca nada.
+  2. Se registra el pedido en `account_deletions`. Desde acá, lo que falle se completa después.
+  3. Se borra el usuario: no se puede entrar, renovar la sesión ni recibir avisos.
+  4. Se borran sus comidas, Wrapped y racha.
+  5. Se encola la limpieza del Worker. Si Redis no responde, igual se responde 204: el barrido del Worker encuentra el pedido pendiente.
+- **Sesiones:** los refresh tokens vivían en el documento del usuario y se van con él. El access token es un JWT sin estado y sigue firmado hasta 15 min, así que el Backend rechaza con 401 `UNAUTHORIZED` todo request de una cuenta que no existe, aunque la firma sea válida.
+- **Se puede repetir:** con el token de una cuenta que se borró hace menos de una hora, `DELETE /users/me` vuelve a responder 204 (por ejemplo, si se perdió la respuesta). Un token válido de una cuenta inexistente sin pedido de borrado → 401.
+- El body no se lee: el Front no reenvía nada de lo que mande el cliente.
+
 ### Registrar una comida (endpoint central)
 
 ```http
@@ -453,7 +472,7 @@ Content-Type: application/json
 |---|---|
 | 200 / 201 | Lectura OK / recurso creado (register) |
 | 202 | Análisis aceptado y encolado |
-| 204 | Borrado o logout, sin cuerpo |
+| 204 | Borrado (de una comida o de la cuenta) o logout, sin cuerpo |
 | 400 | Entrada inválida (falla la validación zod) |
 | 401 | Sin token, vencido o inválido |
 | 402 | Cupo del plan free agotado (`MEAL_QUOTA_EXCEEDED`) o función premium con plan free (`PREMIUM_REQUIRED`, middleware `requirePremium`; el plan se lee de la base) |

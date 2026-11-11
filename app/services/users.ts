@@ -42,6 +42,14 @@ export function updateNotifications(changes: Partial<NotificationPreferences>): 
   return api.patch<Me>("/users/me", { notifications: changes });
 }
 
+/**
+ * Borra la cuenta y todo lo suyo en el servidor. Responde 204; repetirlo con el mismo
+ * token también, así un reintento después de perder la respuesta termina bien.
+ */
+export function deleteAccount(): Promise<void> {
+  return api.delete("/users/me");
+}
+
 let devicePushToken: string | null = null;
 
 /** El Backend suma el token a los que ya tiene: cada dispositivo manda solo el suyo. */

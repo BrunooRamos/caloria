@@ -5,9 +5,10 @@ import { billingController } from "../controllers/billing";
 import { dashboardController } from "../controllers/dashboard";
 import { mealsController } from "../controllers/meals";
 import { summariesController } from "../controllers/summaries";
-import { usersController } from "../controllers/users";
+import { accountDeletionController, usersController } from "../controllers/users";
 import { requireAuth } from "../middleware/auth";
 import { mealUpload } from "../middleware/meal-upload";
+import type { AccountDeletionService } from "../services/account-deletion";
 import type { AuthService } from "../services/auth";
 import type { BillingService } from "../services/billing";
 import type { DashboardService } from "../services/dashboard";
@@ -22,6 +23,7 @@ export interface ApiDeps {
   dashboard?: DashboardService;
   summaries?: SummaryService;
   billing?: BillingService;
+  accounts?: AccountDeletionService;
   publicKey: KeyObject;
 }
 
@@ -32,6 +34,7 @@ export function apiRouter({
   dashboard,
   summaries,
   billing,
+  accounts,
   publicKey,
 }: ApiDeps): Router {
   const router = Router();
@@ -46,6 +49,14 @@ export function apiRouter({
   const userHandlers = usersController(users);
   router.get("/users/me", authenticated, userHandlers.getMe);
   router.patch("/users/me", authenticated, userHandlers.updateMe);
+  if (accounts) {
+    // Con el token de una cuenta ya borrada, repetir el pedido responde 204 (no 401).
+    router.delete(
+      "/users/me",
+      requireAuth(publicKey, { allowDeletedAccount: true }),
+      accountDeletionController(accounts),
+    );
+  }
   if (meals) {
     const mealHandlers = mealsController(meals);
     // El JWT se verifica antes de leer el multipart.
