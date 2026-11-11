@@ -205,3 +205,49 @@ Ok.
 1. Cada cuanto es el backoff exponencial?
 Lo demas todo ok.
 ```
+
+## Sesión `f1740234-cd43-4363-aa36-2947b17ff351` · 2026-11-11
+
+### 2026-11-11 20:41
+
+```text
+
+
+<pasted_content id="b251">
+Resolvé el issue #45.
+
+Queremos que nadie pueda abusar de la app ni hacernos gastar de más en IA.
+
+Qué tiene que pasar:
+1. Si alguien manda demasiados pedidos seguidos desde la misma conexión, la app lo frena un rato y le dice cuánto esperar.
+2. Cada usuario tiene un máximo de fotos que puede analizar por día: 20 si es gratis, 100 si es premium. Cuando llega al tope, la app le avisa y le dice cuándo puede volver a intentar.
+3. Si alguien sube exactamente la misma foto con la misma nota o audio, no le preguntamos de nuevo a la IA: reutilizamos el análisis anterior.
+4. Cada vez que usamos la IA queda anotado cuánto costó. Con un comando tengo que poder ver cuánto gastamos en el mes y cuánto sale en promedio cada usuario activo.
+
+Cuando termines, mostrame que funciona:
+- un usuario gratis que analiza 21 fotos y la 21 la rechaza
+- la misma foto subida dos veces que usa la IA una sola vez
+- el resumen de costos del mes
+</pasted_content id="b251">
+
+```
+
+### 2026-11-11 20:43
+
+```text
+<task-notification>
+<task-id>bjkl3vya3</task-id>
+<tool-use-id>toolu_01GW5ezjR6p3Gr2Afp8XBE5Y</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-brunoramos-orca-workspaces-caloria-rate/f1740234-cd43-4363-aa36-2947b17ff351/tasks/bjkl3vya3.output</output-file>
+<status>completed</status>
+<summary>Background command "Install back-service dependencies" completed (exit code 0)</summary>
+</task-notification>
+```
+
+### 2026-11-11 20:56
+
+```text
+ Bien, hagamos el PR y revisemos lo que diga Tenki.
+
+ Que tests exploratios deberia hacer para verificar que funcione correctamente?
+```

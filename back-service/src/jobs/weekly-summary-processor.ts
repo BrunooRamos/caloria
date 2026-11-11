@@ -2,6 +2,8 @@ import { Types } from "mongoose";
 import { isoWeekSchema, previousIsoWeek } from "@caloria/shared";
 import type { Logger } from "@caloria/shared";
 import { WeeklySummaryModel } from "../models/WeeklySummary";
+import { createAiUsageRecorder } from "../services/ai-usage";
+import type { AiUsageRecorder } from "../services/ai-usage";
 import { InvalidInsightsResponseError } from "../services/insights";
 import type { InsightsService } from "../services/insights";
 import type { NotificationService } from "../services/notifications";
@@ -56,6 +58,8 @@ export interface WeeklySummaryProcessorDeps {
   metrics: Pick<WeeklyMetricsService, "compute">;
   insights: InsightsService;
   notifications: Pick<NotificationService, "notifyWrappedReady">;
+  /** Registra el costo de cada llamada a la IA (RNF-07). */
+  aiUsage?: AiUsageRecorder;
   now?: () => Date;
 }
 
@@ -70,6 +74,7 @@ export function createWeeklySummaryProcessor({
   metrics,
   insights,
   notifications,
+  aiUsage = createAiUsageRecorder(),
   now = () => new Date(),
 }: WeeklySummaryProcessorDeps): WeeklySummaryProcessor {
   return async ({ userId, week }, log) => {
@@ -102,10 +107,29 @@ export function createWeeklySummaryProcessor({
           usage: err.info.usage,
           issues: err.issues,
         });
+        // Una respuesta inválida se paga igual.
+        await aiUsage.record(
+          {
+            kind: "insights",
+            model: err.info.model,
+            userId,
+            ...(err.info.usage && { usage: err.info.usage }),
+          },
+          log,
+        );
       }
       throw err;
     }
     const elapsedMs = durationMs();
+    await aiUsage.record(
+      {
+        kind: "insights",
+        model: result.model,
+        userId,
+        ...(result.usage && { usage: result.usage }),
+      },
+      log,
+    );
 
     // El filtro excluye los ready: dos jobs a la vez no se pisan. Si el otro ya lo dejó ready,
     // el upsert choca con el índice único: ya existe.

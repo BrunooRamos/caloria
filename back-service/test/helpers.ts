@@ -73,4 +73,7 @@ export const fixtures = {
   text: () => Buffer.from("esto no es una imagen, es texto con extensión .jpg\n".repeat(20)),
 };
 
-export const unlimitedQuota = createQuotaService({ freeMonthlyAnalyses: Number.MAX_SAFE_INTEGER });
+export const unlimitedQuota = createQuotaService({
+  freeMonthlyAnalyses: Number.MAX_SAFE_INTEGER,
+  dailyAnalyses: { free: Number.MAX_SAFE_INTEGER, premium: Number.MAX_SAFE_INTEGER },
+});

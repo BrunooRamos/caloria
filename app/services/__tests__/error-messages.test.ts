@@ -65,6 +65,12 @@ describe("errorMessage", () => {
     });
   });
 
+  it("DAILY_LIMIT_EXCEEDED dice que es el tope del día y cuánto falta", () => {
+    expect(errorMessage(apiError("DAILY_LIMIT_EXCEEDED", { retryAfterSeconds: 9 * 3600 }))).toBe(
+      "Llegaste al máximo de fotos que se pueden analizar por día. Probá de nuevo en 9 horas.",
+    );
+  });
+
   it("una pantalla puede reemplazar el mensaje de un código y deja el resto igual", () => {
     const overrides = { UNAUTHORIZED: "El email o la contraseña no son correctos." };
 

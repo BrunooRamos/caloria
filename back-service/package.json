@@ -11,6 +11,8 @@
     "dev:worker": "tsx watch src/worker.ts",
     "prewrapped": "npm run build:shared",
     "wrapped": "tsx src/scripts/wrapped.ts",
+    "preai-costs": "npm run build:shared",
+    "ai-costs": "tsx src/scripts/ai-costs.ts",
     "prebuild": "npm run build:shared",
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/index.js",

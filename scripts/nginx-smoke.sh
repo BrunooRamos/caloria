@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Prueba infra/nginx con Docker, armado como en infra/docker-compose.yml: el template, el certificado
 # temporal de tls-init y el cambio a uno "de Let's Encrypt" sin reiniciar nginx. Chequea la
-# redirección del 80, el desafío ACME, TLS 1.2/1.3 y HSTS, los límites de POST /api/v1/meals y el
-# rate limit de /auth por cliente detrás del túnel (8443).
+# redirección del 80, el desafío ACME, TLS 1.2/1.3 y HSTS, los límites de POST /api/v1/meals, el
+# rate limit de /auth por cliente detrás del túnel (8443) y el rate limit por IP de la API (RNF-07).
 # El Front es un stub que responde 202. Uso: npm run nginx:smoke (o bash scripts/nginx-smoke.sh)
 set -euo pipefail
 
@@ -228,5 +228,41 @@ fake_letsencrypt renovado
 wait_for_cert renovado
 [ "$(master_pid)" = "$pid" ] || fail "nginx se reinició (el PID cambió)"
 docker logs "$ID-nginx" 2>&1 | grep -q "nginx recargó" || fail "no está el log de la recarga"
+
+# Al final: estas ráfagas agotan los límites de la IP del host para el resto del script.
+# $1: método. $2: ruta. Deja el status en $STATUS, headers y body en $TMP.
+dev_request() {
+  STATUS="$(curl -s -o "$TMP/body" -D "$TMP/headers" -w '%{http_code}' -X "$1" -d x=1 \
+    "http://127.0.0.1:$DEV_PORT$2")"
+}
+
+# Subidas: 20 por minuto con burst de 10. Ya hubo algunas arriba, así que el 429 llega antes.
+echo "→ POST /meals en ráfaga desde la misma IP → 429 RATE_LIMITED con Retry-After"
+accepted=0
+for _ in $(seq 1 20); do
+  dev_request POST /api/v1/meals
+  [ "$STATUS" = 429 ] && break
+  [ "$STATUS" = 202 ] || fail "POST /meals respondió $STATUS"
+  accepted=$((accepted + 1))
+done
+[ "$STATUS" = 429 ] || fail "20 POST /meals seguidos y ninguno dio 429"
+[ "$accepted" -le 11 ] || fail "pasaron $accepted POST /meals seguidos (burst 10)"
+grep -q '"code":"RATE_LIMITED"' "$TMP/body" || fail "body inesperado: $(cat "$TMP/body")"
+grep -qi '^retry-after: 30' "$TMP/headers" || fail "falta Retry-After: $(cat "$TMP/headers")"
+echo "  $accepted aceptados y después 429, Retry-After: 30"
+
+echo "→ GET /meals (historial) no gasta el límite de subidas"
+dev_request GET "/api/v1/meals?from=2026-10-01"
+[ "$STATUS" = 202 ] || fail "GET /meals respondió $STATUS con las subidas agotadas"
+
+# Toda la API: 10 por segundo con burst de 40.
+echo "→ cualquier ruta en ráfaga desde la misma IP → 429 con Retry-After"
+for _ in $(seq 1 80); do
+  dev_request GET /api/v1/users/me
+  [ "$STATUS" = 429 ] && break
+done
+[ "$STATUS" = 429 ] || fail "80 GET seguidos y ninguno dio 429"
+grep -q '"code":"RATE_LIMITED"' "$TMP/body" || fail "body inesperado: $(cat "$TMP/body")"
+grep -qi '^retry-after: 5' "$TMP/headers" || fail "falta Retry-After: $(cat "$TMP/headers")"
 
 echo "✔ nginx OK"

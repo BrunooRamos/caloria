@@ -4,7 +4,7 @@ Lógica de negocio, MongoDB, Redis (cola) y worker de IA (`src/worker.ts`). Firm
 
 ## Cola de análisis (Redis + BullMQ)
 
-`POST /meals` encola en la cola `meal-analysis` (`src/jobs/meal-analysis.ts`) un job `{ mealId, requestId }` con `jobId = mealId`, 4 intentos y backoff exponencial. Config en `REDIS_URL` (obligatoria). Antes de subir la media reserva un análisis del cupo free (`src/services/quota.ts`); el límite sale de `FREE_MONTHLY_ANALYSES` (obligatoria, entero ≥ 0; el plan definido es 40). Las rutas solo premium usan `requirePremium` (`src/middleware/plan.ts`). Si alguien es premium lo decide siempre `isPremium(plan, ahora)` (`src/services/plan.ts`).
+`POST /meals` encola en la cola `meal-analysis` (`src/jobs/meal-analysis.ts`) un job `{ mealId, requestId }` con `jobId = mealId`, 4 intentos y backoff exponencial. Config en `REDIS_URL` (obligatoria). Antes de subir la media reserva un análisis del cupo free (`src/services/quota.ts`); el límite sale de `FREE_MONTHLY_ANALYSES` (obligatoria, entero ≥ 0; el plan definido es 40). Antes del cupo mensual reserva una foto del tope diario (RNF-07): 20 por día en free y 100 en premium, configurables con `DAILY_ANALYSES_FREE` y `DAILY_ANALYSES_PREMIUM` (opcionales, enteros ≥ 1); al llegar al tope responde 429 `DAILY_LIMIT_EXCEEDED` con `Retry-After` hasta la medianoche local. Las rutas solo premium usan `requirePremium` (`src/middleware/plan.ts`). Si alguien es premium lo decide siempre `isPremium(plan, ahora)` (`src/services/plan.ts`).
 
 ## Suscripción premium (Stripe en modo test)
 
@@ -122,6 +122,24 @@ Para dispararlo a mano en local, sin esperar al lunes (lo procesa el worker que 
 npm run wrapped                     # la semana anterior a hoy
 npm run wrapped -- --week 2026-W43  # una semana puntual
 ```
+
+## Costos de IA (RNF-07)
+
+Cada llamada a la IA (análisis, identificación del plato, comentario, transcripción e insights del Wrapped) loguea `costo de IA` con `kind`, `model`, `usage` (o `audioSeconds`) y `costUsd`, y guarda una fila en `ai_usage` (ver [modelo-datos.md](../docs/modelo-datos.md#ai_usage)). El costo se estima con la tabla de `src/config/ai-pricing.ts` (precios de lista de OpenAI, sin descuentos de cache ni batch): si cambian los precios o se usa otro modelo, se actualiza ahí. Un modelo sin precio se registra con `costUsd: null` y un warning.
+
+Antes de llamar a la IA, el Worker busca otra comida del mismo usuario con el mismo `inputHash` (foto, audio y nota): si la hay, copia el análisis y no gasta nada (`análisis de la IA` con `cached: true`).
+
+Resumen del mes (solo necesita `MONGO_URI`):
+
+```sh
+npm run ai-costs                      # el mes actual (UTC)
+npm run ai-costs -- --month 2026-10   # un mes puntual
+npm run ai-costs -- --json            # en JSON
+# en el servidor:
+docker compose -f infra/docker-compose.yml exec back node dist/scripts/ai-costs.js
+```
+
+Muestra el total, las llamadas y el costo por tipo y por modelo, los usuarios activos (con al menos una comida en el mes), el promedio por usuario activo y cuántos análisis salieron de la cache.
 
 Un `summary` que terminó en `failed` queda en la cola 7 días con el mismo `jobId`: un fan-out manual de esa semana no lo vuelve a encolar hasta que se borre.
 

@@ -60,6 +60,10 @@ export interface Meal {
   error?: { code: MealErrorCode };
   quotaMonth?: string;
   quotaRefunded?: boolean;
+  /** sha256 de la foto, el audio y la nota: misma entrada, mismo análisis (cache de IA, RNF-07). */
+  inputHash?: string;
+  /** Comida de la que se copió el análisis sin llamar a la IA. */
+  cachedFrom?: Types.ObjectId;
 }
 
 const rangeSchema = new Schema<Range>(
@@ -145,6 +149,8 @@ const mealSchema = new Schema<Meal>(
     ),
     quotaMonth: { type: String, match: /^\d{4}-\d{2}$/ },
     quotaRefunded: Boolean,
+    inputHash: { type: String, match: /^[0-9a-f]{64}$/ },
+    cachedFrom: Schema.Types.ObjectId,
   },
   { collection: "meals" },
 );
@@ -160,6 +166,11 @@ mealSchema.index(
   },
 );
 mealSchema.index({ userId: 1, capturedAt: -1 });
+// Cache del análisis: la última comida del usuario con la misma entrada.
+mealSchema.index(
+  { userId: 1, inputHash: 1, capturedAt: -1 },
+  { partialFilterExpression: { inputHash: { $exists: true } } },
+);
 // Historial del día (GET /meals) en orden y dashboard (prefijo { userId, localDate }).
 mealSchema.index({ userId: 1, localDate: 1, capturedAt: 1, _id: 1 });
 export const MealModel = model<Meal>("Meal", mealSchema);

@@ -6,8 +6,9 @@
 # 3. Si se pasa PREMIUM_PATH, llama a esa ruta con el usuario free y espera 402 PREMIUM_REQUIRED.
 #
 # Requisitos: el stack levantado (docker compose -f infra/docker-compose.yml up), con un cupo chico
-# (por ejemplo FREE_MONTHLY_ANALYSES=3 en infra/.env), curl y node. Conviene tener el worker
-# apagado: así ninguna comida termina failed (y devuelve cupo) mientras corre el script.
+# (por ejemplo FREE_MONTHLY_ANALYSES=3 en infra/.env, menor que el tope diario DAILY_ANALYSES_FREE),
+# curl y node. Si nginx frena la ráfaga (429 RATE_LIMITED), espera el Retry-After y sigue.
+# Conviene tener el worker apagado: así ninguna comida termina failed (y devuelve cupo) mientras corre el script.
 #
 # Uso: bash scripts/quota-smoke.sh
 #      BASE_URL=http://localhost:8080/api/v1 MAX_MEALS=50 bash scripts/quota-smoke.sh
@@ -44,12 +45,19 @@ TOKEN=$(printf '%s' "$REGISTER" | json_field accessToken)
 echo "→ POST /meals hasta agotar el cupo (máximo $MAX_MEALS)"
 accepted=0
 for _ in $(seq 1 "$MAX_MEALS"); do
-  STATUS=$(curl -sS -o "$TMP/body.json" -w '%{http_code}' -X POST "$BASE_URL/meals" \
+  STATUS=$(curl -sS -o "$TMP/body.json" -D "$TMP/headers" -w '%{http_code}' -X POST "$BASE_URL/meals" \
     -H "authorization: Bearer $TOKEN" \
     -F "photo=@$PHOTO;type=image/jpeg")
   case "$STATUS" in
     202) accepted=$((accepted + 1)); echo "  202 ($accepted)" ;;
     402) break ;;
+    429)
+      # RATE_LIMITED es el límite por IP de nginx: se espera lo que dice Retry-After y se sigue.
+      [ "$(json_field error.code <"$TMP/body.json")" = RATE_LIMITED ] || break
+      WAIT=$(sed -n 's/^[Rr]etry-[Aa]fter: *\([0-9]*\).*/\1/p' "$TMP/headers" | head -n1)
+      echo "  429 RATE_LIMITED de nginx, espero ${WAIT:-30} s"
+      sleep "${WAIT:-30}"
+      ;;
     *) fail "POST /meals respondió $STATUS: $(cat "$TMP/body.json")" ;;
   esac
 done

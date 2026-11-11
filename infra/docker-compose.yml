@@ -120,6 +120,8 @@ services:
       REDIS_URL: redis://redis:6379
       JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY}
       FREE_MONTHLY_ANALYSES: ${FREE_MONTHLY_ANALYSES:?Falta FREE_MONTHLY_ANALYSES}
+      DAILY_ANALYSES_FREE: ${DAILY_ANALYSES_FREE:-}
+      DAILY_ANALYSES_PREMIUM: ${DAILY_ANALYSES_PREMIUM:-}
       # Stripe en modo test: todas o ninguna (sin ninguna, billing queda apagado y responde 503).
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}

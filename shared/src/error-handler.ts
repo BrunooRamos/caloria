@@ -81,6 +81,9 @@ export function errorHandler({ logger }: { logger: Logger }): ErrorRequestHandle
     // Si ya se empezó a mandar la respuesta no se puede cambiar: Express corta la conexión.
     if (res.headersSent) return next(err);
 
+    if (appError.retryAfterSeconds !== undefined) {
+      res.set("Retry-After", String(appError.retryAfterSeconds));
+    }
     res.status(appError.status).json(errorEnvelope(appError, requestId));
   };
 }
