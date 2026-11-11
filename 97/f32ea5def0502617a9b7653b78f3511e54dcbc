@@ -1,0 +1,87 @@
+app/components/Input.tsx
+  s_2f898426ca6225::t_f22f0346b76837 2,52,68-73,107
+  s_2f898426ca6225::t_61ea60fa670f5f 5,51
+  s_2f898426ca6225::t_c387630c9247c9 188
+  s_2f898426ca6225::t_1f43517d058305 8,53,67
+  s_2f898426ca6225::t_1a8c4663903736 23,41,43,90-94,145-149,187,189-191
+  s_2f898426ca6225::t_edc7a68a7d90ef 95-97
+  s_2f898426ca6225::t_aec79fc0c9dbd8 192
+app/features/meals/edit/correction.ts
+  s_2f898426ca6225::t_ea25ebb08f0a4e 1,26-28
+  s_2f898426ca6225::t_ab498b22b123e9 29
+app/features/meals/edit/__tests__/validation.test.ts
+  s_2f898426ca6225::t_e04c6e664fff00 3-6,14-15,19,25-27,30-35,94-95,115,123-124,128,134-140,143-151,153-159
+app/features/meals/result/MealPhoto.tsx
+  s_2f898426ca6225::t_b90167f41b7cfc 1,4-5,11,14,16,20-38,45-52,59-65
+app/features/meals/edit/useMealEditor.ts
+  s_2f898426ca6225::t_edc7a68a7d90ef 5
+  s_2f898426ca6225::t_9be78bfe245162 6,83-84,86,89
+app/__tests__/meal-result.test.tsx
+  s_2f898426ca6225::t_427abb14f50bc9 180,182-197,200-206,208-209
+app/components/Screen.tsx
+  s_2f898426ca6225::t_61ea60fa670f5f 12,29
+  s_2f898426ca6225::t_1f43517d058305 2,4-11,30-35,45-60,76,80-83,86
+  s_2f898426ca6225::t_a2975965e45651 44
+app/__tests__/meal-edit.test.tsx
+  s_2f898426ca6225::t_71330ea80068bf 134-139,183-184,186,194-205
+  s_2f898426ca6225::t_5db893cb558fe4 170,172-174,176-182,206-236
+  s_2f898426ca6225::t_7afed5b1df5a9c 104,127-133,140-147,152,154,158-169,264,269-270,273,275-277,279-280,282-283,286-287,301
+  s_2f898426ca6225::t_263b05d5e7e5db 175,185,187-193
+  s_2f898426ca6225::t_1f91c8fcbc9b85 171
+app/features/meals/MealEditScreen.tsx
+  s_2f898426ca6225::t_ea25ebb08f0a4e 26
+  s_2f898426ca6225::t_fb380fc3849da5 24,28,168,195,199,236-237,239,243,251-252,254,256
+  s_2f898426ca6225::t_ddbd41d55106b7 132-136
+  s_2f898426ca6225::t_e2a44646320123 34-37,238,253
+app/features/meals/edit/validation.ts
+  s_2f898426ca6225::t_e2631a9516f1df 2-4
+  s_2f898426ca6225::t_a3321e739f7d3b 24-25,28-29,38,41,43-44,46-48
+  s_2f898426ca6225::t_858ec2e3fd1116 92-96,101-108
+app/features/meals/edit/draft.ts
+  s_2f898426ca6225::t_4429460a9ef100 1-2,13-14,22-23,26,32,40-41,44,46-48,54,57-59,62,71-74,95
+app/features/meals/MealResultScreen.tsx
+  s_2f898426ca6225::t_4641fd80fa6cf6 51-56
+app/features/meals/edit/RangeField.tsx
+  s_2f898426ca6225::t_ebbfa94fc72c56 1-2,4,10,12,17,21-22,26,28,32,37-40,42-51
+  s_2f898426ca6225::t_c1f9313575d66c 3
+  s_2f898426ca6225::t_e2a44646320123 11,27,41
+app/features/meals/edit/parse-range.ts
+  s_2f898426ca6225::t_bc6aa496c60b66 17,20-23
+  s_2f898426ca6225::t_ee5aa5245536d6 1-3,5-9,11-16,18-19,24-48,50,54
+  h_5b36141b16afea 10,49
+  s_2f898426ca6225::t_73502233448be7 4
+  s_2f898426ca6225::t_a8d229b75f148f 51-53
+app/features/meals/edit/ItemEditor.tsx
+  s_2f898426ca6225::t_e2a44646320123 12-14,28,50,58
+  s_2f898426ca6225::t_fb380fc3849da5 5,29,53,57,59,61
+app/features/meals/edit/__tests__/draft.test.ts
+  s_2f898426ca6225::t_e04c6e664fff00 2,5,7-10,13-17,34
+app/features/meals/edit/__tests__/parse-range.test.ts
+  s_2f898426ca6225::t_bc6aa496c60b66 17-21
+  s_2f898426ca6225::t_71330ea80068bf 44-58
+  s_2f898426ca6225::t_e04c6e664fff00 1-16,22-35,39-43,59-86
+  s_2f898426ca6225::t_edc7a68a7d90ef 36-38
+prompts/historial/pazdiaz15.md
+  s_2f898426ca6225::t_55e7ee66b95926 499-549
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "97f32ea5def0502617a9b7653b78f3511e54dcbc",
+  "prompts": {},
+  "humans": {
+    "h_5b36141b16afea": {
+      "author": "pazdiaz15 <mpdiaz@correo.um.edu.uy>"
+    }
+  },
+  "sessions": {
+    "s_2f898426ca6225": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8498b55b-c51b-4f5b-aaeb-309b70b5d635",
+        "model": "unknown"
+      },
+      "human_author": "pazdiaz15 <mpdiaz@correo.um.edu.uy>"
+    }
+  }
+}
