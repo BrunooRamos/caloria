@@ -1,7 +1,9 @@
-import { X } from "lucide-react-native";
+import { router } from "expo-router";
+import { CalendarClock, X } from "lucide-react-native";
 import { useRef, useState } from "react";
 import { Image, StyleSheet, View } from "react-native";
-import { Button, FormError, HeaderButton, Screen, Text } from "@/components";
+import { Button, FormError, HeaderButton, Notice, Screen, Text } from "@/components";
+import { ApiError } from "@/services/api-error";
 import { errorMessage } from "@/services/error-messages";
 import type { ErrorMessageOverrides } from "@/services/error-messages";
 import { createMeal } from "@/services/meals";
@@ -48,6 +50,7 @@ export function PreviewStep({
 }: PreviewStepProps) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [quotaExceeded, setQuotaExceeded] = useState(false);
   // El estado tarda un render en deshabilitar el botón: el ref frena un segundo toque inmediato.
   const inFlight = useRef(false);
   const tooLarge = exceedsMaxBytes(photo);
@@ -61,6 +64,7 @@ export function PreviewStep({
     setSending(true);
     onSendingChange(true);
     setError(null);
+    setQuotaExceeded(false);
     try {
       const { mealId } = await createMeal(
         buildMealForm({ photo, ...(audio.note && { audio: audio.note }) }),
@@ -71,7 +75,8 @@ export function PreviewStep({
       inFlight.current = false;
       setSending(false);
       onSendingChange(false);
-      setError(errorMessage(err, withAudio ? UPLOAD_ERRORS_WITH_AUDIO : UPLOAD_ERRORS));
+      if (err instanceof ApiError && err.code === "MEAL_QUOTA_EXCEEDED") setQuotaExceeded(true);
+      else setError(errorMessage(err, withAudio ? UPLOAD_ERRORS_WITH_AUDIO : UPLOAD_ERRORS));
     }
   }
 
@@ -91,7 +96,11 @@ export function PreviewStep({
           style={styles.photo}
         />
         <AudioNoteRecorder audio={audio} disabled={sending} />
-        <FormError message={tooLarge ? TOO_LARGE_MESSAGE : error} />
+        {quotaExceeded ? (
+          <QuotaExceeded />
+        ) : (
+          <FormError message={tooLarge ? TOO_LARGE_MESSAGE : error} />
+        )}
       </View>
       <View style={styles.actions}>
         {sending && (
@@ -118,6 +127,19 @@ export function PreviewStep({
         />
       </View>
     </Screen>
+  );
+}
+
+/** Sin análisis en el mes: se dice con calma, sin rojo, y se puede ver qué incluye cada plan. */
+function QuotaExceeded() {
+  return (
+    <Notice
+      icon={CalendarClock}
+      title="Usaste los análisis de este mes"
+      detail="Se renuevan el 1.° del mes que viene. En Tu plan ves cuántos tenés y qué incluye cada plan."
+    >
+      <Button variant="secondary" title="Ver planes" onPress={() => router.push("/plan")} />
+    </Notice>
   );
 }
 

@@ -136,6 +136,7 @@ Toda pantalla se arma con estos componentes. Si falta uno, se crea en `component
 - **Chip / Badge**: `radius.full`, fondo `sageSoft`, texto `caption` en `primary`. Seleccionado: fondo `primary`, texto `onPrimary`.
 - **ConfidenceBadge**: alta → fondo `sageSoft`, texto `primary`; media → fondo `surfaceAlt`, texto `sageText`; baja → fondo `warningSoft`, texto `warning`. Siempre con la palabra ("Confianza alta"), nunca solo color.
 - **ProgressBar**: altura 10, `radius.full`, track `surfaceAlt`. El consumido se dibuja como relleno `primary` hasta el mínimo del rango y una banda `sage` desde el mínimo hasta el máximo, para que la incertidumbre se vea. Si se pasa de la meta, la barra queda llena en `primary`, sin rojo.
+- **Sheet**: hoja que sube desde abajo, encima de todo, para un aviso con acciones de la app. Fondo `surface`, esquinas superiores `radius.xl`, `shadow.float`, padding `lg` (arriba `xl`) más la safe area de abajo, y detrás el `scrim` (el `ink` al 40 %). Se cierra con su botón, tocando afuera, con el atrás de Android o con el gesto de escape de VoiceOver, y el lector de pantalla queda adentro. Entra con un fundido y una subida corta (`motion.enter`), sin animación si se pidió reducir movimiento. Para confirmar que se borra o descarta algo no se usa: eso es `confirmAction`, el diálogo del sistema.
 - **Screen**: contenedor con fondo `background`, safe area y padding horizontal `lg`. En las pestañas va con `edges={["top", "left", "right"]}` (abajo está la barra); en los detalles, con `["bottom", "left", "right"]` (arriba está el header).
 - **ListGroup / ListRow**: menú estilo configuración. `ListGroup` es una tarjeta (`surface`, borde, `radius.lg`) con las filas separadas por un divisor alineado con el texto; cada `ListRow` lleva el ícono en un círculo `sageSoft`, el título, el resumen de lo que hay adentro en `small` `inkMuted` ("1.200 kcal por día", "Neutro") y la flecha, y abre la pantalla de esa sección. Una pantalla con varias secciones (como Perfil) es un menú así, no una lista larga de formularios.
 - **Notice**: el estado vacío, de espera o de error de un bloque: ícono de línea en `inkMuted`, título `h3`, explicación en `inkMuted` y, como `children`, la acción con texto ("Reintentar", "Registrar comida"). Nunca un estado sin salida y nunca en rojo por la comida.
@@ -148,7 +149,7 @@ La app se recorre con una barra de pestañas y pantallas de detalle encima. Las 
 
 - **TabBar** (`app/src/app/(app)/(tabs)/_layout.tsx`): Inicio (`House`) · Historial (`History`, el reloj con la flecha) · **Registrar** (`Camera`) · Semana (`CalendarDays`) · Perfil (`CircleUserRound`). Cada pestaña lleva ícono y texto `caption`. La activa va en `primary` con el ícono sobre una pastilla `sageSoft`, y la inactiva en `inkMuted`. "Registrar" no es una pestaña: es un círculo `primary` de 52 con `shadow.float`, que sobresale de la barra y abre la cámara. Los textos de la barra y del header crecen hasta 1.3× con la fuente del sistema.
 - **Pestañas**: cada una tiene su título `h1` arriba ("Hoy", "Historial", "Tu semana", "Perfil") y no lleva header. El inicio lleva además el logo a color centrado arriba (`<Logo variant="color" width={sizes.logo.homeWidth} />`). El atrás de Android en una pestaña vuelve a Inicio; en Inicio, cierra la app.
-- **Detalles** (Tu comida, Corregir comida, la semana de un aviso): van en el Stack de `(app)`, encima de las pestañas, con el header común (**ScreenHeader**): "‹ Volver" con texto arriba a la izquierda (**HeaderButton**) y, debajo, el título en `h2` (negrita) alineado con el contenido; si es largo, baja de línea. Debajo siempre quedan las pestañas (`anchor`), así una pantalla que se abre sola, por un aviso o un link, vuelve al inicio con "Volver", con el atrás de Android o con el gesto de iOS. Para volver desde código, `goBack()`; para ir al inicio, `goHome()`.
+- **Detalles** (Tu comida, Corregir comida, la semana de un aviso, Tu plan): van en el Stack de `(app)`, encima de las pestañas, con el header común (**ScreenHeader**): "‹ Volver" con texto arriba a la izquierda (**HeaderButton**) y, debajo, el título en `h2` (negrita) alineado con el contenido; si es largo, baja de línea. Debajo siempre quedan las pestañas (`anchor`), así una pantalla que se abre sola, por un aviso o un link, vuelve al inicio con "Volver", con el atrás de Android o con el gesto de iOS. Para volver desde código, `goBack()`; para ir al inicio, `goHome()`.
 - **Pantallas completas** (la cámara): sin header ni barra, con "✕ Cerrar" (`HeaderButton`) arriba a la izquierda. Si cerrar pierde algo (un audio grabado), pregunta con `confirmAction`, también con el atrás de Android (`usePreventRemove`).
 
 **Textos de navegación y acciones**, siempre iguales:
@@ -162,6 +163,18 @@ La app se recorre con una barra de pestañas y pantallas de detalle encima. Las 
 | Todavía no está (un análisis que tarda, un resumen que no se armó) | "Actualizar" |
 | Registrar una comida | "Registrar comida" (en la barra, "Registrar") |
 | Energía del día | "Calorías"; macros: "Proteínas", "Carbohidratos", "Grasas" |
+| Ir a la pantalla de planes (desde un aviso de cupo o de premium) | "Ver planes" |
+
+### Planes y suscripción
+
+La pantalla **Tu plan** (`/plan`) es un detalle: se llega desde la fila "Tu plan" del perfil, desde la hoja de "Registrar" cuando no quedan análisis y desde los avisos de `MEAL_QUOTA_EXCEEDED` y `PREMIUM_REQUIRED` ("Ver planes"). Reglas para todo lo que hable de planes o de cobros:
+
+- **Precios y cupos salen de la API**, nunca escritos en la app. El precio va siempre con moneda y período, sin `$` ambiguo: `US$ 4,99 por mes`, `$U 1.290 por año`. Las fechas, en la zona del usuario: "se renueva el 4 de diciembre".
+- **Antes del botón de pagar** se lee, en texto normal (no en letra chica): cuánto se cobra y cuándo, que se renueva sola y cada cuánto, y cómo se cancela. Nada de pruebas que pasan solas a pago, opciones premarcadas ni botones de cerrar escondidos.
+- **Cancelar lleva los mismos pasos que suscribirse** (el botón y una confirmación) y está a la vista, como `Button` secundario con texto. El diálogo (`confirmAction`) dice hasta cuándo sigue premium y que no se cobra más, sin intentar convencer ni hacer sentir culpa: "¿Cancelar la suscripción?", con "Volver" y "Cancelar suscripción".
+- **Quedarse sin análisis no es un error**: va con `Notice` o en la tarjeta del plan, en los colores de siempre, sin rojo ni signos de exclamación ("Usaste los 40 análisis de este mes. Se renuevan el 1 de diciembre.").
+- **Sin análisis, "Registrar" no abre la cámara**: muestra una hoja nuestra (`QuotaSheet`, sobre `Sheet`) con lo mismo que la tarjeta de Tu plan: el título en `h2` `primary`, la barra llena y cuándo se renuevan. Abajo, "Ver planes" (`primary`) y "Cerrar" (`secondary`), del mismo tamaño y a la vista. Todo botón que abra la cámara usa `useOpenCapture()` (`features/billing/captureGate.tsx`) en vez de `router.push("/capture")`. Si el plan no se puede saber, la cámara se abre igual y el aviso de la vista previa (`MEAL_QUOTA_EXCEEDED`) queda de respaldo.
+- **Mientras se confirma un pago** se muestra "Estamos confirmando tu pago" con un indicador, nunca un error, y no hay botón para pagar de nuevo.
 
 ## 6. Íconos e imágenes
 
@@ -196,4 +209,5 @@ En v1 la app es solo clara. Igual, todo pasa por tokens para que agregar un tema
 7. Las acciones importantes tienen texto visible, no solo un ícono.
 8. Desde la pantalla se vuelve al inicio (pestañas o "Volver"), también si se abrió sola, y el atrás de Android hace lo mismo que el botón.
 9. Guardar, borrar o corregir confirma con un Toast; borrar o descartar pregunta antes con `confirmAction`.
-10. Se probó con la fuente del sistema agrandada y en iOS y Android.
+10. Si muestra un precio o un cobro: sale de la API, va con moneda y período, y antes de confirmar se lee cuándo se renueva y cómo se cancela (ver "Planes y suscripción").
+11. Se probó con la fuente del sistema agrandada y en iOS y Android.

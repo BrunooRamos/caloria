@@ -1,4 +1,5 @@
 import {
+  dayMonthLabel,
   dayTitle,
   formatTime,
   isValidDay,
@@ -6,6 +7,7 @@ import {
   previousDay,
   resolveDay,
   shiftDay,
+  shiftMonths,
   todayIn,
 } from "../day";
 
@@ -116,5 +118,30 @@ describe("formatTime", () => {
 
   it("una fecha rota no muestra nada", () => {
     expect(formatTime("no-es-fecha", "UTC")).toBe("");
+  });
+});
+
+describe("shiftMonths", () => {
+  it.each([
+    ["2026-11-09", 1, "2026-12-09"],
+    ["2026-12-15", 1, "2027-01-15"],
+    ["2027-01-31", 1, "2027-02-28"],
+    ["2028-01-31", 1, "2028-02-29"],
+    ["2026-03-31", 1, "2026-04-30"],
+    ["2026-11-09", 12, "2027-11-09"],
+    ["2028-02-29", 12, "2029-02-28"],
+  ])("%s + %i meses → %s", (day, months, expected) => {
+    expect(shiftMonths(day, months)).toBe(expected);
+  });
+
+  it("un día inválido es un error", () => {
+    expect(() => shiftMonths("2026-02-30", 1)).toThrow("Día inválido");
+  });
+});
+
+describe("dayMonthLabel", () => {
+  it("sin el día de la semana; con el año solo si no es el de hoy", () => {
+    expect(dayMonthLabel("2026-12-04", "2026-11-09")).toBe("4 de diciembre");
+    expect(dayMonthLabel("2027-01-04", "2026-11-09")).toBe("4 de enero de 2027");
   });
 });

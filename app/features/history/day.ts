@@ -99,6 +99,27 @@ export function longDayLabel(day: string, today: string): string {
   return today.slice(0, 4) === day.slice(0, 4) ? label : `${label} de ${utc.getUTCFullYear()}`;
 }
 
+/** "4 de diciembre"; con el año si no es el de `today`. */
+export function dayMonthLabel(day: string, today: string): string {
+  const utc = toUtc(day);
+  if (!utc) return day;
+  const label = `${utc.getUTCDate()} de ${MONTHS[utc.getUTCMonth()]}`;
+  return today.slice(0, 4) === day.slice(0, 4) ? label : `${label} de ${utc.getUTCFullYear()}`;
+}
+
+/**
+ * `day` corrido `months` meses, con el día recortado al último del mes si no existe: del 31 de
+ * enero, un mes después es el 28 (o 29) de febrero. Es como cuentan los períodos los cobros mensuales.
+ */
+export function shiftMonths(day: string, months: number): string {
+  const utc = toUtc(day);
+  if (!utc) throw new Error(`Día inválido: ${day}`);
+  const first = new Date(Date.UTC(utc.getUTCFullYear(), utc.getUTCMonth() + months, 1));
+  const lastDay = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0));
+  first.setUTCDate(Math.min(utc.getUTCDate(), lastDay.getUTCDate()));
+  return fromUtc(first);
+}
+
 /** "Hoy", "Ayer", "lunes 20 de octubre"; con el año si no es el de hoy. */
 export function dayTitle(day: string, today: string): string {
   if (day === today) return "Hoy";

@@ -8,6 +8,7 @@ import { formatTime, longDayLabel, todayIn } from "@/features/history/day";
 import { useDayMeals } from "@/features/history/useDayMeals";
 import { MealListSkeleton, MealRow } from "@/features/meals/MealRow";
 import { STALE_MESSAGE, TODAY_EMPTY } from "@/features/meals/texts";
+import { useOpenCapture } from "@/features/billing/captureGate";
 import { deviceTimeZone } from "@/features/profile/timezone";
 import type { DailyDashboard } from "@/services/dashboard";
 import { errorMessage } from "@/services/error-messages";
@@ -120,11 +121,12 @@ function useMealsFollowDashboard(
 
 /** Lo primero: el total del día contra la meta y registrar una comida. */
 function TodayCard({ children }: { children: ReactNode }) {
+  const openCapture = useOpenCapture();
   return (
     <Card>
       {children}
       <View style={styles.register}>
-        <Button icon={Camera} title="Registrar comida" onPress={() => router.push("/capture")} />
+        <Button icon={Camera} title="Registrar comida" onPress={openCapture} />
       </View>
     </Card>
   );

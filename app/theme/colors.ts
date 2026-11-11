@@ -20,6 +20,8 @@ export const colors = {
   warningSoft: "#F3E7D3",
   danger: "#A8452E",
   dangerSoft: "#F6E3DD",
+  /** Detrás de una hoja (`Sheet`): el `ink` al 40 %, para que lo de abajo se vea pero no compita. */
+  scrim: "rgba(23, 41, 30, 0.4)",
 
   cameraBackground: "#000000",
   onCamera: "#FFFFFF",

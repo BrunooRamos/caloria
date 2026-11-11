@@ -230,16 +230,19 @@ describe("Wrapped: estados de la respuesta", () => {
     expect(summaryCalls()).toHaveLength(2);
   });
 
-  it("402 PREMIUM_REQUIRED: dice que es premium, sin botón de compra", async () => {
-    await start("/wrapped/2026-W43", [() => apiError(402, "PREMIUM_REQUIRED")]);
+  it("402 PREMIUM_REQUIRED: dice que es premium y lleva a Tu plan, sin comprar desde acá", async () => {
+    const router = await start("/wrapped/2026-W43", [() => apiError(402, "PREMIUM_REQUIRED")]);
 
     expect(await screen.findByText("El resumen semanal es parte de premium")).toBeOnTheScreen();
     expect(screen.queryByRole("alert")).toBeNull();
+    // El precio y las condiciones están en Tu plan: acá no hay un botón que cobre.
     expect(screen.getAllByRole("button").map((button) => button.props.accessibilityLabel)).toEqual(
-      expect.not.arrayContaining([expect.stringMatching(/premium|suscrib|plan|comprar/i)]),
+      expect.not.arrayContaining([expect.stringMatching(/suscrib|comprar|pagar/i)]),
     );
-    // Sin botones de más: se sale con "Volver" del header, como en cualquier detalle.
     expect(screen.getByRole("button", { name: "Volver" })).toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByRole("button", { name: "Ver planes" }));
+    expect(router.getPathname()).toBe("/plan");
   });
 
   it("500: el mensaje de error y reintentar", async () => {

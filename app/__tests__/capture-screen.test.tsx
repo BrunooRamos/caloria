@@ -334,17 +334,27 @@ describe("registrar una comida", () => {
     expect(mealPosts()).toHaveLength(1);
   });
 
-  it("sin cupo muestra un mensaje tranquilo y no navega", async () => {
+  it("sin cupo lo dice con calma, sin rojo, y lleva a Tu plan", async () => {
     const router = await start(() => apiError(402, "MEAL_QUOTA_EXCEEDED"));
     await takePhoto();
 
     await press("Enviar");
+    expect(await screen.findByText("Usaste los análisis de este mes")).toBeOnTheScreen();
     expect(
-      await screen.findByText(
-        "Llegaste al límite de análisis de este mes. Se renueva el 1.° del mes que viene.",
+      screen.getByText(
+        "Se renuevan el 1.° del mes que viene. En Tu plan ves cuántos tenés y qué incluye cada plan.",
       ),
     ).toBeOnTheScreen();
+    // No es un error: sin el recuadro rojo de alerta ni "Reintentar".
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reintentar" })).toBeNull();
     expect(router.getPathname()).toBe("/capture");
+
+    await press("Ver planes");
+    expect(router.getPathname()).toBe("/plan");
+    // Volver deja la foto donde estaba, por si después quiere mandarla.
+    await press("Volver");
+    expect(await screen.findByText("¿Analizamos esta foto?")).toBeOnTheScreen();
   });
 
   it("si comprimida sigue pasando de 8 MB, muestra el error y no la sube", async () => {

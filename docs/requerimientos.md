@@ -146,7 +146,8 @@ Endpoints: `GET /meals?date=&cursor=`, `GET /meals/:id`, `DELETE /meals/:id`.
 - [ ] Plan free: N análisis por mes calendario (N = 40, en `FREE_MONTHLY_ANALYSES`). Premium: análisis ilimitados y Wrapped completo.
 - [ ] El contador se reinicia el día 1 de cada mes.
 - [ ] Un análisis que termina en `failed` no consume cupo: el cupo se descuenta al registrar y se devuelve cuando la comida termina `failed`. Así una foto que no es comida (`error.code: "NOT_FOOD"`, #18) no gasta un análisis.
-- [ ] La app muestra los análisis restantes del mes.
+- [x] La app muestra los análisis restantes del mes (Tu plan y la fila del perfil).
+- [x] Sin análisis disponibles, la app no abre la cámara: "Registrar" muestra una hoja con cuándo se renuevan y la opción de ver los planes.
 
 #### RF-15 — Feature gating en la API
 
@@ -156,9 +157,9 @@ Endpoints: `GET /meals?date=&cursor=`, `GET /meals/:id`, `DELETE /meals/:id`.
 
 #### RF-16 — Suscripción
 
-- [ ] La app muestra el precio y qué incluye cada plan antes de suscribirse, sin pasos ocultos.
+- [ ] La app muestra el precio y qué incluye cada plan antes de suscribirse, sin pasos ocultos. (Pantalla lista en `/plan`; el precio y lo que incluye cada plan salen de un fixture hasta que exista `GET /billing/plans`.)
 - [x] El alta premium se procesa con un proveedor de pagos en modo sandbox (Stripe test mode, Checkout hosteado; el plan pasa a premium con el webhook de confirmación).
-- [ ] El usuario ve su plan, la fecha de renovación y puede cancelar desde la app. (API lista: `GET /billing/plan` y `POST /billing/cancel`; falta la pantalla.)
+- [x] El usuario ve su plan, la fecha de renovación y puede cancelar desde la app (`/plan`, con los mismos pasos que suscribirse).
 - [x] Al cancelar, mantiene premium hasta el fin del período pagado.
 - [x] La integración de pago está detrás de un service (`services/billing`) que permite cambiar a un proveedor real.
 

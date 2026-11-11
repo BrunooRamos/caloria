@@ -25,6 +25,7 @@ describe("errorMessage", () => {
     ["NOT_FOUND", "No encontramos lo que buscabas."],
     ["EMAIL_TAKEN", "Ya hay una cuenta con este email."],
     ["MEAL_NOT_READY", "Esta comida todavía no se puede corregir: falta que termine el análisis."],
+    ["SUBSCRIPTION_ACTIVE", "Ya tenés una suscripción premium activa."],
     ["PAYLOAD_TOO_LARGE", "El archivo es demasiado pesado."],
     ["INTERNAL_ERROR", "Algo falló de nuestro lado. Probá de nuevo en un rato."],
     ["AI_UNAVAILABLE", "El análisis no está disponible ahora. Probá de nuevo en un rato."],
