@@ -496,3 +496,54 @@ not ok 9 - catálogo de errores
 </pasted_content id="bcbe">
 
 ```
+
+## Sesión `8498b55b-c51b-4f5b-aaeb-309b70b5d635` · 2026-11-10
+
+### 2026-11-10 21:36
+
+```text
+Quiero hacer unos cambios en la pantalla de corrección de una comida, la que se abre cuando el usuario quiere ajustar lo que devolvió la IA. Son cuatro cosas. Para lo visual seguí la skill caloria-design.
+
+1. Para corregir las kcal o los macros, el usuario tiene que elegir entre "rango" y "valor" antes de escribir. No quiero esas opciones. Quiero un solo campo que acepte las dos cosas y entienda solo lo que escribió el usuario, sin que tenga que cambiar nada a mano.
+
+Que acepte un número solo o un rango escrito de las formas más comunes: 600-700, 600 – 700, 600 a 700, con o sin espacios. Si es un número solo, se guarda como rango con el mismo mínimo y máximo (600 → { min: 600, max: 600 }), así no cambia nada en el Backend. Si el usuario escribe el rango al revés (700-600), dalo vuelta solo en vez de mostrar un error. Si escribe algo que no se entiende, un número negativo o vacío, mostrá el error debajo del campo y no dejes guardar.
+
+El campo tiene que arrancar cargado con el valor actual: si min y max son iguales, el número solo, y si no, el rango. Hacelo un componente reutilizable y usalo para kcal y para todos los macros donde hoy aparece la opción. La función que interpreta el texto ponela aparte, para poder testearla sola.
+
+Antes de tocar nada, revisá que el PATCH /meals/:id acepte un rango con min igual a max. Si no lo acepta, avisame antes de cambiar el Backend.
+
+2. En esa misma pantalla aparece el texto "Escribí lo que sepas: un solo número...". No se entiende y no queda bien. Cambialo por algo más amigable y claro, por ejemplo:
+
+"Podés poner un número exacto o un rango si no estás seguro."
+
+Y que el placeholder del campo muestre un ejemplo, tipo "Ej.: 650 o 600-700". Revisá que no quede este texto viejo en otro lado de la app.
+
+3. Cuando el usuario edita el nombre de un ingrediente o del plato y el texto es largo, el campo hace scroll horizontal y no se ve lo que está escribiendo. Quiero que el campo ocupe todo el ancho disponible y que el texto baje de renglón, creciendo en alto a medida que se escribe.
+
+Igual, el Enter no tiene que agregar un salto de línea, porque un nombre de plato no lleva saltos. Que confirme o pase al siguiente campo como hasta ahora. Si alguien pega un texto con saltos de línea, reemplazalos por espacios. Fijate que con varias líneas el teclado no tape el campo.
+
+4. Cuando termino de corregir la comida y guardo, la foto deja de verse y aparece un recuadro vacío (como se ve en la imagen adjunta). Antes de guardar se ve bien. Quiero que encuentres la causa real y la arregles, no que pongas un placeholder para taparlo.
+
+Una vez arreglado, sí agregá un manejo de error en la imagen (onError) que muestre un estado amable con opción de reintentar, para el caso en que la URL firmada venza mientras la pantalla está abierta.
+
+[Image #8]
+```
+
+### 2026-11-10 21:58
+
+```text
+Probé los cambios y hay dos cosas para corregir.
+
+1. Cuando escribo en el nombre del plato o de un ingrediente y el texto no entra en el ancho, baja de renglón, pero la segunda línea no se ve porque el campo no crece en alto, o lo que escribo queda tapado. Al guardar, el texto queda guardado completo, así que el problema es solo cómo se muestra.
+
+Quiero que el campo crezca en alto a medida que se agregan líneas y que siempre se vea todo lo que el usuario escribe. Fijate también que, si el campo crece, la card crezca con él y no se superponga con lo que tiene abajo, y que el teclado no tape el campo mientras se escribe.
+
+2. En las cards de los ingredientes, los placeholders no entran y se cortan, así que no se llegan a leer. Acortalos para que entren en una sola línea en un teléfono chico. El placeholder tiene que ser solo un ejemplo corto, no una explicación, por ejemplo:
+
+- Nombre: "Ej.: arroz"
+- Cantidad: "Ej.: 120 g"
+- Kcal y macros: "650 o 600-700"
+
+La explicación de que se puede poner un número o un rango que quede en el texto de ayuda de la pantalla, una sola vez arriba, y no repetida en cada campo. Si los campos de la card no tienen etiqueta y el placeholder es lo único que dice qué va en cada uno, agregá una etiqueta chica arriba de cada campo siguiendo la skill caloria-design, porque el placeholder desaparece apenas el usuario empieza a escribir.
+
+```

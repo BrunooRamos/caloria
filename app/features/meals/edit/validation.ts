@@ -1,6 +1,7 @@
 import type { MealItem, MealValues, Range } from "@/services/meals";
-import { MACRO_KEYS, errorKey, isManual, nameKey } from "./draft";
-import type { MealDraft, RangeDraft, RangePath } from "./draft";
+import { MACRO_KEYS, nameKey, rangeKey } from "./draft";
+import type { MealDraft, RangePath } from "./draft";
+import { formatRangeInput, parseRange } from "./parse-range";
 import { totalKcal } from "./totals";
 import type { TotalKcal } from "./totals";
 
@@ -8,8 +9,6 @@ import type { TotalKcal } from "./totals";
 export const DISH_MAX_CHARS = 200;
 export const ITEM_NAME_MAX_CHARS = 100;
 export const ITEMS_MAX = 50;
-/** Hasta 99 999: ninguna comida llega y el campo no deja escribir más. */
-export const VALUE_MAX_DIGITS = 5;
 
 /** Errores por campo, con las claves de `errorKey` y `nameKey`; `items` es el de la lista. */
 export type EditErrors = Partial<Record<string, string>>;
@@ -22,53 +21,31 @@ export interface DraftCheck {
   autoTotal: TotalKcal;
 }
 
-const MISSING = {
+/** El error de un campo vacío, según qué falta. */
+export const MISSING = {
   grams: "Ingresá los gramos.",
   kcal: "Ingresá las kcal.",
+  total: "Ingresá las calorías totales.",
+  macro: "Ingresá los gramos.",
 };
-
-/** Un entero no negativo, o el mensaje de por qué no lo es. */
-export function parseCount(text: string): number | string {
-  const value = text.trim();
-  if (/^-\s*\d/.test(value)) return "No puede ser negativo.";
-  if (!/^\d+$/.test(value)) return "Usá un número entero, sin comas ni puntos.";
-  return Number(value);
-}
 
 interface ResolvedRange {
   range?: Range;
   errors: EditErrors;
 }
 
-/**
- * El rango que queda de un `RangeDraft`. Un solo valor vacío deja `current` (o es un error si no
- * hay, como en un ingrediente nuevo); un número es `{ min: n, max: n }`.
- */
 export function resolveRange(
-  draft: RangeDraft,
+  text: string,
   current: Range | undefined,
   path: RangePath,
-  missing = "Ingresá un valor.",
+  missing: string,
 ): ResolvedRange {
-  if (draft.mode === "single") {
-    if (draft.value.trim() === "") {
-      if (current) return { range: { min: current.min, max: current.max }, errors: {} };
-      return { errors: { [errorKey(path, "value")]: missing } };
-    }
-    const value = parseCount(draft.value);
-    if (typeof value === "string") return { errors: { [errorKey(path, "value")]: value } };
-    return { range: { min: value, max: value }, errors: {} };
+  if (current && text.trim() === formatRangeInput(current)) {
+    return { range: { min: current.min, max: current.max }, errors: {} };
   }
-
-  const min = draft.min.trim() === "" ? "Ingresá el mínimo." : parseCount(draft.min);
-  const max = draft.max.trim() === "" ? "Ingresá el máximo." : parseCount(draft.max);
-  const errors: EditErrors = {};
-  if (typeof min === "string") errors[errorKey(path, "min")] = min;
-  if (typeof max === "string") errors[errorKey(path, "max")] = max;
-  if (typeof min === "string" || typeof max === "string") return { errors };
-  if (min > max)
-    return { errors: { [errorKey(path, "max")]: "No puede ser menor que el mínimo." } };
-  return { range: { min, max }, errors: {} };
+  const parsed = parseRange(text, missing);
+  if ("error" in parsed) return { errors: { [rangeKey(path)]: parsed.error } };
+  return { range: parsed.range, errors: {} };
 }
 
 function checkName(name: string, max: number, empty: string): string | undefined {
@@ -112,14 +89,23 @@ export function checkDraft(meal: MealValues, draft: MealDraft): DraftCheck {
     meal,
     items.map((item) => item.kcal),
   );
-  const kcal = isManual(draft.kcal)
-    ? collect(resolveRange(draft.kcal, undefined, { field: "kcal" }))
-    : autoTotal.kcal;
+  // Escrito a mano, el total que arrancó en el campo es el automático de ese momento.
+  const kcal =
+    draft.kcal === null
+      ? autoTotal.kcal
+      : collect(resolveRange(draft.kcal, autoTotal.kcal, { field: "kcal" }, MISSING.total));
 
   const macros = Object.fromEntries(
     MACRO_KEYS.map((macro) => [
       macro,
-      collect(resolveRange(draft.macros[macro], meal.macros[macro], { field: "macros", macro })),
+      collect(
+        resolveRange(
+          draft.macros[macro],
+          meal.macros[macro],
+          { field: "macros", macro },
+          MISSING.macro,
+        ),
+      ),
     ]),
   );
 

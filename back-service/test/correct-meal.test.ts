@@ -192,7 +192,9 @@ describe("back-service: PATCH /meals/:id", () => {
     assert.equal(line.mealId, id);
     assert.deepEqual(line.fields, ["dish", "kcal"]);
     assert.equal(typeof line.durationMs, "number");
-    const text = JSON.stringify(line);
+    // Sin los campos que varían en cada corrida (el id y la hora pueden contener "620" de casualidad).
+    const { mealId: _id, time: _time, timestamp: _ts, durationMs: _ms, ...fixed } = line;
+    const text = JSON.stringify(fixed);
     for (const value of ["napolitana", "Milanesa con puré", "800", "620"]) {
       assert.ok(!text.includes(value), `el log incluye ${value}`);
     }

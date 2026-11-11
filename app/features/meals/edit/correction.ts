@@ -1,4 +1,4 @@
-import type { MealCorrection, MealItem, MealValues } from "@/services/meals";
+import type { Meal, MealCorrection, MealItem, MealValues, ReadyMeal } from "@/services/meals";
 import { MACRO_KEYS } from "./draft";
 import { sameRange } from "./totals";
 
@@ -22,4 +22,8 @@ export function buildCorrection(meal: MealValues, values: MealValues): MealCorre
     body.macros = values.macros;
   }
   return Object.keys(body).length > 0 ? body : null;
+}
+
+export function keepPhoto(shown: Meal, updated: ReadyMeal): ReadyMeal {
+  return { ...updated, photoUrl: shown.photoUrl };
 }
