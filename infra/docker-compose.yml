@@ -237,3 +237,5 @@ networks:
   # Salida a internet del Backend, solo para la API del proveedor de pagos (api.stripe.com).
   # Docker no filtra por dominio: la allowlist se aplica en el firewall del servidor.
   back-egress: {}
+  # Salida a internet solo para que certbot hable con Let's Encrypt.
+  certbot-egress: {}
