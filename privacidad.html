@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Política de privacidad · CalorIA</title>
+<style>
+  :root { --bg:#FBF8F1; --fg:#1E2A22; --muted:#5B665E; --accent:#1F5637; --line:#E3DED2; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#141A16; --fg:#ECE8DF; --muted:#A9B0AA; --accent:#7FC29B; --line:#2A332D; } }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  main { max-width:720px; margin:0 auto; padding:40px 16px 64px; }
+  h1 { font-size:28px; margin:0 0 4px; color:var(--accent); }
+  h2 { font-size:19px; margin:32px 0 8px; }
+  p, li { color:var(--fg); }
+  .meta { color:var(--muted); margin:0 0 24px; }
+  table { width:100%; border-collapse:collapse; font-size:15px; }
+  th, td { text-align:left; vertical-align:top; padding:8px; border-bottom:1px solid var(--line); }
+  th { color:var(--muted); font-weight:600; }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<main>
+<h1>Política de privacidad de CalorIA</h1>
+<p class="meta">Vigente desde el 12 de noviembre de 2026</p>
+
+<p>CalorIA es una app que estima las calorías y macronutrientes de tus comidas a partir de una foto y, si querés, de un audio o una nota. Es un proyecto universitario de estudiantes de la Universidad de Montevideo (Uruguay). Esta política explica qué datos usamos, para qué y qué control tenés sobre ellos.</p>
+
+<h2>Qué datos recolectamos</h2>
+<table>
+  <tr><th>Dato</th><th>Para qué lo usamos</th></tr>
+  <tr><td>Email y contraseña</td><td>Crear tu cuenta e iniciar sesión. La contraseña se guarda cifrada (bcrypt); nunca la vemos.</td></tr>
+  <tr><td>Sexo, fecha de nacimiento, altura, peso, nivel de actividad y objetivo</td><td>Calcular tus metas diarias de calorías y macronutrientes.</td></tr>
+  <tr><td>Fotos de comidas</td><td>Estimar qué comiste, las calorías y los macronutrientes.</td></tr>
+  <tr><td>Audios (hasta 60 segundos) y notas</td><td>Darle contexto al análisis, por ejemplo cómo preparaste la comida. El audio se transcribe a texto.</td></tr>
+  <tr><td>Historial de comidas y correcciones</td><td>Mostrarte tu progreso, tu racha y tu resumen.</td></tr>
+  <tr><td>Zona horaria</td><td>Agrupar tus comidas por día.</td></tr>
+  <tr><td>Token de notificaciones</td><td>Avisarte cuando tu análisis está listo y otros recordatorios que podés apagar.</td></tr>
+  <tr><td>Datos de suscripción</td><td>Si contratás el plan premium: identificadores de cliente y suscripción del procesador de pagos. Nunca vemos ni guardamos datos de tu tarjeta.</td></tr>
+</table>
+<p>No usamos tu ubicación, no accedemos a tus contactos y no usamos publicidad ni herramientas de seguimiento de terceros.</p>
+
+<h2>Permisos del teléfono</h2>
+<ul>
+  <li><strong>Cámara:</strong> para sacarle una foto a tu comida.</li>
+  <li><strong>Fotos:</strong> para que elijas una foto que ya tenés. Solo accedemos a la que elegís.</li>
+  <li><strong>Micrófono:</strong> solo mientras grabás un audio sobre tu comida.</li>
+  <li><strong>Notificaciones:</strong> opcionales; las podés desactivar desde la app o desde el teléfono.</li>
+</ul>
+
+<h2>Con quién compartimos datos</h2>
+<p>No vendemos ni alquilamos tus datos. Solo los compartimos con estos proveedores, en la medida necesaria para que la app funcione:</p>
+<ul>
+  <li><strong>OpenAI:</strong> recibe la foto, la transcripción y la nota de cada comida para analizarla, y el audio para transcribirlo. No le enviamos tu email ni tu nombre. Según sus condiciones para el uso por API, no usa estos datos para entrenar sus modelos.</li>
+  <li><strong>DigitalOcean:</strong> aloja nuestros servidores y la base de datos, en Estados Unidos.</li>
+  <li><strong>Expo:</strong> entrega las notificaciones push al teléfono.</li>
+  <li><strong>Stripe:</strong> procesa los pagos del plan premium. Los datos de tu tarjeta los cargás directamente en Stripe.</li>
+</ul>
+<p>También podríamos divulgar datos si una autoridad competente lo exige por ley.</p>
+
+<h2>Cómo protegemos tus datos</h2>
+<ul>
+  <li>Toda la comunicación entre la app y nuestros servidores va cifrada (HTTPS).</li>
+  <li>Las fotos y audios se guardan en un almacenamiento privado; solo se pueden ver con enlaces temporales que vencen a los 15 minutos.</li>
+  <li>Los registros técnicos del sistema no incluyen fotos, audios, transcripciones ni contraseñas.</li>
+  <li>Cada usuario solo puede acceder a sus propios datos.</li>
+</ul>
+
+<h2>Cuánto tiempo guardamos tus datos</h2>
+<p>Mientras tengas la cuenta. Si la eliminás, borramos tu cuenta, tu perfil, tus comidas, tus fotos y tus audios. Lo único que conservamos es el registro del costo de cada análisis (modelo usado, cantidad y fecha), sin ningún dato que te identifique.</p>
+
+<h2>Cómo eliminar tu cuenta</h2>
+<p>Desde la app: <strong>Perfil → Eliminar cuenta</strong>. El borrado es inmediato y definitivo: en pocos minutos desaparecen también tus fotos y audios del almacenamiento. Si tenés el plan premium, la suscripción se cancela en el momento.</p>
+<p>Si ya no tenés la app instalada, escribinos a <a href="mailto:bramos2@correo.um.edu.uy">bramos2@correo.um.edu.uy</a> desde el email de tu cuenta y la eliminamos.</p>
+
+<h2>Tus derechos</h2>
+<p>Conforme a la Ley N.º 18.331 de Protección de Datos Personales de Uruguay, podés pedir acceso a tus datos, corregirlos o eliminarlos. Tu perfil y tus comidas los podés corregir directamente desde la app; para cualquier otro pedido, escribinos.</p>
+
+<h2>Edad mínima</h2>
+<p>CalorIA es para personas de 16 años o más. No recolectamos a sabiendas datos de menores de esa edad.</p>
+
+<h2>Aviso de salud</h2>
+<p>Las estimaciones de CalorIA son aproximadas y no reemplazan el consejo de un médico o nutricionista.</p>
+
+<h2>Cambios a esta política</h2>
+<p>Si cambiamos algo, publicamos la nueva versión en esta misma página y actualizamos la fecha de arriba.</p>
+
+<h2>Contacto</h2>
+<p>Bruno Ramos, en nombre del equipo de CalorIA · <a href="mailto:bramos2@correo.um.edu.uy">bramos2@correo.um.edu.uy</a></p>
+</main>
+</body>
+</html>
