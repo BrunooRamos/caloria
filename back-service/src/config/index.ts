@@ -1,5 +1,5 @@
 import { createPublicKey } from "node:crypto";
-import { loadPrivateKey } from "@caloria/shared";
+import { loadMtlsCredentials, loadPrivateKey, MTLS_BACK_CN } from "@caloria/shared";
 import { DEFAULT_DAILY_ANALYSES } from "../services/quota";
 import { loadStorageConfig } from "./storage";
 
@@ -23,6 +23,8 @@ export function loadConfig(env = process.env) {
       premium: parsePositiveInt("DAILY_ANALYSES_PREMIUM", env, DEFAULT_DAILY_ANALYSES.premium),
     },
     billing: loadBillingConfig(env),
+    // mTLS con el Front (RNF-03): sin certificados válidos, el Backend no arranca.
+    mtls: loadMtlsCredentials(MTLS_BACK_CN, env),
   };
 }
 

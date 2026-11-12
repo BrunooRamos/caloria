@@ -10,7 +10,10 @@ Se validan con zod al arrancar (`src/config`): si falta o sobra algo, el servici
 | Variable             | Obligatoria | Default | Qué es                                                                                            |
 | -------------------- | :---------: | ------- | ------------------------------------------------------------------------------------------------- |
 | `JWT_PUBLIC_KEY`     |      ✔      | —       | Clave pública RSA ≥ 2048 en PEM (con `\n` reales o escapados). Si le pasás la privada, no arranca |
-| `BACKEND_URL`        |      ✔      | —       | URL del Back Service, `http://` o `https://`                                                      |
+| `BACKEND_URL`        |      ✔      | —       | URL del Back Service, solo `https://` (mTLS)                                                      |
+| `MTLS_CA_FILE`       |      ✔      | —       | Ruta a la CA propia (`infra/certs/mtls/front/ca.pem`). Con ella verifica al Backend               |
+| `MTLS_CERT_FILE`     |      ✔      | —       | Ruta al certificado de cliente del Front (CN `caloria-front`)                                     |
+| `MTLS_KEY_FILE`      |      ✔      | —       | Ruta a su clave privada                                                                           |
 | `PORT`               |             | `3000`  |                                                                                                   |
 | `BACKEND_TIMEOUT_MS` |             | `10000` | Timeout de cada llamada al Backend (100 a 60000). Al vencer → 503 `SERVICE_UNAVAILABLE`           |
 | `LOG_LEVEL`          |             | `info`  | Lo lee el logger de `@caloria/shared`                                                             |
@@ -22,7 +25,10 @@ Si el entorno trae `JWT_PRIVATE_KEY`, `MONGO_URI`, `REDIS_URL` o `OPENAI_API_KEY
 ```sh
 npm ci
 export JWT_PUBLIC_KEY="$(cat ~/.caloria/jwt/jwt-public.pem)"   # npm run keys:generate en la raíz
-export BACKEND_URL=http://localhost:4000
+export BACKEND_URL=https://localhost:4000
+export MTLS_CA_FILE=../infra/certs/mtls/front/ca.pem      # npm run certs:generate en la raíz
+export MTLS_CERT_FILE=../infra/certs/mtls/front/cert.pem
+export MTLS_KEY_FILE=../infra/certs/mtls/front/key.pem
 npm run dev
 ```
 
@@ -37,11 +43,6 @@ npm run dev
 - De la respuesta pasan status, body, `Content-Type`, `Retry-After` y `Cache-Control`.
 - `trust proxy` está en 1: `req.ip` es la IP que agrega nginx al final de `X-Forwarded-For`.
 
-## mTLS hacia el Backend (pendiente)
+## mTLS hacia el Backend
 
-Es una decisión abierta (`docs/requerimientos.md`, decisión 9). El cliente (`src/clients/backend.ts`) ya acepta un `dispatcher` de undici, que es como el `fetch` de Node configura TLS. Para activarlo:
-
-1. `npm install undici` (la versión cuyo major coincida con el undici de Node).
-2. Sumar tres variables al esquema de `src/config` (CA, certificado y clave del Front) y montarlas como secretos.
-3. En `src/index.ts`: `createBackendClient({ ..., dispatcher: new Agent({ connect: { ca, cert, key } }) })`.
-4. `BACKEND_URL=https://back:4000`, y que el Backend exija certificado de cliente.
+El Backend solo atiende por HTTPS con mTLS (ver `docs/arquitectura.md`, "mTLS entre Front y Backend"). `src/index.ts` le pasa al cliente (`src/clients/backend.ts`) un `Agent` de undici con la CA propia, el certificado del Front y su clave: presenta el certificado y solo confía en un Backend firmado por la misma CA. Si el handshake falla, el cliente responde 503 `SERVICE_UNAVAILABLE`, como con cualquier error de conexión.

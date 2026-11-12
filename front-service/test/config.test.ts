@@ -2,18 +2,25 @@ import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
 import { describe, it } from "node:test";
 import { FORBIDDEN_ENV, loadConfig } from "../src/config";
+import { generateCerts } from "./mtls-helpers";
 
 const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
 const publicPem = publicKey.export({ type: "spki", format: "pem" }).toString();
 const privatePem = privateKey.export({ type: "pkcs8", format: "pem" }).toString();
 
-const valid = { JWT_PUBLIC_KEY: publicPem, BACKEND_URL: "http://back:4000" };
+const certs = generateCerts();
+const valid = {
+  JWT_PUBLIC_KEY: publicPem,
+  BACKEND_URL: "https://back:4000",
+  ...certs.front.env,
+};
 
 describe("front-service: configuración", () => {
   it("lee la clave pública y aplica los defaults de puerto y timeout", () => {
     const config = loadConfig(valid);
     assert.equal(config.jwtPublicKey.type, "public");
-    assert.equal(config.backendUrl, "http://back:4000");
+    assert.equal(config.backendUrl, "https://back:4000");
+    assert.equal(config.mtls.commonName, "caloria-front");
     assert.equal(config.port, 3000);
     assert.equal(config.backendTimeoutMs, 10_000);
   });
@@ -37,7 +44,7 @@ describe("front-service: configuración", () => {
   it("no arranca sin JWT_PUBLIC_KEY ni sin BACKEND_URL", () => {
     assert.throws(() => loadConfig({ BACKEND_URL: valid.BACKEND_URL }), /JWT_PUBLIC_KEY/);
     assert.throws(
-      () => loadConfig({ JWT_PUBLIC_KEY: publicPem }),
+      () => loadConfig({ JWT_PUBLIC_KEY: publicPem, ...certs.front.env }),
       /Falta la variable de entorno BACKEND_URL/,
     );
   });
@@ -49,6 +56,7 @@ describe("front-service: configuración", () => {
   for (const [name, value] of [
     ["BACKEND_URL", "no es una url"],
     ["BACKEND_URL", "ftp://back:4000"],
+    ["BACKEND_URL", "http://back:4000"],
     ["PORT", "abc"],
     ["PORT", "70000"],
     ["BACKEND_TIMEOUT_MS", "0"],
@@ -58,6 +66,13 @@ describe("front-service: configuración", () => {
       assert.throws(() => loadConfig({ ...valid, [name]: value }), new RegExp(name));
     });
   }
+
+  it("no arranca sin las credenciales del mTLS, ni con las del Backend", () => {
+    for (const name of ["MTLS_CA_FILE", "MTLS_CERT_FILE", "MTLS_KEY_FILE"]) {
+      assert.throws(() => loadConfig({ ...valid, [name]: "" }), new RegExp(name));
+    }
+    assert.throws(() => loadConfig({ ...valid, ...certs.back.env }), /caloria-front/);
+  });
 
   for (const name of FORBIDDEN_ENV) {
     it(`con ${name} en el entorno → no arranca, y el error no muestra el valor`, () => {

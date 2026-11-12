@@ -1,5 +1,6 @@
 # Solo nginx publica puertos (80 y 443); el resto no es alcanzable desde afuera del host.
-# Mongo, Redis y MinIO nunca están en la red dmz; el Front solo llega al Back por la red front-back.
+# Mongo, Redis y MinIO nunca están en la red dmz; el Front solo llega al Back por la red front-back,
+# y por HTTPS con mTLS: el Back solo acepta el certificado del Front (npm run certs:generate).
 # Las credenciales de MinIO solo llegan a Back y Worker (usuario de servicio) y a minio/minio-init (root).
 # La clave de OpenAI solo llega al Worker (red worker-egress). Las claves de Stripe solo llegan al
 # Backend, que sale a internet solo para la API del proveedor de pagos (red back-egress).
@@ -27,7 +28,8 @@ services:
       - ./nginx/api.conf:/etc/nginx/caloria/api.conf:ro
       - ./nginx/templates:/etc/nginx/templates:ro
       - ./nginx/tls.sh:/docker-entrypoint.d/40-caloria-tls.sh:ro
-      - ./certs:/etc/nginx/certs:ro
+      # Solo el certificado propio opcional: nginx nunca ve las claves del mTLS (certs/mtls).
+      - ./certs/local:/etc/nginx/certs/local:ro
       - tls-bootstrap:/etc/nginx/bootstrap:ro
       - letsencrypt:/etc/letsencrypt:ro
       - certbot-webroot:/var/www/certbot:ro
@@ -102,8 +104,14 @@ services:
       dockerfile: front-service/Dockerfile
     environment:
       PORT: 3000
-      BACKEND_URL: http://back:4000
+      BACKEND_URL: https://back:4000
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
+      MTLS_CA_FILE: /run/secrets/mtls/ca.pem
+      MTLS_CERT_FILE: /run/secrets/mtls/cert.pem
+      MTLS_KEY_FILE: /run/secrets/mtls/key.pem
+    volumes:
+      # Certificado de cliente del Front (CN caloria-front) y la CA propia.
+      - ./certs/mtls/front:/run/secrets/mtls:ro
     networks:
       - dmz
       - front-back
@@ -128,7 +136,13 @@ services:
       STRIPE_PRICE_ID: ${STRIPE_PRICE_ID:-}
       BILLING_SUCCESS_URL: ${BILLING_SUCCESS_URL:-}
       BILLING_CANCEL_URL: ${BILLING_CANCEL_URL:-}
+      MTLS_CA_FILE: /run/secrets/mtls/ca.pem
+      MTLS_CERT_FILE: /run/secrets/mtls/cert.pem
+      MTLS_KEY_FILE: /run/secrets/mtls/key.pem
       <<: *storage-env
+    volumes:
+      # Certificado de servidor del Back (CN caloria-back) y la CA propia: solo acepta al Front.
+      - ./certs/mtls/back:/run/secrets/mtls:ro
     networks:
       - front-back
       - interna

@@ -206,6 +206,42 @@ Ok.
 Lo demas todo ok.
 ```
 
+## Sesión `0770af7f-d94e-4765-ab28-c871e224769b` · 2026-11-11
+
+### 2026-11-11 20:41
+
+```text
+https://github.com/BrunooRamos/caloria/issues/44
+
+
+
+<pasted_content id="3f23">
+Resolvé el issue #44.
+
+El Backend solo tiene que aceptar pedidos que vengan del Front Service. Cualquier otro que intente hablarle directo tiene que ser rechazado, y la comunicación entre los dos tiene que ir cifrada.
+
+Qué tiene que pasar:
+1. Creamos nuestras propias "credenciales" para el Front y el Backend, y cualquiera del equipo las genera en su compu con un solo comando.
+2. El Backend rechaza a cualquiera que no presente la credencial del Front.
+3. La app sigue funcionando igual que antes para el usuario.
+4. Hay instrucciones cortas en el repo para generar las credenciales en local.
+
+Cuando termines, mostrame que funciona:
+- la app registra una comida normalmente
+- un pedido directo al Backend sin credencial es rechazado
+- un pedido con una credencial falsa también es rechazado
+</pasted_content id="3f23">
+
+```
+
+### 2026-11-11 20:52
+
+```text
+Bien, hagamos el PR y revisemos lo que diga Tenki. 
+
+Que tests exploratios deberia hacer para verificar que funcione correctamente?
+```
+
 ## Sesión `f1740234-cd43-4363-aa36-2947b17ff351` · 2026-11-11
 
 ### 2026-11-11 20:41

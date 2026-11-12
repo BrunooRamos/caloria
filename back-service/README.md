@@ -2,6 +2,10 @@
 
 Lógica de negocio, MongoDB, Redis (cola) y worker de IA (`src/worker.ts`). Firma los JWT con RS256 (clave privada).
 
+## mTLS: solo atiende al Front
+
+La API escucha por HTTPS con mTLS (`src/server.ts`): solo acepta conexiones con un certificado de cliente firmado por la CA propia y con CN `caloria-front`. Lee `MTLS_CA_FILE`, `MTLS_CERT_FILE` y `MTLS_KEY_FILE` (rutas a `infra/certs/mtls/back/{ca,cert,key}.pem`, que genera `npm run certs:generate` en la raíz) y sin ellos no arranca. Para probarla a mano en local: `curl --cacert ../infra/certs/mtls/front/ca.pem --cert ../infra/certs/mtls/front/cert.pem --key ../infra/certs/mtls/front/key.pem https://localhost:4000/health`. Detalle en `docs/arquitectura.md`, "mTLS entre Front y Backend".
+
 ## Cola de análisis (Redis + BullMQ)
 
 `POST /meals` encola en la cola `meal-analysis` (`src/jobs/meal-analysis.ts`) un job `{ mealId, requestId }` con `jobId = mealId`, 4 intentos y backoff exponencial. Config en `REDIS_URL` (obligatoria). Antes de subir la media reserva un análisis del cupo free (`src/services/quota.ts`); el límite sale de `FREE_MONTHLY_ANALYSES` (obligatoria, entero ≥ 0; el plan definido es 40). Antes del cupo mensual reserva una foto del tope diario (RNF-07): 20 por día en free y 100 en premium, configurables con `DAILY_ANALYSES_FREE` y `DAILY_ANALYSES_PREMIUM` (opcionales, enteros ≥ 1); al llegar al tope responde 429 `DAILY_LIMIT_EXCEEDED` con `Retry-After` hasta la medianoche local. Las rutas solo premium usan `requirePremium` (`src/middleware/plan.ts`). Si alguien es premium lo decide siempre `isPremium(plan, ahora)` (`src/services/plan.ts`).

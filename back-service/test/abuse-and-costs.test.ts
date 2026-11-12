@@ -29,6 +29,7 @@ import { createUserService } from "../src/services/users";
 import { parseVisionResponse } from "../src/services/vision";
 import type { VisionService } from "../src/services/vision";
 import { captureLogger, fixtures, storageEnv } from "./helpers";
+import { generateCerts } from "./mtls-helpers";
 
 const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
 const TZ = "America/Montevideo";
@@ -366,6 +367,7 @@ describe("back-service: abuso y costos de IA (RNF-07)", () => {
         FREE_MONTHLY_ANALYSES: "40",
         JWT_PRIVATE_KEY: privateKey.export({ type: "pkcs8", format: "pem" }).toString(),
         ...storageEnv,
+        ...generateCerts().back.env,
       };
       assert.deepEqual(loadConfig(base).dailyAnalyses, { free: 20, premium: 100 });
       assert.deepEqual(

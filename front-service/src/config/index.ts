@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { loadPublicKey } from "@caloria/shared";
+import { loadMtlsCredentials, loadPublicKey, MTLS_FRONT_CN } from "@caloria/shared";
 
 export const FORBIDDEN_ENV = [
   "JWT_PRIVATE_KEY",
@@ -15,7 +15,14 @@ const missing = (name: string) => ({
 
 const envSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65_535).default(3000),
-  BACKEND_URL: z.url({ protocol: /^https?$/, ...missing("BACKEND_URL") }),
+  // Siempre HTTPS: la conexión al Backend va con mTLS (RNF-03).
+  BACKEND_URL: z.url({
+    protocol: /^https$/,
+    error: (issue) =>
+      issue.input === undefined
+        ? "Falta la variable de entorno BACKEND_URL"
+        : "tiene que ser una URL https:// (el Backend solo atiende con mTLS)",
+  }),
   BACKEND_TIMEOUT_MS: z.coerce.number().int().min(100).max(60_000).default(10_000),
   JWT_PUBLIC_KEY: z.string(missing("JWT_PUBLIC_KEY")).transform((pem, ctx) => {
     try {
@@ -46,10 +53,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
   }
 
   const { data } = result;
+  // Certificado de cliente del Front y la CA propia con la que verifica al Backend.
+  const mtls = loadMtlsCredentials(MTLS_FRONT_CN, env);
   return {
     port: data.PORT,
     backendUrl: data.BACKEND_URL,
     backendTimeoutMs: data.BACKEND_TIMEOUT_MS,
     jwtPublicKey: data.JWT_PUBLIC_KEY,
+    mtls,
   };
 }
