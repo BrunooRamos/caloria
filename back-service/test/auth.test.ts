@@ -14,6 +14,7 @@ import { createAuthService, MAX_SESSIONS } from "../src/services/auth";
 import { createUserService } from "../src/services/users";
 import { computeTargets } from "../src/services/targets";
 import { captureLogger, listen, storageEnv } from "./helpers";
+import { generateCerts } from "./mtls-helpers";
 
 const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
 
@@ -245,8 +246,10 @@ describe("back-service: configuración", () => {
       JWT_PRIVATE_KEY: pem,
       FREE_MONTHLY_ANALYSES: "30",
       ...storageEnv,
+      ...generateCerts().back.env,
     });
     assert.equal(config.jwtPrivateKey.type, "private");
+    assert.equal(config.mtls.commonName, "caloria-back");
     assert.equal(config.freeMonthlyAnalyses, 30);
   });
 

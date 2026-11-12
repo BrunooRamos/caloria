@@ -286,7 +286,16 @@ describe("front-service: aislamiento", () => {
     ]) {
       assert.ok(!forbidden.test(frontService), `el contenedor front recibe ${forbidden}`);
     }
-    const allowed = ["PORT", "BACKEND_URL", "BACKEND_TIMEOUT_MS", "JWT_PUBLIC_KEY", "LOG_LEVEL"];
+    const allowed = [
+      "PORT",
+      "BACKEND_URL",
+      "BACKEND_TIMEOUT_MS",
+      "JWT_PUBLIC_KEY",
+      "LOG_LEVEL",
+      "MTLS_CA_FILE",
+      "MTLS_CERT_FILE",
+      "MTLS_KEY_FILE",
+    ];
     const vars = [...frontService.matchAll(/^ {6}([A-Z_]+):/gm)].map((m) => m[1]);
     assert.ok(vars.includes("JWT_PUBLIC_KEY"));
     for (const name of vars) assert.ok(allowed.includes(name), `variable inesperada: ${name}`);
