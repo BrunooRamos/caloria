@@ -7,7 +7,7 @@
 #    - por HTTP plano → rechazado
 #    - por HTTPS sin certificado de cliente → rechazado
 #    - con un certificado "caloria-front" de otra CA (una credencial falsa) → rechazado
-#    - con el certificado real del Front → 200 (control: lo que se rechaza es la credencial)
+#    - con el certificado real del Front → 200 (control, primero: lo que se rechaza es la credencial)
 #
 # Requisitos: npm run certs:generate, el stack levantado
 # (docker compose -f infra/docker-compose.yml -f infra/docker-compose.dev.yml up -d), curl y node.
@@ -58,7 +58,8 @@ ok "GET /meals/$MEAL_ID → 200 (status $(json_field status <"$TMP/get.json"))"
 echo "→ Directo al Backend (https://back:4000), desde la red front-back"
 BACK=$(docker compose -f "$REPO_ROOT/infra/docker-compose.yml" ps -q back)
 [ -n "$BACK" ] || fail "no encontré el contenedor back (¿COMPOSE_PROJECT_NAME?)"
-NETWORK=$(docker inspect "$BACK" --format '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}' | grep 'front-back$')
+NETWORK=$(docker inspect "$BACK" --format '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}' | grep 'front-back$' || true)
+[ -n "$NETWORK" ] || fail "el contenedor back no está en la red front-back"
 
 # Una credencial falsa: misma forma y mismo CN que la del Front, pero de otra CA.
 bash "$REPO_ROOT/scripts/generate-mtls-certs.sh" "$TMP/falsa" >/dev/null
@@ -67,26 +68,40 @@ cp -R "$CERTS/front" "$TMP/real"
 chmod 644 "$TMP"/falsa/front/key.pem "$TMP"/real/key.pem
 
 docker pull -q "$CURL_IMAGE" >/dev/null
-# Corre curl en un contenedor efímero en la red front-back; imprime el código HTTP o el error.
+# Corre curl en un contenedor efímero en la red front-back. Deja el código HTTP en $HTTP, el exit
+# code en $CODE (el de curl, o 125+ si falló docker) y el error en $ERR.
 direct() {
-  docker run --rm --network "$NETWORK" \
+  set +e
+  HTTP=$(docker run --rm --network "$NETWORK" \
     -v "$TMP/real:/real:ro" -v "$TMP/falsa/front:/falsa:ro" \
-    "$CURL_IMAGE" -sS -m 5 -o /dev/null -w '%{http_code}' "$@" 2>&1 || true
+    "$CURL_IMAGE" -sS -m 5 -o /dev/null -w '%{http_code}' "$@" 2>"$TMP/err")
+  CODE=$?
+  set -e
+  ERR=$(tr '\n' ' ' <"$TMP/err" | cut -c1-100)
 }
+# Solo cuenta como rechazo un corte de la conexión o del handshake (curl 35, 52 o 56). Cualquier
+# otro error (docker, red, DNS, timeout) hace fallar la prueba en vez de pasar por rechazo.
 rejected() {
-  local name="$1" out="$2"
-  case "$out" in
-    200*) fail "$name: el Backend respondió 200" ;;
-    *) ok "$name → rechazado ($(printf '%s' "$out" | tr '\n' ' ' | sed -e 's/^000//' -e 's/ *000 *$//' | cut -c1-90))" ;;
+  local name="$1"
+  shift
+  direct "$@"
+  case "$CODE" in
+    35 | 52 | 56) ok "$name → rechazado ($ERR)" ;;
+    0) fail "$name: el Backend respondió $HTTP" ;;
+    *) fail "$name: la prueba no llegó al Backend (exit $CODE): $ERR" ;;
   esac
 }
 
-rejected "HTTP plano" "$(direct http://back:4000/health)"
-rejected "HTTPS sin certificado" "$(direct --cacert /real/ca.pem https://back:4000/health)"
-rejected "certificado falso (otra CA)" \
-  "$(direct --cacert /real/ca.pem --cert /falsa/cert.pem --key /falsa/key.pem https://back:4000/health)"
-OUT=$(direct --cacert /real/ca.pem --cert /real/cert.pem --key /real/key.pem https://back:4000/health)
-[ "$OUT" = 200 ] || fail "con el certificado real del Front se esperaba 200 y vino: $OUT"
+# Primero el control: con el certificado real responde. Así un rechazo después no puede ser un
+# problema del contenedor, la red o los certificados montados.
+direct --cacert /real/ca.pem --cert /real/cert.pem --key /real/key.pem https://back:4000/health
+[ "$CODE" = 0 ] && [ "$HTTP" = 200 ] ||
+  fail "con el certificado real del Front se esperaba 200 y vino $HTTP (exit $CODE): $ERR"
 ok "certificado real del Front → 200 (control)"
+
+rejected "HTTP plano" http://back:4000/health
+rejected "HTTPS sin certificado" --cacert /real/ca.pem https://back:4000/health
+rejected "certificado falso (otra CA)" \
+  --cacert /real/ca.pem --cert /falsa/cert.pem --key /falsa/key.pem https://back:4000/health
 
 echo "✔ mTLS OK: el Backend solo atiende al Front"

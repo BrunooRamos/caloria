@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -13,9 +13,19 @@ export interface PemSet {
   env: { MTLS_CA_FILE: string; MTLS_CERT_FILE: string; MTLS_KEY_FILE: string };
 }
 
-/** Corre el script del repo en una carpeta temporal: CA propia + certificados de Front y Backend. */
+const dirs: string[] = [];
+// Las carpetas tienen claves privadas: se borran al terminar el proceso de tests, pase lo que pase.
+process.once("exit", () => {
+  for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
+});
+
+/**
+ * Corre el script del repo en una carpeta temporal: CA propia + certificados de Front y Backend.
+ * Las claves se leen a memoria y la carpeta se borra al salir.
+ */
 export function generateCerts() {
   const dir = mkdtempSync(join(tmpdir(), "caloria-mtls-"));
+  dirs.push(dir);
   execFileSync("bash", [SCRIPT, dir], { stdio: "ignore" });
   const set = (name: "back" | "front"): PemSet => {
     const files = {

@@ -73,8 +73,13 @@ export function loadMtlsCredentials(
   if (commonName !== expectedCn) {
     throw new Error(`MTLS_CERT_FILE tiene que ser el certificado de ${expectedCn}`);
   }
-  if (Date.parse(ownCert.validTo) < Date.now()) {
-    throw new Error(`MTLS_CERT_FILE está vencido ${HINT}`);
+  for (const [name, cert] of [
+    ["MTLS_CA_FILE", caCert],
+    ["MTLS_CERT_FILE", ownCert],
+  ] as const) {
+    const now = Date.now();
+    if (Date.parse(cert.validTo) < now) throw new Error(`${name} está vencido ${HINT}`);
+    if (Date.parse(cert.validFrom) > now) throw new Error(`${name} todavía no es válido`);
   }
   return { ca, cert, key, commonName };
 }
