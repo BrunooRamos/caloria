@@ -131,6 +131,7 @@ describe("back-service: abuso y costos de IA (RNF-07)", () => {
   let now: Date;
   let media: MediaService;
   let jobs: MealAnalysisJob[];
+  let failEnqueue: boolean;
   let app: ReturnType<typeof createApp>;
   let ai: ReturnType<typeof fakeAi>;
   let workerLogs: Record<string, unknown>[];
@@ -156,8 +157,10 @@ describe("back-service: abuso y costos de IA (RNF-07)", () => {
     const clock = () => now;
     media = memoryMedia();
     jobs = [];
+    failEnqueue = false;
     const queue: MealAnalysisQueue = {
       async enqueue(job) {
+        if (failEnqueue) throw new Error("Redis caído");
         jobs.push(job);
       },
       async ready() {},
@@ -294,6 +297,60 @@ describe("back-service: abuso y costos de IA (RNF-07)", () => {
       );
       const results = await Promise.all(Array.from({ length: 6 }, () => postMeal(token)));
       assert.deepEqual(results.map((r) => r.status).sort(), [202, 429, 429, 429, 429, 429]);
+    });
+
+    it("cambiar de zona no reinicia el tope, y el Retry-After apunta al día que se agotó", async () => {
+      const { token, userId } = await register();
+      const setZone = (timezone: string) =>
+        request(app)
+          .patch("/api/v1/users/me")
+          .set("authorization", `Bearer ${token}`)
+          .send({ profile: { timezone } });
+      // 15:00 en Montevideo = 03:00 del 12 en Tokio: agota el 12 desde Tokio.
+      assert.equal((await setZone("Asia/Tokyo")).status, 200);
+      await UserModel.updateOne(
+        { _id: userId },
+        { $set: { dailyUsage: { date: "2026-11-12", analyses: 20 } } },
+      );
+      assert.equal((await postMeal(token)).status, 429);
+
+      // De vuelta en Montevideo todavía es el 11: no se reinicia (si no, ir y volver de zona
+      // daría fotos de más). Recién se libera a la medianoche del 12 al 13 de Montevideo.
+      assert.equal((await setZone(TZ)).status, 200);
+      const res = await postMeal(token);
+      assert.equal(res.status, 429);
+      assert.equal(res.headers["retry-after"], String(9 * 3600 + 24 * 3600));
+      assert.match((res.body as ErrorBody).error.message, /33 horas/);
+      const user = await UserModel.findById(userId).lean();
+      assert.deepEqual(user?.dailyUsage, { date: "2026-11-12", analyses: 20 });
+    });
+
+    it("con el día guardado adelante, una foto que no se crea devuelve el lugar de ese día", async () => {
+      const { token, userId } = await register();
+      await UserModel.updateOne(
+        { _id: userId },
+        { $set: { dailyUsage: { date: "2026-11-12", analyses: 5 } } },
+      );
+      failEnqueue = true;
+      assert.equal((await postMeal(token)).status, 503);
+      const user = await UserModel.findById(userId).lean();
+      assert.deepEqual(user?.dailyUsage, { date: "2026-11-12", analyses: 5 });
+    });
+
+    it("si falla el encolado, la foto no cuenta para el día (la IA no se llamó)", async () => {
+      const { token, userId } = await register();
+      assert.equal((await postMeal(token)).status, 202);
+      failEnqueue = true;
+      assert.equal((await postMeal(token)).status, 503);
+      // El cupo mensual y el diario vuelven en segundo plano: se espera a que se apliquen.
+      for (let i = 0; i < 50; i++) {
+        const user = await UserModel.findById(userId).lean();
+        if (user?.dailyUsage?.analyses === 1 && user.usage.analyses === 1) break;
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      const user = await UserModel.findById(userId).lean();
+      assert.deepEqual(user?.dailyUsage, { date: "2026-11-11", analyses: 1 });
+      assert.equal(user?.usage.analyses, 1);
     });
 
     it("secondsUntilNextLocalDay usa la zona del usuario", () => {

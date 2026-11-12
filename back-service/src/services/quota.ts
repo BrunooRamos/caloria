@@ -122,9 +122,12 @@ export function createQuotaService({
 
   /**
    * Suma una foto al día local `day` si no llegó al tope; si el día guardado es anterior, arranca
-   * de cero. Atómico: dos fotos a la vez no pasan el tope. Devuelve false si está en el tope.
+   * de cero. Atómico: dos fotos a la vez no pasan el tope. Como el cupo mensual, el día guardado
+   * nunca retrocede: si el usuario pasa a una zona que todavía está en el día anterior, se sigue
+   * contando sobre el guardado (si no, cambiar de zona de ida y vuelta reiniciaría el tope).
+   * Devuelve el día en el que se contó, o null si está en el tope.
    */
-  async function reserveDay(userId: string, day: string, limit: number): Promise<boolean> {
+  async function reserveDay(userId: string, day: string, limit: number): Promise<string | null> {
     const keepsDay = { $gte: ["$dailyUsage.date", day] };
     const user = await UserModel.findOneAndUpdate(
       {
@@ -145,9 +148,23 @@ export function createQuotaService({
           },
         },
       ],
-      { new: true, projection: { _id: 1 } },
-    ).lean();
-    return user !== null;
+      { new: true, projection: { "dailyUsage.date": 1 } },
+    ).lean<Pick<User, "dailyUsage">>();
+    return user?.dailyUsage?.date ?? null;
+  }
+
+  /**
+   * Segundos hasta poder volver a subir: la medianoche local siguiente al día que se agotó. Si el
+   * día guardado está adelante del de la zona actual, se suman los días de diferencia.
+   */
+  async function dailyRetryAfter(userId: string, timeZone: string, at: Date, day: string) {
+    const stored = await UserModel.findById(userId, { "dailyUsage.date": 1 }).lean<
+      Pick<User, "dailyUsage">
+    >();
+    const storedDay = stored?.dailyUsage?.date;
+    const exhausted = storedDay && storedDay > day ? storedDay : day;
+    const daysAhead = Math.round((Date.parse(exhausted) - Date.parse(day)) / 86_400_000);
+    return { exhausted, seconds: secondsUntilNextLocalDay(timeZone, at) + daysAhead * 86_400 };
   }
 
   /** Suma un análisis al cupo mensual del plan free. Lanza MEAL_QUOTA_EXCEEDED si no queda. */
@@ -212,14 +229,20 @@ export function createQuotaService({
       const premium = Boolean(current && isPremium(current.plan, at));
 
       // Tope diario (RNF-07): frena el gasto en IA también en premium.
-      const day = localDateIn(timeZone, at);
+      const today = localDateIn(timeZone, at);
       const dailyLimit = premium ? dailyAnalyses.premium : dailyAnalyses.free;
-      if (!(await reserveDay(userId, day, dailyLimit))) {
-        const retryAfterSeconds = secondsUntilNextLocalDay(timeZone, at);
+      const day = await reserveDay(userId, today, dailyLimit);
+      if (day === null) {
+        const { exhausted, seconds: retryAfterSeconds } = await dailyRetryAfter(
+          userId,
+          timeZone,
+          at,
+          today,
+        );
         log.info("tope diario de fotos alcanzado, se rechaza la comida", {
           requestId,
           userId,
-          day,
+          day: exhausted,
           limit: dailyLimit,
           plan: premium ? "premium" : "free",
           retryAfterSeconds,

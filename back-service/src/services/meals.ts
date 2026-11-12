@@ -260,8 +260,10 @@ export function createMealService({
           { _id: mealId },
           { $set: { status: "failed", error: { code: ENQUEUE_FAILED } } },
         )
-          // Terminó en failed: no consume cupo.
-          .then(() => refundMealQuota(mealId))
+          // Terminó en failed: no consume cupo. Tampoco el tope diario: la IA no se llamó.
+          .then(() =>
+            Promise.all([refundMealQuota(mealId), quota.release(userId, { day: reservation.day })]),
+          )
           .catch((updateErr: unknown) => {
             log.error("no se pudo marcar la comida como failed o devolver el cupo", {
               mealId: id,

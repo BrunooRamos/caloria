@@ -118,7 +118,7 @@ Antes de llamar a la IA, el Worker busca hasta 5 comidas `ready` y corregidas de
 | `NOT_FOOD` | Worker | La IA dice que la foto no es comida. Sin reintento y no consume cupo |
 | `ANALYSIS_FAILED` | Worker | Falló el último de los 3 intentos del análisis (2 reintentos con backoff exponencial de 5 y 10 s, RNF-02). La media queda en el bucket |
 
-**Tope diario (RNF-07):** `users.dailyUsage` (`{ date: "YYYY-MM-DD", analyses }`, en la zona del perfil) cuenta las fotos aceptadas del día. Se reserva en `POST /meals` con un update atómico que reinicia el contador si el día guardado es anterior. Solo se devuelve si la comida no llega a crearse (falla la subida o el insert) o si el cupo mensual la rechaza.
+**Tope diario (RNF-07):** `users.dailyUsage` (`{ date: "YYYY-MM-DD", analyses }`, en la zona del perfil) cuenta las fotos aceptadas del día. Se reserva en `POST /meals` con un update atómico que reinicia el contador si el día guardado es anterior. Solo se devuelve si la comida no llega a crearse (falla la subida o el insert), si no se puede encolar (`ENQUEUE_FAILED`: la IA no se llamó) o si el cupo mensual la rechaza. El día guardado nunca retrocede: si el usuario pasa a una zona que todavía está en el día anterior, se sigue contando sobre el guardado, igual que `usage.month`.
 
 **Cache del análisis (RNF-07):** `meals.inputHash` es el sha256 de la foto, el audio y la nota (sin espacios en los bordes), cada parte con su largo adelante (`mealInputHash`, `back-service/src/services/meals.ts`). `meals.cachedFrom` es la comida de la que se copió el análisis. La búsqueda es solo dentro del mismo usuario.
 
