@@ -16,6 +16,7 @@ import {
   memoryStorage,
 } from "@/test-utils/fake-api";
 import type { Call, Handler } from "@/test-utils/fake-api";
+import { billingSwitch, expectNoPaymentText } from "@/test-utils/billing";
 
 jest.mock("expo-splash-screen", () => ({
   preventAutoHideAsync: jest.fn(() => Promise.resolve(true)),
@@ -362,5 +363,42 @@ describe("cancelar", () => {
     ).toBeOnTheScreen();
     expect(openAuthSession).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Cancelar suscripción" })).toBeOnTheScreen();
+  });
+});
+
+describe("rutas de Tu plan según el interruptor de pagos", () => {
+  describe.each([["true"], [undefined]])("prendido (%p)", (value) => {
+    billingSwitch(value);
+
+    it("/plan abre Tu plan", async () => {
+      const router = await start("/plan", [free()]);
+
+      expect(await screen.findByText("Te quedan 37 de 40 análisis este mes")).toBeOnTheScreen();
+      expect(router.getPathname()).toBe("/plan");
+    });
+
+    it("billing/return lleva a Tu plan", async () => {
+      const router = await start("/billing/return?result=cancel", [free()]);
+
+      expect(await screen.findByText("Te quedan 37 de 40 análisis este mes")).toBeOnTheScreen();
+      expect(router.getPathname()).toBe("/plan");
+    });
+  });
+
+  describe("apagado (build de Google Play)", () => {
+    billingSwitch("false");
+
+    it.each(["/plan", "/plan?checkout=success", "/billing/return?result=success"])(
+      "%s lleva al inicio, sin mostrar planes",
+      async (url) => {
+        const router = await start(url, [free()]);
+
+        await act(() => jest.advanceTimersByTimeAsync(10));
+        expect(router.getPathname()).toBe("/");
+        expect(appRoutes(router)).not.toContain("plan");
+        expect(screen.queryByRole("header", { name: "Tu plan" })).toBeNull();
+        expectNoPaymentText();
+      },
+    );
   });
 });

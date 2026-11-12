@@ -1,6 +1,6 @@
 import type React from "react";
 import type ReactNative from "react-native";
-import { act, fireEvent, renderRouter, screen, waitFor } from "expo-router/testing-library";
+import { act, fireEvent, renderRouter, screen, waitFor, within } from "expo-router/testing-library";
 import { PLAN_CHECK_TIMEOUT_MS } from "@/features/billing/captureGate";
 import type { BillingPlan } from "@/services/billing";
 import { createHttpClient } from "@/services/http-client";
@@ -15,6 +15,7 @@ import {
   memoryStorage,
 } from "@/test-utils/fake-api";
 import type { Call } from "@/test-utils/fake-api";
+import { billingSwitch, expectNoPaymentText } from "@/test-utils/billing";
 
 jest.mock("expo-splash-screen", () => ({
   preventAutoHideAsync: jest.fn(() => Promise.resolve(true)),
@@ -261,5 +262,48 @@ describe("antes de frenar a alguien, confirma con el plan del momento", () => {
     expect(await screen.findByText("Cámara abierta")).toBeOnTheScreen();
     expect(router.getPathname()).toBe("/capture");
     expect(sheet()).toBeNull();
+  });
+});
+
+describe("la hoja sin análisis según el interruptor de pagos", () => {
+  describe.each([["true"], [undefined]])("prendido (%p)", (value) => {
+    billingSwitch(value);
+
+    it("ofrece Ver planes y Cerrar", async () => {
+      await start("/", [free(0)]);
+      await planLoaded();
+
+      await register();
+
+      expect(await screen.findByRole("header", { name: QUOTA_TITLE })).toBeOnTheScreen();
+      expect(screen.getByRole("button", { name: "Ver planes" })).toBeOnTheScreen();
+      expect(screen.getByRole("button", { name: "Cerrar" })).toBeOnTheScreen();
+    });
+  });
+
+  describe("apagado (build de Google Play)", () => {
+    billingSwitch("false");
+
+    it("solo dice cuándo se renuevan y deja Cerrar", async () => {
+      const router = await start("/", [free(0)]);
+      await planLoaded();
+
+      await register();
+
+      expect(
+        await screen.findByText("Usaste tus 40 análisis del mes. Se renuevan el 1.º de diciembre."),
+      ).toBeOnTheScreen();
+      expect(
+        within(screen.getByTestId("sheet"))
+          .getAllByRole("button")
+          .map((button) => button.props.accessibilityLabel as string),
+      ).toEqual(["Cerrar"]);
+      expectNoPaymentText();
+
+      await press("Cerrar");
+      await waitFor(() => expect(sheet()).toBeNull());
+      expect(router.getPathname()).toBe("/");
+      expect(screen.queryByText("Cámara abierta")).toBeNull();
+    });
   });
 });

@@ -1,3 +1,4 @@
+import { billingSwitch } from "@/test-utils/billing";
 import { ApiError } from "../api-error";
 import type { ApiErrorCode } from "../api-error";
 import { GENERIC_ERROR_MESSAGE, errorMessage } from "../error-messages";
@@ -105,5 +106,14 @@ describe("errorMessage", () => {
     });
 
     expect(errorMessage(unknown)).toBe(GENERIC_ERROR_MESSAGE);
+  });
+});
+
+describe("PREMIUM_REQUIRED sin pagos (build de Google Play)", () => {
+  billingSwitch("false");
+  it("no nombra premium", () => {
+    expect(errorMessage(apiError("PREMIUM_REQUIRED", { status: 402 }))).toBe(
+      "Esto no está incluido en tu plan.",
+    );
   });
 });

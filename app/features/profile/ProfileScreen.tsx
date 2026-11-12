@@ -12,7 +12,8 @@ import {
   TextButton,
   confirmAction,
 } from "@/components";
-import { planSummary } from "@/features/billing/planView";
+import { isBillingEnabled } from "@/features/billing/billingEnabled";
+import { planSummary, usageSummary } from "@/features/billing/planView";
 import { useBillingPlan } from "@/features/billing/usePlan";
 import { formatNumber } from "@/features/dashboard/format";
 import { errorMessage } from "@/services/error-messages";
@@ -28,6 +29,7 @@ export default function ProfileScreen() {
   const me = state.status === "ready" ? state.me : null;
   const billing = useBillingPlan();
   const [timeZone] = useState(deviceTimeZone);
+  const billingEnabled = isBillingEnabled();
 
   return (
     <Screen scroll edges={["top", "left", "right"]}>
@@ -47,16 +49,25 @@ export default function ProfileScreen() {
 
       <View style={styles.groups}>
         <ListGroup>
-          <ListRow
-            icon={CreditCard}
-            title="Tu plan"
-            detail={
-              billing.status === "ready"
-                ? planSummary(billing.plan, timeZone, new Date())
-                : undefined
-            }
-            onPress={() => router.push("/plan")}
-          />
+          {billingEnabled ? (
+            <ListRow
+              icon={CreditCard}
+              title="Tu plan"
+              detail={
+                billing.status === "ready"
+                  ? planSummary(billing.plan, timeZone, new Date())
+                  : undefined
+              }
+              onPress={() => router.push("/plan")}
+            />
+          ) : (
+            // Sin pagos (build de Google Play): solo el uso del mes, sin abrir Tu plan.
+            <ListRow
+              icon={CreditCard}
+              title="Tu plan"
+              detail={billing.status === "ready" ? usageSummary(billing.plan) : undefined}
+            />
+          )}
         </ListGroup>
 
         <ListGroup>

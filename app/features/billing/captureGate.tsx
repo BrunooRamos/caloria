@@ -4,6 +4,7 @@ import type { PropsWithChildren } from "react";
 import { deviceTimeZone } from "@/features/profile/timezone";
 import { getBillingPlan } from "@/services/billing";
 import type { BillingPlan } from "@/services/billing";
+import { isBillingEnabled } from "./billingEnabled";
 import { QuotaSheet } from "./QuotaSheet";
 import { hasAnalysesLeft, quotaView } from "./planView";
 import type { QuotaView } from "./planView";
@@ -78,7 +79,7 @@ export function CaptureGateProvider({ children }: PropsWithChildren) {
   const close = useCallback(() => setOpen(false), []);
   const seePlans = useCallback(() => {
     setOpen(false);
-    router.push("/plan");
+    if (isBillingEnabled()) router.push("/plan");
   }, []);
 
   return (

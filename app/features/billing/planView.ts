@@ -7,6 +7,7 @@
  * se renueva y cómo se cancela; cancelar lleva los mismos pasos que suscribirse y el texto no
  * intenta convencer a nadie; quedarse sin análisis se dice con calma.
  */
+import { shiftMonths, todayIn } from "@/features/history/day";
 import type { BillingPlan, PlanCatalog, PlanOffer, Price } from "@/services/billing";
 import {
   everyInterval,
@@ -285,6 +286,8 @@ function quotaExhausted(
 export interface QuotaView {
   title: string;
   message: string;
+  /** Lo único que dice la hoja sin pagos (build de Google Play): cuántos usó y cuándo vuelven. */
+  renewal: string;
   /** Para la barra; null si el plan no tiene límite. */
   usage: { used: number; limit: number } | null;
 }
@@ -294,8 +297,31 @@ export function quotaView(plan: BillingPlan, timeZone: string, now: Date): Quota
   const { limit, remaining } = plan.analyses;
   return {
     ...quotaExhausted(plan, timeZone, now),
+    renewal: quotaRenewal(plan, timeZone, now),
     usage: limit === null || remaining === null ? null : { used: limit - remaining, limit },
   };
+}
+
+/** "1.º de diciembre": el día en que se renuevan los análisis (el 1.º del mes que viene). */
+function renewalDay(resetsOn: string | null, timeZone: string, now: Date): string {
+  const today = todayIn(timeZone, now);
+  const day = resetsOn ?? `${shiftMonths(today, 1).slice(0, 7)}-01`;
+  return formatDay(day, timeZone, now).replace(/^1 de /, "1.º de ");
+}
+
+/** Sin pagos: "Usaste tus 40 análisis del mes. Se renuevan el 1.º de diciembre." */
+export function quotaRenewal(plan: BillingPlan, timeZone: string, now: Date): string {
+  const { limit, resetsOn } = plan.analyses;
+  const used =
+    limit === null ? "Usaste tus análisis del mes." : `Usaste tus ${limit} análisis del mes.`;
+  return `${used} Se renuevan el ${renewalDay(resetsOn, timeZone, now)}.`;
+}
+
+/** La fila "Tu plan" sin pagos: solo el uso del mes, "12 de 40 análisis". */
+export function usageSummary(plan: BillingPlan): string {
+  const { limit, remaining } = plan.analyses;
+  if (limit === null || remaining === null) return "Análisis ilimitados";
+  return `${limit - remaining} de ${limit} análisis`;
 }
 
 /** El resumen de la fila "Tu plan" del perfil: "Free · te quedan 37 análisis". */

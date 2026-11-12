@@ -23,6 +23,7 @@ import {
 import { spyAlerts } from "@/test-utils/alert";
 import { mockHardwareBack } from "@/test-utils/hardware-back";
 import type { Call, Handler } from "@/test-utils/fake-api";
+import { billingSwitch, expectNoPaymentText } from "@/test-utils/billing";
 
 jest.mock("expo-splash-screen", () => ({
   preventAutoHideAsync: jest.fn(() => Promise.resolve(true)),
@@ -799,5 +800,40 @@ describe("audio de la preparación", () => {
     expect(openSettings).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("button", { name: "Enviar" })).toBeEnabled();
     openSettings.mockRestore();
+  });
+});
+
+describe("sin cupo según el interruptor de pagos", () => {
+  describe.each([["true"], [undefined]])("prendido (%p)", (value) => {
+    billingSwitch(value);
+
+    it("la vista previa ofrece Ver planes", async () => {
+      await start(() => apiError(402, "MEAL_QUOTA_EXCEEDED"));
+      await takePhoto();
+
+      await press("Enviar");
+      expect(await screen.findByText("Usaste los análisis de este mes")).toBeOnTheScreen();
+      expect(screen.getByRole("button", { name: "Ver planes" })).toBeOnTheScreen();
+    });
+  });
+
+  describe("apagado (build de Google Play)", () => {
+    billingSwitch("false");
+
+    it("la vista previa dice cuándo se renuevan, sin Ver planes", async () => {
+      const router = await start(() => apiError(402, "MEAL_QUOTA_EXCEEDED"));
+      await takePhoto();
+
+      await press("Enviar");
+      expect(await screen.findByText("Usaste los análisis de este mes")).toBeOnTheScreen();
+      expect(
+        screen.getByText(
+          "Se renuevan el 1.° del mes que viene. Tu historial y tus metas siguen disponibles.",
+        ),
+      ).toBeOnTheScreen();
+      expect(screen.queryByRole("button", { name: "Ver planes" })).toBeNull();
+      expectNoPaymentText();
+      expect(router.getPathname()).toBe("/capture");
+    });
   });
 });

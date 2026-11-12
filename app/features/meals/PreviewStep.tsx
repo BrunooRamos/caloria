@@ -6,6 +6,7 @@ import { Button, FormError, HeaderButton, Notice, Screen, Text } from "@/compone
 import { ApiError } from "@/services/api-error";
 import { errorMessage } from "@/services/error-messages";
 import type { ErrorMessageOverrides } from "@/services/error-messages";
+import { isBillingEnabled } from "@/features/billing/billingEnabled";
 import { createMeal } from "@/services/meals";
 import { colors, radius, spacing } from "@/theme";
 import { AudioNoteRecorder } from "./AudioNoteRecorder";
@@ -132,6 +133,15 @@ export function PreviewStep({
 
 /** Sin análisis en el mes: se dice con calma, sin rojo, y se puede ver qué incluye cada plan. */
 function QuotaExceeded() {
+  if (!isBillingEnabled()) {
+    return (
+      <Notice
+        icon={CalendarClock}
+        title="Usaste los análisis de este mes"
+        detail="Se renuevan el 1.° del mes que viene. Tu historial y tus metas siguen disponibles."
+      />
+    );
+  }
   return (
     <Notice
       icon={CalendarClock}

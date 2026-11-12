@@ -1,12 +1,18 @@
-import { router, useLocalSearchParams } from "expo-router";
+import { Redirect, router, useLocalSearchParams } from "expo-router";
 import { useEffect } from "react";
+import { isBillingEnabled } from "@/features/billing/billingEnabled";
 
 /**
  * La vuelta del checkout por deep link (`caloria://billing/return?result=success|cancel`): lleva a
  * Tu plan, que con `checkout=success` muestra que se está confirmando el pago. Si Tu plan ya estaba
- * abierta vuelve a esa, sin apilar otra.
+ * abierta vuelve a esa, sin apilar otra. Sin pagos (build de Google Play) lleva al inicio.
  */
-export default function CheckoutReturn() {
+export default function CheckoutReturnRoute() {
+  if (!isBillingEnabled()) return <Redirect href="/" />;
+  return <CheckoutReturn />;
+}
+
+function CheckoutReturn() {
   const { result } = useLocalSearchParams<{ result?: string }>();
   useEffect(() => {
     router.dismissTo({
