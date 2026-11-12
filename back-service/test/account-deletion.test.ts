@@ -24,6 +24,7 @@ import {
   markWeeklySummaryFailed,
 } from "../src/jobs/weekly-summary-processor";
 import { AccountDeletionModel } from "../src/models/AccountDeletion";
+import { AiUsageModel } from "../src/models/AiUsage";
 import { GamificationModel } from "../src/models/Gamification";
 import { MealModel } from "../src/models/Meal";
 import { UserModel } from "../src/models/User";
@@ -190,6 +191,7 @@ describe("back-service: borrado de cuenta (RNF-04)", () => {
     await Promise.all([
       UserModel.deleteMany({}),
       MealModel.deleteMany({}),
+      AiUsageModel.deleteMany({}),
       WeeklySummaryModel.deleteMany({}),
       GamificationModel.deleteMany({}),
       AccountDeletionModel.deleteMany({}),
@@ -350,7 +352,13 @@ describe("back-service: borrado de cuenta (RNF-04)", () => {
       assert.ok(done?.completedAt, "el pedido queda terminado");
       const log = lines.find((line) => line.msg === "cuenta eliminada");
       assert.ok(log, JSON.stringify(lines));
-      assert.deepEqual(log.deleted, { users: 1, meals: 2, weeklySummaries: 1, gamification: 1 });
+      assert.deepEqual(log.deleted, {
+        users: 1,
+        meals: 2,
+        weeklySummaries: 1,
+        gamification: 1,
+        aiUsageAnonymized: 0,
+      });
     });
 
     it("el access token y el refresh token dejan de funcionar; los de otra cuenta siguen", async () => {
@@ -513,6 +521,40 @@ describe("back-service: borrado de cuenta (RNF-04)", () => {
       const res = await fetch(`${url}/api/v1/billing/webhook`, { method: "POST", headers, body });
       assert.equal(res.status, 200);
       assert.equal(await UserModel.countDocuments({ _id: ana.owner }), 0);
+    });
+  });
+
+  describe("costos de IA (RNF-07)", () => {
+    it("las filas de ai_usage de la cuenta quedan sin userId ni mealId; las de otra cuenta, igual", async () => {
+      const ana = await seedAccount("ana@example.com");
+      const beto = await seedAccount("beto@example.com");
+      const row = (owner: Types.ObjectId) => ({
+        at: new Date(),
+        kind: "analysis",
+        model: "gpt-6-luna",
+        userId: owner,
+        mealId: new Types.ObjectId(),
+        usage: { input: 1500, output: 400 },
+        costUsd: 0.00035,
+      });
+      await AiUsageModel.create([row(ana.owner), row(ana.owner), row(beto.owner)]);
+
+      assert.equal((await deleteMe(ana.accessToken)).status, 204);
+      assert.equal(await AiUsageModel.countDocuments({ userId: ana.owner }), 0);
+      // El costo sigue: el gasto del mes no baja porque alguien borre la cuenta.
+      const anonymous = await AiUsageModel.find({ userId: { $exists: false } }).lean();
+      assert.equal(anonymous.length, 2);
+      for (const doc of anonymous) {
+        assert.equal(doc.mealId, undefined);
+        assert.equal(doc.costUsd, 0.00035);
+      }
+      const betoRows = await AiUsageModel.find({ userId: beto.owner }).lean();
+      assert.equal(betoRows.length, 1);
+      assert.ok(betoRows[0].mealId);
+
+      // La limpieza del Worker lo repite sin problema.
+      assert.equal(await purge(ana.id), "purged");
+      assert.equal(await AiUsageModel.countDocuments(), 3);
     });
   });
 

@@ -1,5 +1,6 @@
 import { createPublicKey } from "node:crypto";
 import { loadMtlsCredentials, loadPrivateKey, MTLS_BACK_CN } from "@caloria/shared";
+import { DEFAULT_DAILY_ANALYSES } from "../services/quota";
 import { loadStorageConfig } from "./storage";
 
 /** Lee la configuración del entorno. Lanza si falta algo obligatorio: el servicio no arranca. */
@@ -17,6 +18,10 @@ export function loadConfig(env = process.env) {
     jwtPublicKey: createPublicKey(jwtPrivateKey),
     storage: loadStorageConfig(env),
     freeMonthlyAnalyses: parseFreeMonthlyAnalyses(env.FREE_MONTHLY_ANALYSES),
+    dailyAnalyses: {
+      free: parsePositiveInt("DAILY_ANALYSES_FREE", env, DEFAULT_DAILY_ANALYSES.free),
+      premium: parsePositiveInt("DAILY_ANALYSES_PREMIUM", env, DEFAULT_DAILY_ANALYSES.premium),
+    },
     billing: loadBillingConfig(env),
     // mTLS con el Front (RNF-03): sin certificados válidos, el Backend no arranca.
     mtls: loadMtlsCredentials(MTLS_BACK_CN, env),
@@ -66,4 +71,15 @@ function parseFreeMonthlyAnalyses(raw: string | undefined): number {
     throw new Error(`FREE_MONTHLY_ANALYSES tiene que ser un entero ≥ 0 (vino "${value}")`);
   }
   return limit;
+}
+
+/** Entero ≥ 1 opcional: sin la variable, vale `fallback`. */
+function parsePositiveInt(name: string, env: NodeJS.ProcessEnv, fallback: number): number {
+  const value = env[name]?.trim();
+  if (!value) return fallback;
+  const parsed = Number(value);
+  if (!/^\d+$/.test(value) || !Number.isSafeInteger(parsed) || parsed < 1) {
+    throw new Error(`${name} tiene que ser un entero ≥ 1 (vino "${value}")`);
+  }
+  return parsed;
 }

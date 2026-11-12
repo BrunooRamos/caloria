@@ -26,7 +26,10 @@ const logger = createLogger({ service: "back" });
 async function main() {
   const config = loadConfig();
   const auth = createAuthService({ privateKey: config.jwtPrivateKey });
-  const quota = createQuotaService({ freeMonthlyAnalyses: config.freeMonthlyAnalyses });
+  const quota = createQuotaService({
+    freeMonthlyAnalyses: config.freeMonthlyAnalyses,
+    dailyAnalyses: config.dailyAnalyses,
+  });
   const meals = createMealService({
     media: createMediaService(config.storage),
     queue: createMealAnalysisQueue({ redisUrl: config.redisUrl, logger }),

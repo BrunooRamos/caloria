@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { Types } from "mongoose";
 import { AppError, MEALS_PAGE_SIZE, serializeError } from "@caloria/shared";
@@ -39,6 +40,26 @@ const CORRECTABLE_FIELDS = [
 ] as const satisfies CorrectableField[];
 
 type StoredMeal = MealResponseSource & { media: Pick<MealMedia, "photoKey"> };
+
+/**
+ * Huella de lo que recibe la IA: los bytes de la foto y del audio y la nota sin espacios en los
+ * bordes (así la usa el análisis). Cada parte va con su largo adelante, para que no se puedan
+ * correr bytes de una a otra y dar el mismo hash con entradas distintas.
+ */
+export function mealInputHash({ photo, audio, note }: ValidMealUpload): string {
+  const hash = createHash("sha256");
+  const parts: [string, Buffer][] = [
+    ["photo", photo.buffer],
+    ["audio", audio?.buffer ?? Buffer.alloc(0)],
+    ["note", Buffer.from(note?.trim() ?? "", "utf8")],
+  ];
+  for (const [name, bytes] of parts) {
+    const length = Buffer.alloc(8);
+    length.writeBigUInt64BE(BigInt(bytes.length));
+    hash.update(name).update(length).update(bytes);
+  }
+  return hash.digest("hex");
+}
 
 /** Posición en el historial: la última comida de la página anterior, en el orden del listado. */
 interface ListCursor {
@@ -178,14 +199,14 @@ export function createMealService({
       if (!user) throw new AppError("UNAUTHORIZED");
 
       // El cupo se reserva antes de subir la media: una comida rechazada no deja archivos.
-      const { month: quotaMonth } = await quota.reserve(userId, user.profile.timezone, {
+      const reservation = await quota.reserve(userId, user.profile.timezone, {
         requestId,
         log,
       });
-      /** Una reserva sin comida que la respalde no consume cupo. Nunca lanza. */
+      const quotaMonth = reservation.month;
+      /** Una reserva sin comida que la respalde no consume cupo ni tope diario. Nunca lanza. */
       const releaseQuota = async (mealId: string) => {
-        if (quotaMonth === undefined) return;
-        await quota.release(userId, quotaMonth).catch((err: unknown) => {
+        await quota.release(userId, reservation).catch((err: unknown) => {
           log.error("no se pudo devolver el cupo", { mealId, err: serializeError(err) });
         });
       };
@@ -211,6 +232,7 @@ export function createMealService({
           media: mediaKeys,
           ...(upload.note !== undefined && { note: upload.note }),
           ...(quotaMonth !== undefined && { quotaMonth }),
+          inputHash: mealInputHash(upload),
         });
       } catch (err) {
         log.error("no se pudo crear la comida; se borra la media subida", {
@@ -238,8 +260,10 @@ export function createMealService({
           { _id: mealId },
           { $set: { status: "failed", error: { code: ENQUEUE_FAILED } } },
         )
-          // Terminó en failed: no consume cupo.
-          .then(() => refundMealQuota(mealId))
+          // Terminó en failed: no consume cupo. Tampoco el tope diario: la IA no se llamó.
+          .then(() =>
+            Promise.all([refundMealQuota(mealId), quota.release(userId, { day: reservation.day })]),
+          )
           .catch((updateErr: unknown) => {
             log.error("no se pudo marcar la comida como failed o devolver el cupo", {
               mealId: id,

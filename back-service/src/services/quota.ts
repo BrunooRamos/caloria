@@ -1,5 +1,5 @@
 import type { Types } from "mongoose";
-import { AppError } from "@caloria/shared";
+import { AppError, serializeError } from "@caloria/shared";
 import type { Logger } from "@caloria/shared";
 import { MealModel } from "../models/Meal";
 import { UserModel } from "../models/User";
@@ -27,6 +27,41 @@ export function firstDayOfNextMonth(month: string): string {
   return nextMonthStart(month).toISOString().slice(0, 10);
 }
 
+/**
+ * Segundos que faltan para la próxima medianoche en `timeZone`. Alcanza con la hora local: en un
+ * cambio de horario puede errar por una hora, y el Retry-After es solo una indicación.
+ */
+export function secondsUntilNextLocalDay(timeZone: string, at: Date): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hourCycle: "h23",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(at);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((p) => p.type === type)?.value ?? 0);
+  const elapsed = part("hour") * 3600 + part("minute") * 60 + part("second");
+  return Math.max(1, 86_400 - elapsed);
+}
+
+function hoursLabel(seconds: number): string {
+  if (seconds < 3600) {
+    const minutes = Math.ceil(seconds / 60);
+    return `${minutes} ${minutes === 1 ? "minuto" : "minutos"}`;
+  }
+  const hours = Math.ceil(seconds / 3600);
+  return `${hours} ${hours === 1 ? "hora" : "horas"}`;
+}
+
+/** Fotos por día que se pueden analizar, según el plan (RNF-07). */
+export interface DailyAnalyses {
+  free: number;
+  premium: number;
+}
+
+export const DEFAULT_DAILY_ANALYSES: DailyAnalyses = { free: 20, premium: 100 };
+
 export interface RemainingAnalyses {
   /** null en premium: sin límite. */
   limit: number | null;
@@ -37,6 +72,8 @@ export interface RemainingAnalyses {
 export interface QuotaReservation {
   /** Mes en el que se consumió cupo; undefined si el usuario es premium (no tiene cupo). */
   month?: string;
+  /** Día local ("YYYY-MM-DD") en el que se consumió el tope diario. */
+  day?: string;
 }
 
 export interface QuotaContext {
@@ -45,8 +82,13 @@ export interface QuotaContext {
 }
 
 export interface QuotaService {
+  /**
+   * Reserva una foto del tope diario (free y premium) y, en free, un análisis del cupo mensual.
+   * Lanza DAILY_LIMIT_EXCEEDED (429, con Retry-After) o MEAL_QUOTA_EXCEEDED (402).
+   */
   reserve(userId: string, timeZone: string, context: QuotaContext): Promise<QuotaReservation>;
-  release(userId: string, month: string): Promise<void>;
+  /** Devuelve lo reservado por `reserve` cuando la comida no llegó a crearse. */
+  release(userId: string, reservation: QuotaReservation): Promise<void>;
   /** Análisis que le quedan en el mes, sin reservar nada. */
   remaining(user: Pick<User, "plan" | "usage" | "profile">, at?: Date): RemainingAnalyses;
 }
@@ -54,65 +96,176 @@ export interface QuotaService {
 export interface QuotaServiceDeps {
   /** Análisis por mes del plan free (FREE_MONTHLY_ANALYSES). */
   freeMonthlyAnalyses: number;
+  /** Tope de fotos por día y por plan (DAILY_ANALYSES_FREE y DAILY_ANALYSES_PREMIUM). */
+  dailyAnalyses?: DailyAnalyses;
   now?: () => Date;
 }
 
 export function createQuotaService({
   freeMonthlyAnalyses,
+  dailyAnalyses = DEFAULT_DAILY_ANALYSES,
   now = () => new Date(),
 }: QuotaServiceDeps): QuotaService {
+  async function releaseDay(userId: string, day: string) {
+    await UserModel.updateOne(
+      { _id: userId, "dailyUsage.date": day, "dailyUsage.analyses": { $gt: 0 } },
+      { $inc: { "dailyUsage.analyses": -1 } },
+    );
+  }
+
+  async function releaseMonth(userId: string, month: string) {
+    await UserModel.updateOne(
+      { _id: userId, "usage.month": month, "usage.analyses": { $gt: 0 } },
+      { $inc: { "usage.analyses": -1 } },
+    );
+  }
+
+  /**
+   * Suma una foto al día local `day` si no llegó al tope; si el día guardado es anterior, arranca
+   * de cero. Atómico: dos fotos a la vez no pasan el tope. Como el cupo mensual, el día guardado
+   * nunca retrocede: si el usuario pasa a una zona que todavía está en el día anterior, se sigue
+   * contando sobre el guardado (si no, cambiar de zona de ida y vuelta reiniciaría el tope).
+   * Devuelve el día en el que se contó, o null si está en el tope.
+   */
+  async function reserveDay(userId: string, day: string, limit: number): Promise<string | null> {
+    const keepsDay = { $gte: ["$dailyUsage.date", day] };
+    const user = await UserModel.findOneAndUpdate(
+      {
+        _id: userId,
+        $or: [
+          { "dailyUsage.date": { $exists: false } },
+          { "dailyUsage.date": { $lt: day } },
+          { "dailyUsage.analyses": { $lt: limit } },
+        ],
+      },
+      [
+        {
+          $set: {
+            dailyUsage: {
+              date: { $cond: [keepsDay, "$dailyUsage.date", day] },
+              analyses: { $cond: [keepsDay, { $add: ["$dailyUsage.analyses", 1] }, 1] },
+            },
+          },
+        },
+      ],
+      { new: true, projection: { "dailyUsage.date": 1 } },
+    ).lean<Pick<User, "dailyUsage">>();
+    return user?.dailyUsage?.date ?? null;
+  }
+
+  /**
+   * Segundos hasta poder volver a subir: la medianoche local siguiente al día que se agotó. Si el
+   * día guardado está adelante del de la zona actual, se suman los días de diferencia.
+   */
+  async function dailyRetryAfter(userId: string, timeZone: string, at: Date, day: string) {
+    const stored = await UserModel.findById(userId, { "dailyUsage.date": 1 }).lean<
+      Pick<User, "dailyUsage">
+    >();
+    const storedDay = stored?.dailyUsage?.date;
+    const exhausted = storedDay && storedDay > day ? storedDay : day;
+    const daysAhead = Math.round((Date.parse(exhausted) - Date.parse(day)) / 86_400_000);
+    return { exhausted, seconds: secondsUntilNextLocalDay(timeZone, at) + daysAhead * 86_400 };
+  }
+
+  /** Suma un análisis al cupo mensual del plan free. Lanza MEAL_QUOTA_EXCEEDED si no queda. */
+  async function reserveMonth(
+    userId: string,
+    timeZone: string,
+    at: Date,
+    { requestId, log }: QuotaContext,
+  ): Promise<string> {
+    const month = monthIn(timeZone, at);
+    const keepsMonth = { $gte: ["$usage.month", month] };
+    const user = await UserModel.findOneAndUpdate(
+      {
+        _id: userId,
+        $or: [
+          { "usage.month": { $exists: false } },
+          { "usage.month": { $lt: month } },
+          { "usage.analyses": { $lt: freeMonthlyAnalyses } },
+        ],
+      },
+      [
+        {
+          $set: {
+            usage: {
+              month: { $cond: [keepsMonth, "$usage.month", month] },
+              analyses: { $cond: [keepsMonth, { $add: ["$usage.analyses", 1] }, 1] },
+            },
+          },
+        },
+      ],
+      { new: true, projection: { "usage.month": 1 } },
+    ).lean<Pick<User, "usage">>();
+
+    if (!user) {
+      // Solo para el mensaje: el mes que se agotó puede ser posterior al de la zona actual.
+      const stored = await UserModel.findById(userId, { "usage.month": 1 }).lean<
+        Pick<User, "usage">
+      >();
+      const exhausted =
+        stored?.usage?.month && stored.usage.month > month ? stored.usage.month : month;
+      log.info("cupo mensual agotado, se rechaza la comida", {
+        requestId,
+        userId,
+        month: exhausted,
+        limit: freeMonthlyAnalyses,
+      });
+      throw new AppError(
+        "MEAL_QUOTA_EXCEEDED",
+        `Usaste los ${freeMonthlyAnalyses} análisis del plan free de este mes. ` +
+          `El cupo se renueva el ${renewalLabel(exhausted)}.`,
+      );
+    }
+    return user.usage.month;
+  }
+
   return {
     async reserve(userId, timeZone, { requestId, log }) {
       const at = now();
       // El plan se lee de la base (no del JWT) y se decide con isPremium: un premium vencido ya
       // cuenta como free aunque no haya llegado el webhook de fin de suscripción.
       const current = await UserModel.findById(userId, { plan: 1 }).lean<Pick<User, "plan">>();
-      if (current && isPremium(current.plan, at)) return {};
+      const premium = Boolean(current && isPremium(current.plan, at));
 
-      const month = monthIn(timeZone, at);
-      const keepsMonth = { $gte: ["$usage.month", month] };
-      const user = await UserModel.findOneAndUpdate(
-        {
-          _id: userId,
-          $or: [
-            { "usage.month": { $exists: false } },
-            { "usage.month": { $lt: month } },
-            { "usage.analyses": { $lt: freeMonthlyAnalyses } },
-          ],
-        },
-        [
-          {
-            $set: {
-              usage: {
-                month: { $cond: [keepsMonth, "$usage.month", month] },
-                analyses: { $cond: [keepsMonth, { $add: ["$usage.analyses", 1] }, 1] },
-              },
-            },
-          },
-        ],
-        { new: true, projection: { "usage.month": 1 } },
-      ).lean<Pick<User, "usage">>();
-
-      if (!user) {
-        // Solo para el mensaje: el mes que se agotó puede ser posterior al de la zona actual.
-        const stored = await UserModel.findById(userId, { "usage.month": 1 }).lean<
-          Pick<User, "usage">
-        >();
-        const exhausted =
-          stored?.usage?.month && stored.usage.month > month ? stored.usage.month : month;
-        log.info("cupo mensual agotado, se rechaza la comida", {
+      // Tope diario (RNF-07): frena el gasto en IA también en premium.
+      const today = localDateIn(timeZone, at);
+      const dailyLimit = premium ? dailyAnalyses.premium : dailyAnalyses.free;
+      const day = await reserveDay(userId, today, dailyLimit);
+      if (day === null) {
+        const { exhausted, seconds: retryAfterSeconds } = await dailyRetryAfter(
+          userId,
+          timeZone,
+          at,
+          today,
+        );
+        log.info("tope diario de fotos alcanzado, se rechaza la comida", {
           requestId,
           userId,
-          month: exhausted,
-          limit: freeMonthlyAnalyses,
+          day: exhausted,
+          limit: dailyLimit,
+          plan: premium ? "premium" : "free",
+          retryAfterSeconds,
         });
         throw new AppError(
-          "MEAL_QUOTA_EXCEEDED",
-          `Usaste los ${freeMonthlyAnalyses} análisis del plan free de este mes. ` +
-            `El cupo se renueva el ${renewalLabel(exhausted)}.`,
+          "DAILY_LIMIT_EXCEEDED",
+          `Llegaste a las ${dailyLimit} fotos por día de tu plan. ` +
+            `Podés volver a intentar en ${hoursLabel(retryAfterSeconds)}, a la medianoche.`,
+          { retryAfterSeconds },
         );
       }
-      return { month: user.usage.month };
+      if (premium) return { day };
+
+      try {
+        const month = await reserveMonth(userId, timeZone, at, { requestId, log });
+        return { day, month };
+      } catch (err) {
+        // Sin cupo mensual la foto no se analiza: no cuenta para el día.
+        await releaseDay(userId, day).catch((releaseErr: unknown) => {
+          log.error("no se pudo devolver el tope diario", { err: serializeError(releaseErr) });
+        });
+        throw err;
+      }
     },
 
     remaining(user, at = now()) {
@@ -128,11 +281,11 @@ export function createQuotaService({
       };
     },
 
-    async release(userId, month) {
-      await UserModel.updateOne(
-        { _id: userId, "usage.month": month, "usage.analyses": { $gt: 0 } },
-        { $inc: { "usage.analyses": -1 } },
-      );
+    async release(userId, { day, month }) {
+      await Promise.all([
+        day === undefined ? undefined : releaseDay(userId, day),
+        month === undefined ? undefined : releaseMonth(userId, month),
+      ]);
     },
   };
 }

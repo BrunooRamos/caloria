@@ -6,7 +6,7 @@ export {
   isErrorEnvelope,
   statusForCode,
 } from "./errors";
-export type { ErrorCode, ErrorEnvelope } from "./errors";
+export type { AppErrorOptions, ErrorCode, ErrorEnvelope } from "./errors";
 export { currentRequestId, runWithRequestContext } from "./context";
 export type { RequestContext } from "./context";
 export { createLogger, serializeError } from "./logger";

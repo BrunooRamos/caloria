@@ -118,6 +118,26 @@ Antes de llamar a la IA, el Worker busca hasta 5 comidas `ready` y corregidas de
 | `NOT_FOOD` | Worker | La IA dice que la foto no es comida. Sin reintento y no consume cupo |
 | `ANALYSIS_FAILED` | Worker | Falló el último de los 3 intentos del análisis (2 reintentos con backoff exponencial de 5 y 10 s, RNF-02). La media queda en el bucket |
 
+**Tope diario (RNF-07):** `users.dailyUsage` (`{ date: "YYYY-MM-DD", analyses }`, en la zona del perfil) cuenta las fotos aceptadas del día. Se reserva en `POST /meals` con un update atómico que reinicia el contador si el día guardado es anterior. Solo se devuelve si la comida no llega a crearse (falla la subida o el insert), si no se puede encolar (`ENQUEUE_FAILED`: la IA no se llamó) o si el cupo mensual la rechaza. El día guardado nunca retrocede: si el usuario pasa a una zona que todavía está en el día anterior, se sigue contando sobre el guardado, igual que `usage.month`.
+
+**Cache del análisis (RNF-07):** `meals.inputHash` es el sha256 de la foto, el audio y la nota (sin espacios en los bordes), cada parte con su largo adelante (`mealInputHash`, `back-service/src/services/meals.ts`). `meals.cachedFrom` es la comida de la que se copió el análisis. La búsqueda es solo dentro del mismo usuario.
+
+## `ai_usage`
+
+Una fila por llamada a la IA (RNF-07), escrita por el Worker (`createAiUsageRecorder`, `back-service/src/services/ai-usage.ts`). Nunca guarda contenido: ni fotos, ni notas, ni respuestas.
+
+| Campo | Tipo | Nota |
+|---|---|---|
+| `at` | Date | |
+| `kind` | string | `analysis`, `identify`, `comment`, `transcription` o `insights` |
+| `model` | string | el que devolvió la API |
+| `userId`, `mealId` | ObjectId | `mealId` falta en `insights` |
+| `usage` | `{ input, output }` | tokens, en los modelos que cobran por token |
+| `audioSeconds` | number | en `transcription` (se cobra por minuto) |
+| `costUsd` | number \| null | estimado con `back-service/src/config/ai-pricing.ts`; `null` si el modelo no tiene precio cargado |
+
+Las respuestas que no pasan la validación también se registran: los tokens se pagan igual. Al borrar una cuenta, sus filas no se borran (siguen sumando al gasto del mes) pero pierden `userId` y `mealId`. `npm run ai-costs` (en `back-service/`) resume un mes.
+
 ## `weekly_summaries`
 
 El Wrapped de cada usuario y semana. Se genera una vez por cron para no recalcular en cada lectura.
@@ -186,6 +206,8 @@ completedAt?: Date            // sin el campo: pendiente. Índice TTL: se borra 
 | `users` | `plan.customerId` | único parcial (solo si existe): el webhook busca al usuario por su cliente de Stripe |
 | `meals` | `{ userId, capturedAt }` | compuesto |
 | `meals` | `{ userId, localDate, capturedAt, _id }` | compuesto: historial del día en orden (`GET /meals`) y, por prefijo, el dashboard |
+| `meals` | `{ userId, inputHash, capturedAt }` | compuesto parcial (solo con `inputHash`): cache del análisis |
+| `ai_usage` | `{ at }` | simple: resumen de costos del mes |
 | `meals` | `{ userId, search.dish, search.items }` | compuesto de texto (`similar_meals`), en español: comidas corregidas parecidas (RF-07) |
 | `weekly_summaries` | `{ userId, week }` | único |
 | `gamification` | `userId` | único |

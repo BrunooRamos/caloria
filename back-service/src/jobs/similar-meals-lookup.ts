@@ -1,6 +1,7 @@
 import { serializeError } from "@caloria/shared";
 import type { Logger } from "@caloria/shared";
 import type { Meal } from "../models/Meal";
+import type { AiUsageRecorder } from "../services/ai-usage";
 import type { DishIdentifier, IdentifyResult } from "../services/dish-identifier";
 import type { SimilarMeal, SimilarMealsFinder } from "../services/similar-meals";
 import type { VisionImage } from "../services/vision-image";
@@ -8,6 +9,7 @@ import type { VisionImage } from "../services/vision-image";
 export interface SimilarMealsLookupDeps {
   identifier: DishIdentifier;
   similarMeals: SimilarMealsFinder;
+  aiUsage?: AiUsageRecorder;
 }
 
 export interface SimilarMealsLookupInput {
@@ -27,7 +29,7 @@ const elapsed = (started: number) => Math.round(performance.now() - started);
  */
 export async function lookupSimilarMeals(
   { meal, image, transcript }: SimilarMealsLookupInput,
-  { identifier, similarMeals }: SimilarMealsLookupDeps,
+  { identifier, similarMeals, aiUsage }: SimilarMealsLookupDeps,
   log: Logger,
 ): Promise<SimilarMeal[]> {
   try {
@@ -47,6 +49,16 @@ export async function lookupSimilarMeals(
   let identified: IdentifyResult | undefined;
   try {
     identified = await identifier.identify(await image);
+    await aiUsage?.record(
+      {
+        kind: "identify",
+        model: identified.model,
+        userId: meal.userId,
+        mealId: meal._id,
+        ...(identified.usage && { usage: identified.usage }),
+      },
+      log,
+    );
   } catch (err) {
     log.warn("no se pudo identificar el plato; se busca con la nota y la transcripción", {
       durationMs: elapsed(identifyStarted),

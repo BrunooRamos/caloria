@@ -68,6 +68,16 @@ nginx termina TLS para toda la API. Los comandos para configurarlo están en el 
 
 **Configuración (`infra/nginx/`).** `nginx.conf` es la base: rate limit, el `map` del `requestId` y TLS. Los `server` salen de `templates/caloria.conf.template`, que la imagen oficial de nginx procesa al arrancar con `DOMAIN` y `HSTS_MAX_AGE` de `infra/.env` (`NGINX_ENVSUBST_FILTER` deja afuera cualquier otra variable). Las rutas de la API están en `api.conf`, que usan el 443 y el listener HTTP de desarrollo (`dev.conf`, solo en `docker-compose.dev.yml`, en el 8080).
 
+**Rate limit por IP (RNF-07).** Tres zonas de `limit_req`, todas por `$binary_remote_addr` y con 429 `RATE_LIMITED` en el sobre de error y `Retry-After`:
+
+| Zona | Dónde | Límite | `Retry-After` |
+|---|---|---|---|
+| `api` | toda la API | 10 por segundo, burst 40 | 5 |
+| `meals` | solo `POST /api/v1/meals` (lo que dispara la IA) | 20 por minuto, burst 10 | 30 |
+| `auth` | `/api/v1/auth/` (fuerza bruta y bcrypt) | 10 por minuto, burst 5 | 60 |
+
+Es una primera barrera barata; el límite por usuario y plan (tope diario de fotos) lo aplica el Backend, que es el que conoce al usuario. `npm run nginx:smoke` prueba las tres.
+
 - **80:** sirve `/.well-known/acme-challenge/` desde el webroot que comparte con certbot y responde `301 https://$DOMAIN$request_uri` a todo lo demás. Redirige al dominio configurado y no al `Host` del pedido.
 - **443:** TLS 1.2 y 1.3 con los cifrados del perfil "intermediate" de Mozilla (guía 6.0), HTTP/2, sin session tickets y sin OCSP stapling, porque Let's Encrypt dejó de publicar OCSP en 2025.
 - **HSTS:** `max-age=$HSTS_MAX_AGE` (300 por defecto), sin `includeSubDomains` ni `preload`, también en los 413 y 429 que arma nginx (`add_header_inherit merge`). Se sube de a poco cuando HTTPS está validado, porque un navegador que lo recibió se niega a entrar por HTTP durante todo el `max-age`.
@@ -97,7 +107,7 @@ Así, en un servidor limpio, `docker compose up` levanta nginx enseguida con el 
 | ngrok (dominio gratis de la cuenta) | Demo con un build instalado: la URL no cambia | 20.000 requests y 1 GB por mes en el plan gratis |
 | Autofirmado o mkcert | Probar nginx o desarrollar en local | iOS y Android lo rechazan sin instalar la CA: no sirve para la app |
 
-Los dos túneles dan un certificado válido en su borde y llegan a nginx (cloudflared verifica el certificado temporal con `--origin-ca-pool`), así que siguen aplicando los límites de nginx y HSTS. cloudflared entra por el 8443, un listener igual al 443 que no se publica en el host (solo lo alcanza la red `dmz`) y que toma la IP del cliente de `CF-Connecting-IP` (`real_ip_header`): así el rate limit de `/auth` es por cliente. En el 443 ese header se ignora, porque cualquiera podría mandarlo. ngrok entra por el 443 publicado, así que con ngrok todo el tráfico llega desde la misma IP y el rate limit de `/auth` es compartido entre todos los clientes.
+Los dos túneles dan un certificado válido en su borde y llegan a nginx (cloudflared verifica el certificado temporal con `--origin-ca-pool`), así que siguen aplicando los límites de nginx y HSTS. cloudflared entra por el 8443, un listener igual al 443 que no se publica en el host (solo lo alcanza la red `dmz`) y que toma la IP del cliente de `CF-Connecting-IP` (`real_ip_header`): así el rate limit de `/auth` es por cliente. En el 443 ese header se ignora, porque cualquiera podría mandarlo. ngrok entra por el 443 publicado, así que con ngrok todo el tráfico llega desde la misma IP y el rate limit por IP (el de `/auth` y el de la API) es compartido entre todos los clientes.
 
 **App.** Un build que no es de desarrollo no arranca si `EXPO_PUBLIC_API_URL` no es `https` (`app/services/api-url.ts`). Android tiene `usesCleartextTraffic: false` (`expo-build-properties`), salvo en los builds de debug, donde Expo lo deja en `true` para Metro. iOS ya bloquea HTTP por ATS (`NSAllowsArbitraryLoads: false`).
 

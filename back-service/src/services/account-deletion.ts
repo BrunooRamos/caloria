@@ -2,6 +2,7 @@ import { Types, mongo } from "mongoose";
 import { serializeError } from "@caloria/shared";
 import type { Logger } from "@caloria/shared";
 import { AccountDeletionModel } from "../models/AccountDeletion";
+import { AiUsageModel } from "../models/AiUsage";
 import { GamificationModel } from "../models/Gamification";
 import { MealModel } from "../models/Meal";
 import { UserModel } from "../models/User";
@@ -27,10 +28,14 @@ export interface DeletedDocuments {
   meals: number;
   weeklySummaries: number;
   gamification: number;
+  /** Filas de `ai_usage` a las que se les sacó el usuario y la comida. */
+  aiUsageAnonymized: number;
 }
 
 /**
- * Borra los documentos de la cuenta en las cuatro collections. Primero el usuario: desde ese
+ * Borra los documentos de la cuenta en las cuatro collections. De `ai_usage` no se borra nada: es
+ * el gasto real del mes y tiene que seguir sumando; se le sacan `userId` y `mealId`, y la fila
+ * queda sin nada que la vincule a la persona. Primero el usuario: desde ese
  * momento no se puede entrar ni renovar la sesión (las sesiones viven en el documento) y no le
  * llegan más avisos (los push tokens también). Se puede repetir: lo usan el `DELETE /users/me` y
  * la limpieza final del Worker.
@@ -38,16 +43,18 @@ export interface DeletedDocuments {
 export async function deleteAccountDocuments(userId: string): Promise<DeletedDocuments> {
   const owner = ownerId(userId);
   const users = await UserModel.deleteOne({ _id: owner });
-  const [meals, weeklySummaries, gamification] = await Promise.all([
+  const [meals, weeklySummaries, gamification, aiUsage] = await Promise.all([
     MealModel.deleteMany({ userId: owner }),
     WeeklySummaryModel.deleteMany({ userId: owner }),
     GamificationModel.deleteMany({ userId: owner }),
+    AiUsageModel.updateMany({ userId: owner }, { $unset: { userId: 1, mealId: 1 } }),
   ]);
   return {
     users: users.deletedCount,
     meals: meals.deletedCount,
     weeklySummaries: weeklySummaries.deletedCount,
     gamification: gamification.deletedCount,
+    aiUsageAnonymized: aiUsage.modifiedCount,
   };
 }
 

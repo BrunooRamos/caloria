@@ -35,6 +35,8 @@ const MESSAGES: Record<ApiErrorCode, ErrorMessage> = {
   PAYLOAD_TOO_LARGE: "El archivo es demasiado pesado.",
   RATE_LIMITED: ({ retryAfterSeconds }) =>
     `Hiciste muchos intentos seguidos. ${retryHint(retryAfterSeconds)}`,
+  DAILY_LIMIT_EXCEEDED: ({ retryAfterSeconds }) =>
+    `Llegaste al máximo de fotos que se pueden analizar por día. ${retryHint(retryAfterSeconds)}`,
   INTERNAL_ERROR: "Algo falló de nuestro lado. Probá de nuevo en un rato.",
   AI_UNAVAILABLE: "El análisis no está disponible ahora. Probá de nuevo en un rato.",
   SERVICE_UNAVAILABLE: "El servicio no está disponible ahora. Probá de nuevo en unos minutos.",

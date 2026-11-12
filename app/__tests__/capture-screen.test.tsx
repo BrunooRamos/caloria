@@ -357,6 +357,18 @@ describe("registrar una comida", () => {
     expect(await screen.findByText("¿Analizamos esta foto?")).toBeOnTheScreen();
   });
 
+  it("con el tope diario alcanzado dice cuánto falta para volver a intentar", async () => {
+    await start(() => apiError(429, "DAILY_LIMIT_EXCEEDED", "req-1", { "Retry-After": "32400" }));
+    await takePhoto();
+
+    await press("Enviar");
+    expect(
+      await screen.findByText(
+        "Llegaste al máximo de fotos que se pueden analizar por día. Probá de nuevo en 9 horas.",
+      ),
+    ).toBeOnTheScreen();
+  });
+
   it("si comprimida sigue pasando de 8 MB, muestra el error y no la sube", async () => {
     mockPhoto.bytes = PHOTO_MAX_BYTES + 1;
     await start();

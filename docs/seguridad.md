@@ -56,7 +56,7 @@
 
 - Fotos y audios en **bucket privado**; la app los ve con **URLs firmadas de vida corta** (15 min). Se firman en cada lectura, nunca se guardan en la base y la respuesta va con `Cache-Control: no-store`.
 - Solo se comparten con el proveedor de IA necesario para el análisis.
-- `DELETE /users/me` borra cuenta, documentos (`users`, `meals`, `weekly_summaries`, `gamification`) y media: derecho al olvido de punta a punta. Ver [Borrado de cuenta](#borrado-de-cuenta-rnf-04).
+- `DELETE /users/me` borra cuenta, documentos (`users`, `meals`, `weekly_summaries`, `gamification`), anonimiza sus filas de `ai_usage` y borra la media: derecho al olvido de punta a punta. Ver [Borrado de cuenta](#borrado-de-cuenta-rnf-04).
 - Los logs no incluyen fotos, audios, transcripciones ni tokens.
 
 ## Borrado de cuenta (RNF-04)
@@ -68,7 +68,7 @@ Se hace una sola vez y no se puede deshacer. Lo que más importa es que no quede
 1. **Proveedor de pagos:** si la cuenta tiene un cliente en Stripe, se borra ahí antes que nada. Eso termina la suscripción en el momento, sin reintegro proporcional del período, y quita los medios de pago guardados. Va primero porque, sin el usuario, se pierde el id del cliente y se le seguiría cobrando. Si falla, 503 y no se tocó nada.
 2. **El pedido:** se registra en `account_deletions` (solo el id de la cuenta y la fecha). Es la marca de que la cuenta se está borrando y lo que le permite al Worker terminar aunque falle lo que sigue.
 3. **El usuario:** con el documento se van las sesiones (refresh tokens), los push tokens, el email y el hash de la contraseña. Desde acá no se puede entrar ni renovar la sesión, y el Backend rechaza el access token.
-4. **Sus documentos:** comidas, Wrapped y racha.
+4. **Sus documentos:** comidas (con ellas, la cache de IA por foto: el `inputHash` vive en la comida), Wrapped y racha. Las filas de costo de IA (`ai_usage`) no se borran, porque son el gasto del mes, pero se les sacan `userId` y `mealId`: quedan solo modelo, tokens, costo y fecha.
 5. **La limpieza del Worker:** se encola con un minuto de espera, para que terminen los requests que pasaron el control de sesión justo antes. La limpieza vuelve a borrar los documentos (lo que esos requests alcanzaron a crear), borra todo el prefijo `users/{userId}/` del bucket y recién ahí marca el pedido como terminado. Si algo falla, BullMQ reintenta durante cerca de una hora.
 6. **El barrido:** cada hora, el Worker vuelve a encolar los pedidos pendientes de hace más de 10 minutos. Cubre que Redis no haya respondido al encolar, que haya perdido el job o que se hayan agotado los reintentos.
 
@@ -90,4 +90,3 @@ Se hace una sola vez y no se puede deshacer. Lo que más importa es que no quede
 - **OpenAI:** las fotos, audios y textos que ya se mandaron para analizar quedan según la política de datos de su API, que guarda las entradas hasta 30 días para detectar abusos, salvo que la cuenta tenga retención cero.
 - **Logs:** tienen ids (cuenta, comida, request) y nunca contenido. Se guardan lo que dure su retención.
 - **Stripe:** conserva los registros de cobros que le exige la ley. Solo tienen el id del cliente y nuestro id de usuario, sin email.
-- **Cache de IA por foto (RNF-07):** todavía no existe. Cuando se haga, lo que guarde de una cuenta se tiene que borrar con ella.

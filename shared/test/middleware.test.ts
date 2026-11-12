@@ -20,6 +20,9 @@ function buildApp(trustIncomingId: boolean) {
   app.get("/quota", () => {
     throw new AppError("MEAL_QUOTA_EXCEEDED");
   });
+  app.get("/daily", () => {
+    throw new AppError("DAILY_LIMIT_EXCEEDED", undefined, { retryAfterSeconds: 3599.2 });
+  });
   app.post("/zod", (req, res) => {
     res.json(z.object({ grams: z.number() }).parse(req.body));
   });
@@ -63,6 +66,12 @@ describe("errorHandler", () => {
   it("AppError → status derivado del code y su mensaje", async () => {
     const body = await expectEnvelope(await fetch(`${url}/quota`), 402, "MEAL_QUOTA_EXCEEDED");
     assert.equal(body.error.message, "Cupo mensual agotado");
+  });
+
+  it("AppError con retryAfterSeconds → header Retry-After en segundos enteros", async () => {
+    const res = await fetch(`${url}/daily`);
+    assert.equal(res.headers.get("retry-after"), "3600");
+    await expectEnvelope(res, 429, "DAILY_LIMIT_EXCEEDED");
   });
 
   it("ZodError → 400 VALIDATION_ERROR", async () => {

@@ -18,6 +18,7 @@ describe("catálogo de errores", () => {
         SUBSCRIPTION_ACTIVE: 409,
         PAYLOAD_TOO_LARGE: 413,
         RATE_LIMITED: 429,
+        DAILY_LIMIT_EXCEEDED: 429,
         INTERNAL_ERROR: 500,
         AI_UNAVAILABLE: 503,
         SERVICE_UNAVAILABLE: 503,

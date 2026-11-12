@@ -45,6 +45,12 @@ export interface Usage {
   analyses: number;
 }
 
+/** Fotos analizadas en el día local del usuario: el tope diario por plan (RNF-07). */
+export interface DailyUsage {
+  date: string; // "YYYY-MM-DD"
+  analyses: number;
+}
+
 export interface Session {
   tokenHash: string;
   family: string;
@@ -63,6 +69,8 @@ export interface User {
   tone: Tone;
   plan: Plan;
   usage: Usage;
+  // Opcional: no existe hasta la primera foto.
+  dailyUsage?: DailyUsage;
   pushTokens: string[]; // del más viejo al más nuevo, hasta 10
   // Opcional: los usuarios creados antes de RF-13 no lo tienen y valen los defaults.
   notifications?: Partial<NotificationPreferences>;
@@ -113,6 +121,14 @@ const usageSchema = new Schema<Usage>(
   { _id: false },
 );
 
+const dailyUsageSchema = new Schema<DailyUsage>(
+  {
+    date: { type: String, required: true, match: /^\d{4}-\d{2}-\d{2}$/ },
+    analyses: { type: Number, required: true, default: 0 },
+  },
+  { _id: false },
+);
+
 const notificationsSchema = new Schema<NotificationPreferences>(
   {
     analysisReady: { type: Boolean, required: true, default: true },
@@ -146,6 +162,7 @@ const userSchema = new Schema<User>(
       required: true,
       default: () => ({ month: new Date().toISOString().slice(0, 7) }),
     },
+    dailyUsage: dailyUsageSchema,
     pushTokens: { type: [String], default: [] },
     notifications: { type: notificationsSchema, default: () => ({}) },
     sessions: { type: [sessionSchema], default: [] },
