@@ -177,10 +177,35 @@ describe("resultado de una comida", () => {
     expect(mealGets()).toHaveLength(2);
     expect(photo()).toHaveProp("source", { uri: photoUrl(2) });
 
-    // La URL nueva también se renueva una vez si falla; repetir el error con ella ya no pide más.
-    await fireEvent(photo(), "error");
+    // La URL nueva también se renueva una vez si falla.
     await fireEvent(photo(), "error");
     await advance(0);
     expect(mealGets()).toHaveLength(3);
+  });
+
+  it("si la foto no carga, lo dice sin dejar un recuadro vacío y deja reintentar", async () => {
+    await start(
+      [
+        () => json(200, ready),
+        () => json(200, ready),
+        () => json(200, { ...ready, photoUrl: photoUrl(2) }),
+      ],
+      null,
+    );
+    await screen.findByText("620–780 kcal");
+
+    // Falla y la renovación trae la misma URL (o la red sigue caída): queda el aviso.
+    await fireEvent(photo(), "error");
+    await advance(0);
+    expect(screen.queryByLabelText("Foto de tu comida")).toBeNull();
+    expect(screen.getByText("No pudimos cargar la foto.")).toBeOnTheScreen();
+    expect(mealGets()).toHaveLength(2);
+
+    // Reintentar pide una URL nueva y vuelve a mostrar la foto.
+    await fireEvent.press(screen.getByRole("button", { name: "Reintentar cargar la foto" }));
+    await advance(0);
+    expect(mealGets()).toHaveLength(3);
+    expect(photo()).toHaveProp("source", { uri: photoUrl(2) });
+    expect(screen.queryByText("No pudimos cargar la foto.")).toBeNull();
   });
 });

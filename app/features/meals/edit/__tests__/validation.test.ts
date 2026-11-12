@@ -1,74 +1,38 @@
 import { meal } from "@/test-utils/meals";
 import { buildCorrection } from "../correction";
-import { EMPTY_RANGE, createDraft, newItem, updateItem } from "../draft";
-import type { MealDraft, RangeDraft } from "../draft";
-import { ITEMS_MAX, checkDraft, parseCount, resolveRange } from "../validation";
+import { createDraft, newItem, setRange, updateItem } from "../draft";
+import type { MealDraft } from "../draft";
+import { RANGE_ERRORS } from "../parse-range";
+import { ITEMS_MAX, checkDraft, resolveRange } from "../validation";
 
-const single = (value: string): RangeDraft => ({ ...EMPTY_RANGE, value });
-const range = (min: string, max: string): RangeDraft => ({ mode: "range", value: "", min, max });
 const total = { field: "kcal" } as const;
 const first = (draft: MealDraft) => draft.items[0].key;
-
-describe("parseCount", () => {
-  it("acepta enteros, con espacios alrededor", () => {
-    expect(parseCount("12")).toBe(12);
-    expect(parseCount(" 7 ")).toBe(7);
-    expect(parseCount("0")).toBe(0);
-  });
-
-  it("un negativo dice que no puede serlo", () => {
-    expect(parseCount("-3")).toBe("No puede ser negativo.");
-  });
-
-  it.each(["1.5", "1,5", "abc", "1e3", "12 g"])("%s no es un entero", (text) => {
-    expect(parseCount(text)).toBe("Usá un número entero, sin comas ni puntos.");
-  });
-});
 
 describe("resolveRange", () => {
   const current = { min: 150, max: 190 };
 
-  it("un solo valor vacío deja el que había", () => {
-    expect(resolveRange(single(""), current, total)).toEqual({ range: current, errors: {} });
-  });
-
-  it("un solo valor vacío sin uno anterior es un error en el campo", () => {
-    expect(resolveRange(single(" "), undefined, total, "Ingresá los gramos.")).toEqual({
-      errors: { "kcal.value": "Ingresá los gramos." },
-    });
-  });
-
-  it("un número es un valor exacto: min igual a max", () => {
-    expect(resolveRange(single("170"), current, total)).toEqual({
+  it("un número es un valor exacto y un rango, el rango", () => {
+    expect(resolveRange("170", current, total, "")).toEqual({
       range: { min: 170, max: 170 },
       errors: {},
     });
-  });
-
-  it("un valor inválido marca el campo", () => {
-    expect(resolveRange(single("-5"), current, total).errors).toEqual({
-      "kcal.value": "No puede ser negativo.",
-    });
-  });
-
-  it("un rango con mínimo y máximo", () => {
-    expect(resolveRange(range("100", "120"), current, total)).toEqual({
+    expect(resolveRange("100 a 120", current, total, "")).toEqual({
       range: { min: 100, max: 120 },
       errors: {},
     });
-    expect(resolveRange(range("100", "100"), current, total).range).toEqual({ min: 100, max: 100 });
   });
 
-  it("el mínimo no puede pasar al máximo: el error va en el máximo", () => {
-    expect(resolveRange(range("200", "150"), current, total)).toEqual({
-      errors: { "kcal.max": "No puede ser menor que el mínimo." },
+  it("el texto como arrancó deja el valor exacto que había, aunque se vea redondeado", () => {
+    const precise = { min: 37.6, max: 46.2 };
+    expect(resolveRange(" 38-46 ", precise, total, "")).toEqual({ range: precise, errors: {} });
+  });
+
+  it("vacío o inválido es un error en el campo", () => {
+    expect(resolveRange(" ", current, total, "Ingresá los gramos.")).toEqual({
+      errors: { kcal: "Ingresá los gramos." },
     });
-  });
-
-  it("en un rango, los dos extremos son obligatorios", () => {
-    expect(resolveRange(range("", "abc"), current, total).errors).toEqual({
-      "kcal.min": "Ingresá el mínimo.",
-      "kcal.max": "Usá un número entero, sin comas ni puntos.",
+    expect(resolveRange("-5", current, total, "").errors).toEqual({
+      kcal: RANGE_ERRORS.negative,
     });
   });
 });
@@ -127,8 +91,8 @@ describe("checkDraft", () => {
     const result = checkDraft(meal, { ...draft, items: [...draft.items, newItem("n1")] });
     expect(result.errors).toEqual({
       "items.n1.name": "Ingresá el nombre del ingrediente.",
-      "items.n1.grams.value": "Ingresá los gramos.",
-      "items.n1.kcal.value": "Ingresá las kcal.",
+      "items.n1.grams": "Ingresá los gramos.",
+      "items.n1.kcal": "Ingresá las kcal.",
     });
   });
 
@@ -148,7 +112,7 @@ describe("checkDraft", () => {
 
   it("con un ingrediente cambiado y el total sin tocar, guarda la suma", () => {
     const draft = createDraft(meal);
-    const edited = updateItem(draft, first(draft), (item) => ({ ...item, kcal: single("420") }));
+    const edited = updateItem(draft, first(draft), (item) => ({ ...item, kcal: "420" }));
     const { values, autoTotal } = checkDraft(meal, edited);
     expect(autoTotal).toEqual({ kcal: { min: 600, max: 650 }, source: "sum" });
     expect(values?.kcal).toEqual({ min: 600, max: 650 });
@@ -156,29 +120,42 @@ describe("checkDraft", () => {
 
   it("el total escrito a mano gana sobre la suma", () => {
     const draft = createDraft(meal);
-    const edited = updateItem(draft, first(draft), (item) => ({ ...item, kcal: single("420") }));
-    expect(checkDraft(meal, { ...edited, kcal: single("900") }).values?.kcal).toEqual({
+    const edited = updateItem(draft, first(draft), (item) => ({ ...item, kcal: "420" }));
+    expect(checkDraft(meal, { ...edited, kcal: "900" }).values?.kcal).toEqual({
       min: 900,
       max: 900,
     });
-    expect(checkDraft(meal, { ...edited, kcal: range("850", "950") }).values?.kcal).toEqual({
+    expect(checkDraft(meal, { ...edited, kcal: "950-850" }).values?.kcal).toEqual({
       min: 850,
       max: 950,
     });
   });
 
-  it("un total inválido es un error en el campo", () => {
-    const result = checkDraft(meal, { ...createDraft(meal), kcal: range("900", "800") });
-    expect(result.values).toBeNull();
-    expect(result.errors).toEqual({ "kcal.max": "No puede ser menor que el mínimo." });
+  it("un total vacío o inválido es un error en el campo y no deja guardar", () => {
+    const empty = checkDraft(meal, setRange(createDraft(meal), total, ""));
+    expect(empty.values).toBeNull();
+    expect(empty.errors).toEqual({ kcal: "Ingresá las calorías totales." });
+    expect(checkDraft(meal, setRange(createDraft(meal), total, "900-")).errors).toEqual({
+      kcal: RANGE_ERRORS.invalid,
+    });
   });
 
-  it("los macros se editan a mano y vacíos quedan como estaban", () => {
-    const draft = createDraft(meal);
-    const { values } = checkDraft(meal, {
-      ...draft,
-      macros: { ...draft.macros, protein: single("40") },
-    });
+  it("escribir el mismo total que ya mostraba no es un cambio", () => {
+    const { values } = checkDraft(meal, setRange(createDraft(meal), total, "620-780"));
+    expect(buildCorrection(meal, values!)).toBeNull();
+  });
+
+  it("un macro acepta un número o un rango; vacío no deja guardar", () => {
+    const protein = { field: "macros", macro: "protein" } as const;
+    const fat = { field: "macros", macro: "fat" } as const;
+    const { values } = checkDraft(meal, setRange(createDraft(meal), protein, "40"));
     expect(values?.macros).toEqual({ ...meal.macros, protein: { min: 40, max: 40 } });
+    expect(
+      checkDraft(meal, setRange(createDraft(meal), fat, "35 a 30")).values?.macros.fat,
+    ).toEqual({ min: 30, max: 35 });
+
+    const empty = checkDraft(meal, setRange(createDraft(meal), protein, ""));
+    expect(empty.values).toBeNull();
+    expect(empty.errors).toEqual({ "macros.protein": "Ingresá los gramos." });
   });
 });

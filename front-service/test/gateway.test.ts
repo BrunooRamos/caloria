@@ -569,6 +569,43 @@ describe("front-service: gateway de /api/v1", () => {
     });
   });
 
+  describe("DELETE /users/me (RNF-04)", () => {
+    it("reenvía al Backend con el Authorization y devuelve su 204 sin cuerpo", async () => {
+      const res = await call("delete", "/users/me", valid);
+      assert.equal(res.status, 204);
+      assert.equal(res.text, "");
+      assert.equal(back.received.length, 1);
+      assert.equal(back.received[0].method, "DELETE");
+      assert.equal(back.received[0].path, "/api/v1/users/me");
+      assert.equal(back.received[0].authorization, `Bearer ${valid}`);
+    });
+
+    it("lo que mande el cliente en el body no se reenvía", async () => {
+      const res = await call("delete", "/users/me", valid).send({ userId: "otro" });
+      assert.equal(res.status, 204);
+      assert.equal(back.received[0].body, undefined);
+    });
+
+    it("sin token → 401 sin llegar al Backend", async () => {
+      expectEnvelope(await call("delete", "/users/me"), 401, "UNAUTHORIZED");
+      assertNotForwarded();
+    });
+
+    it("el 503 del Backend (el proveedor de pagos no respondió) llega sin modificar", async () => {
+      back.respondWith(
+        (req, res) =>
+          void res.status(503).json({
+            error: {
+              code: "SERVICE_UNAVAILABLE",
+              message: "Servicio no disponible",
+              requestId: req.requestId,
+            },
+          }),
+      );
+      expectEnvelope(await call("delete", "/users/me", valid), 503, "SERVICE_UNAVAILABLE");
+    });
+  });
+
   describe("PATCH /meals/:id", () => {
     const MEAL_ID = "66f1a0000000000000000099";
     const r = (min: number, max: number) => ({ min, max });

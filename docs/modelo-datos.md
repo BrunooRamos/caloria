@@ -1,6 +1,6 @@
 # Modelo de datos
 
-MongoDB con cuatro collections de dominio (más `billing_events`, de control del webhook de pagos), tipadas con TypeScript + esquemas Mongoose. Solo acceden el Backend y el Worker.
+MongoDB con cuatro collections de dominio, más dos de control: `billing_events` (el webhook de pagos) y `account_deletions` (los borrados de cuenta). Están tipadas con TypeScript + esquemas Mongoose. Solo acceden el Backend y el Worker.
 
 `?` = opcional · `[]` = array embebido · `Range = { min: number; max: number }`
 
@@ -87,7 +87,7 @@ quotaMonth?: string           // "YYYY-MM": mes en que consumió cupo free; sin 
 quotaRefunded?: boolean       // ya se devolvió el cupo por terminar en failed
 ```
 
-La media vive en `users/{userId}/meals/{mealId}/photo.{jpg|png|heic}` y `…/audio.m4a`. Nunca se guarda una URL firmada: se firma en cada lectura.
+La media vive en `users/{userId}/meals/{mealId}/photo.{jpg|png|heic}` y `…/audio.m4a`. Nunca se guarda una URL firmada: se firma en cada lectura. Todo lo de una cuenta queda bajo `users/{userId}/`: al borrarla, se borra ese prefijo (RNF-04).
 
 Los valores que se muestran y que suman en el dashboard son los del análisis **con las correcciones aplicadas**:
 
@@ -136,7 +136,7 @@ Una fila por llamada a la IA (RNF-07), escrita por el Worker (`createAiUsageReco
 | `audioSeconds` | number | en `transcription` (se cobra por minuto) |
 | `costUsd` | number \| null | estimado con `back-service/src/config/ai-pricing.ts`; `null` si el modelo no tiene precio cargado |
 
-Las respuestas que no pasan la validación también se registran: los tokens se pagan igual. `npm run ai-costs` (en `back-service/`) resume un mes.
+Las respuestas que no pasan la validación también se registran: los tokens se pagan igual. Al borrar una cuenta, sus filas no se borran (siguen sumando al gasto del mes) pero pierden `userId` y `mealId`. `npm run ai-costs` (en `back-service/`) resume un mes.
 
 ## `weekly_summaries`
 
@@ -184,6 +184,20 @@ receivedAt: Date              // índice TTL: se borra a los 30 días (Stripe re
 claimedAt: Date               // cuándo se reservó; un processing con más de 2 min (crash a mitad) lo retoma el próximo reintento
 ```
 
+## `account_deletions`
+
+Los pedidos de borrado de cuenta (RNF-04). Es la marca de "esta cuenta se está borrando": se crea antes de borrar nada y el Worker la da por terminada cuando borró documentos y media. No guarda datos personales.
+
+```ts
+_id: ObjectId                 // el id del usuario que se borra
+requestedAt: Date
+completedAt?: Date            // sin el campo: pendiente. Índice TTL: se borra una hora después
+```
+
+- Mientras está pendiente, el barrido del Worker la vuelve a encolar (ver [seguridad.md](seguridad.md#borrado-de-cuenta-rnf-04)).
+- Terminada, se guarda una hora para que repetir `DELETE /users/me` con el mismo access token (vive 15 min) responda 204 en vez de 401. Después la borra el TTL.
+- La limpieza del Worker no borra nada sin un registro acá: un job con un id equivocado no toca a nadie.
+
 ## Índices
 
 | Collection | Índice | Tipo |
@@ -198,6 +212,7 @@ claimedAt: Date               // cuándo se reservó; un processing con más de 
 | `weekly_summaries` | `{ userId, week }` | único |
 | `gamification` | `userId` | único |
 | `billing_events` | `receivedAt` | TTL de 30 días |
+| `account_deletions` | `completedAt` | TTL de 1 hora (solo los terminados: sin el campo no vence) |
 
 ## Cálculo de metas (RF-02)
 

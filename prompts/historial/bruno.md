@@ -251,3 +251,9 @@ Cuando termines, mostrame que funciona:
 
  Que tests exploratios deberia hacer para verificar que funcione correctamente?
 ```
+
+### 2026-11-11 20:58
+
+```text
+❯ Podes revisar porque tenemos conflictos.
+```

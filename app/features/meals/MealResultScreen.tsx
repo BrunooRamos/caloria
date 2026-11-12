@@ -48,7 +48,12 @@ export default function MealResultScreen() {
   return (
     <Screen scroll edges={["bottom", "left", "right"]}>
       <View style={styles.content}>
-        <MealPhoto localUri={localPhoto} remoteUrl={meal?.photoUrl} onRemoteError={renewPhotoUrl} />
+        <MealPhoto
+          localUri={localPhoto}
+          remoteUrl={meal?.photoUrl}
+          onRemoteError={renewPhotoUrl}
+          onRetry={polling.refresh}
+        />
         {content}
         {meal && !polling.notFound && <DeleteMeal id={id} />}
       </View>

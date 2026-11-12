@@ -2,24 +2,10 @@ import { useRef, useState } from "react";
 import { errorMessage } from "@/services/error-messages";
 import type { MealCorrection, MealValues } from "@/services/meals";
 import { buildCorrection } from "./correction";
-import {
-  EMPTY_RANGE,
-  createDraft,
-  errorKey,
-  getRange,
-  nameKey,
-  newItem,
-  removeItem,
-  setRange,
-  toRangeMode,
-  toSingleMode,
-  updateItem,
-} from "./draft";
-import type { MealDraft, RangeDraft, RangeInput, RangePath } from "./draft";
+import { createDraft, nameKey, newItem, rangeKey, removeItem, setRange, updateItem } from "./draft";
+import type { MealDraft, RangePath } from "./draft";
 import { checkDraft } from "./validation";
 import type { EditErrors } from "./validation";
-
-const RANGE_INPUTS: RangeInput[] = ["value", "min", "max"];
 
 /**
  * Estado de la corrección de una comida. Los errores se muestran como en auth: al salir del campo
@@ -94,25 +80,13 @@ export function useMealEditor(meal: MealValues, onSave: (body: MealCorrection) =
       update(updateItem(draft, key, (item) => ({ ...item, name })));
     },
     blurItemName: (key: string) => reveal([nameKey(key)]),
-    setRange(path: RangePath, next: RangeDraft) {
-      update(setRange(draft, path, next));
+    setRange(path: RangePath, text: string) {
+      update(setRange(draft, path, text));
     },
-    blurRange: (path: RangePath) => reveal(RANGE_INPUTS.map((input) => errorKey(path, input))),
-    /** Entre un solo valor y mínimo–máximo; `current` precarga el rango si no hay nada escrito. */
-    toggleRange(path: RangePath, current?: { min: number; max: number }) {
-      const range = getRange(draft, path);
-      if (!range) return;
-      update(
-        setRange(
-          draft,
-          path,
-          range.mode === "single" ? toRangeMode(range, current) : toSingleMode(range),
-        ),
-      );
-    },
+    blurRange: (path: RangePath) => reveal([rangeKey(path)]),
     /** El total vuelve a calcularse solo. */
     resetTotal() {
-      update({ ...draft, kcal: EMPTY_RANGE });
+      update({ ...draft, kcal: null });
     },
     addItem() {
       added.current += 1;

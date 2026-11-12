@@ -2,15 +2,16 @@ import { X } from "lucide-react-native";
 import { StyleSheet, View } from "react-native";
 import { Card, IconButton, Input, Text, TextButton } from "@/components";
 import { colors, radius, sizes, spacing, typography } from "@/theme";
-import { errorKey, nameKey } from "./draft";
+import { nameKey, rangeKey } from "./draft";
 import type { ItemDraft, RangePath } from "./draft";
 import { RangeField } from "./RangeField";
 import type { MealEditor } from "./useMealEditor";
 import { ITEM_NAME_MAX_CHARS } from "./validation";
 
 const PARTS = [
-  { part: "grams", label: "Gramos", unit: "g", of: "Gramos de" },
-  { part: "kcal", label: "Kcal", unit: "kcal", of: "Kcal de" },
+  // Cortos: cada uno va en media card y tiene que entrar en un iPhone SE.
+  { part: "grams", label: "Gramos", of: "Gramos de", placeholder: "Ej.: 120 g" },
+  { part: "kcal", label: "Kcal", of: "Kcal de", placeholder: "Ej.: 300" },
 ] as const;
 
 export function ItemEditor({ item, editor }: { item: ItemDraft; editor: MealEditor }) {
@@ -24,6 +25,8 @@ export function ItemEditor({ item, editor }: { item: ItemDraft; editor: MealEdit
         <View style={styles.grow}>
           <Input
             label="Ingrediente"
+            placeholder="Ej.: arroz"
+            wrap
             accessibilityLabel={`Nombre de ${name}`}
             value={item.name}
             maxLength={ITEM_NAME_MAX_CHARS}
@@ -44,25 +47,18 @@ export function ItemEditor({ item, editor }: { item: ItemDraft; editor: MealEdit
       </View>
 
       <View style={styles.values}>
-        {PARTS.map(({ part, label, unit, of }) => {
+        {PARTS.map(({ part, label, of, placeholder }) => {
           const path: RangePath = { field: "items", key: item.key, part };
-          const draft = item[part];
           return (
-            <View key={part} style={[styles.value, draft.mode === "range" && styles.full]}>
+            <View key={part} style={styles.value}>
               <RangeField
                 label={label}
-                unit={unit}
                 accessibilityLabel={`${of} ${name}`}
-                draft={draft}
-                current={item.original?.[part]}
-                errors={{
-                  value: editor.errors[errorKey(path, "value")],
-                  min: editor.errors[errorKey(path, "min")],
-                  max: editor.errors[errorKey(path, "max")],
-                }}
+                value={item[part]}
+                placeholder={placeholder}
+                error={editor.errors[rangeKey(path)]}
                 editable={editable}
-                onChange={(next) => editor.setRange(path, next)}
-                onToggle={() => editor.toggleRange(path, item.original?.[part])}
+                onChangeText={(text) => editor.setRange(path, text)}
                 onBlur={() => editor.blurRange(path)}
               />
             </View>
@@ -102,7 +98,6 @@ const styles = StyleSheet.create({
   },
   values: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   value: { flexGrow: 1, flexBasis: "40%" },
-  full: { flexBasis: "100%" },
   removed: {
     flexDirection: "row",
     alignItems: "center",

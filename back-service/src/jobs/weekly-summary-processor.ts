@@ -1,6 +1,7 @@
 import { Types } from "mongoose";
 import { isoWeekSchema, previousIsoWeek } from "@caloria/shared";
 import type { Logger } from "@caloria/shared";
+import { UserModel } from "../models/User";
 import { WeeklySummaryModel } from "../models/WeeklySummary";
 import { createAiUsageRecorder } from "../services/ai-usage";
 import type { AiUsageRecorder } from "../services/ai-usage";
@@ -46,8 +47,20 @@ export function createWeeklyFanOut({
   };
 }
 
-/** Qué pasó con el job, para el log. Salvo `generated`, ninguno llama a la IA. */
-export type WeeklySummaryOutcome = "generated" | "skipped" | "no-meals" | "exists";
+/**
+ * Qué pasó con el job, para el log. Salvo `generated`, ninguno guarda nada; solo `generated` y un
+ * `account-deleted` que se detectó después de los insights llaman a la IA.
+ */
+export type WeeklySummaryOutcome =
+  "generated" | "skipped" | "no-meals" | "exists" | "account-deleted";
+
+/**
+ * Los upserts del Wrapped crean el documento si no existe: antes de escribir se confirma que la
+ * cuenta sigue existiendo, para no recrear datos de alguien que se borró. Lo que se
+ * escriba en los milisegundos entre el chequeo y el upsert lo borra la limpieza del borrado.
+ */
+const accountExists = async (userId: Types.ObjectId) =>
+  (await UserModel.exists({ _id: userId })) !== null;
 
 export type WeeklySummaryProcessor = (
   job: WeeklySummaryJob,
@@ -79,6 +92,10 @@ export function createWeeklySummaryProcessor({
 }: WeeklySummaryProcessorDeps): WeeklySummaryProcessor {
   return async ({ userId, week }, log) => {
     const key = { userId: new Types.ObjectId(userId), week };
+    if (!(await accountExists(key.userId))) {
+      log.info("la cuenta ya no existe, no se genera el Wrapped");
+      return "account-deleted";
+    }
     const existing = await WeeklySummaryModel.findOne(key, { status: 1 }).lean();
     if (existing?.status === "ready") {
       log.info("el Wrapped ya está ready, se saltea");
@@ -131,6 +148,12 @@ export function createWeeklySummaryProcessor({
       log,
     );
 
+    // La IA tarda unos segundos: la cuenta se pudo haber borrado mientras tanto.
+    if (!(await accountExists(key.userId))) {
+      log.info("la cuenta se borró mientras se generaba el Wrapped, no se guarda");
+      return "account-deleted";
+    }
+
     // El filtro excluye los ready: dos jobs a la vez no se pisan. Si el otro ya lo dejó ready,
     // el upsert choca con el índice único: ya existe.
     let saved = true;
@@ -176,6 +199,8 @@ export function createWeeklySummaryProcessor({
 
 /** Se agotaron los reintentos: el resumen queda failed, salvo que otro job ya lo haya dejado ready. */
 export async function markWeeklySummaryFailed({ userId, week }: WeeklySummaryJob): Promise<void> {
+  // Sin la cuenta no se crea un resumen failed: sería recrear datos de alguien borrado.
+  if (!(await accountExists(new Types.ObjectId(userId)))) return;
   try {
     await WeeklySummaryModel.updateOne(
       { userId: new Types.ObjectId(userId), week, status: { $ne: "ready" } },

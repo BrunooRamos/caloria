@@ -85,6 +85,9 @@ function stripeErrorDetail(err: unknown): Record<string, unknown> {
   };
 }
 
+const isMissing = (err: unknown) =>
+  err instanceof Stripe.errors.StripeInvalidRequestError && err.code === "resource_missing";
+
 export function createStripeBillingProvider(config: StripeBillingConfig): BillingProvider {
   const stripe = new Stripe(config.secretKey, {
     maxNetworkRetries: 1,
@@ -153,6 +156,18 @@ export function createStripeBillingProvider(config: StripeBillingConfig): Billin
           await stripe.subscriptions.update(subscriptionId, { cancel_at_period_end: false }),
         ),
       );
+    },
+
+    deleteCustomer(customerId) {
+      return call("deleteCustomer", async () => {
+        try {
+          await stripe.customers.del(customerId);
+        } catch (err) {
+          // Ya estaba borrado (un reintento del borrado de la cuenta): no queda nada que cancelar.
+          if (isMissing(err)) return;
+          throw err;
+        }
+      });
     },
 
     verifyWebhook(payload, headers) {

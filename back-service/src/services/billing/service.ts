@@ -19,6 +19,11 @@ export interface BillingService {
   getPlan(userId: string): Promise<BillingPlanResponse>;
   subscribe(userId: string, context: BillingContext): Promise<SubscribeResponse>;
   cancel(userId: string, context: BillingContext): Promise<BillingPlanResponse>;
+  /**
+   * Antes de borrar la cuenta: borra el cliente en el proveedor, que corta la suscripción
+   * en el momento. Sin cliente no hace nada. Si el proveedor falla o no está configurado → 503.
+   */
+  closeCustomer(userId: string, context: BillingContext): Promise<void>;
   /** Devuelve `duplicate: true` si el evento ya se había recibido (no se procesa otra vez). */
   handleWebhook(
     payload: Buffer,
@@ -258,6 +263,20 @@ export function createBillingService({
         p.cancelAtPeriodEnd(subscriptionId),
       );
       return view(await apply(user, sub, at, context), at);
+    },
+
+    async closeCustomer(userId, context) {
+      const user = await UserModel.findById(userId, { "plan.customerId": 1 }).lean<
+        Pick<User, "plan">
+      >();
+      const customerId = user?.plan.customerId;
+      if (!customerId) return;
+      await callProvider("deleteCustomer", context, userId, (p) => p.deleteCustomer(customerId));
+      context.log.info("cliente del proveedor de pagos borrado", {
+        requestId: context.requestId,
+        userId,
+        provider: provider?.name,
+      });
     },
 
     async handleWebhook(payload, headers, context) {
