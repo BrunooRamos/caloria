@@ -18,6 +18,7 @@ import {
 } from "@/test-utils/fake-api";
 import { spyAlerts } from "@/test-utils/alert";
 import type { Call, Handler } from "@/test-utils/fake-api";
+import { billingSwitch, expectNoPaymentText } from "@/test-utils/billing";
 
 jest.mock("expo-splash-screen", () => ({
   preventAutoHideAsync: jest.fn(() => Promise.resolve(true)),
@@ -419,6 +420,34 @@ describe("perfil", () => {
       expect(screen.getByRole("button", { name: "Reintentar" })).toBeOnTheScreen();
       await press("Tus datos");
       expect(router.getPathname()).toBe("/profile/data");
+    });
+  });
+
+  describe("la fila Tu plan según el interruptor de pagos", () => {
+    describe.each([["true"], [undefined]])("prendido (%p)", (value) => {
+      billingSwitch(value);
+
+      it("muestra el plan y abre Tu plan", async () => {
+        const router = await start(profileBackend(), "/profile", NEW_TOKENS);
+
+        await press("Tu plan, Free · te quedan 37 análisis");
+        expect(router.getPathname()).toBe("/plan");
+      });
+    });
+
+    describe("apagado (build de Google Play)", () => {
+      billingSwitch("false");
+
+      it("muestra solo el uso del mes y no se puede tocar", async () => {
+        const router = await start(profileBackend(), "/profile", NEW_TOKENS);
+
+        const row = await screen.findByLabelText("Tu plan, 3 de 40 análisis");
+        expect(row).toBeOnTheScreen();
+        expect(screen.queryByRole("button", { name: /^Tu plan/ })).toBeNull();
+        fireEvent.press(row);
+        expect(router.getPathname()).toBe("/profile");
+        expectNoPaymentText();
+      });
     });
   });
 

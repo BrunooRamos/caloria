@@ -2,6 +2,7 @@ import { Dot, Trash } from "lucide-react-native";
 import { useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { Button, Card, FormError, Input, Screen, Text } from "@/components";
+import { isBillingEnabled } from "@/features/billing/billingEnabled";
 import { errorMessage } from "@/services/error-messages";
 import type { ErrorMessageOverrides } from "@/services/error-messages";
 import { useSession } from "@/store/session";
@@ -30,7 +31,9 @@ const DELETE_ERRORS: ErrorMessageOverrides = {
 export default function DeleteAccountScreen() {
   const { deleteAccount } = useSession();
   const { state } = useMe();
-  const premium = state.status === "ready" && state.me.plan.tier === "premium";
+  // Sin pagos (build de Google Play) no se habla de la suscripción.
+  const premium =
+    isBillingEnabled() && state.status === "ready" && state.me.plan.tier === "premium";
   const [word, setWord] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);

@@ -4,6 +4,7 @@ import { memo, useCallback, useMemo, useState } from "react";
 import { FlatList, StyleSheet, View } from "react-native";
 import type { LayoutChangeEvent, ListRenderItem, ListViewToken } from "react-native";
 import { Button, FormError, Notice, Screen, Skeleton, Text } from "@/components";
+import { isBillingEnabled } from "@/features/billing/billingEnabled";
 import { deviceTimeZone } from "@/features/profile/timezone";
 import { todayIn } from "@/features/history/day";
 import { errorMessage } from "@/services/error-messages";
@@ -219,6 +220,15 @@ function Indicator({ count, active }: { count: number; active: number }) {
 }
 
 function PremiumRequiredState() {
+  if (!isBillingEnabled()) {
+    return (
+      <Notice
+        icon={CalendarClock}
+        title="El resumen semanal no está incluido en tu plan"
+        detail="Tus registros de la semana siguen guardados."
+      />
+    );
+  }
   return (
     <Notice
       icon={Sparkles}

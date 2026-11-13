@@ -14,6 +14,7 @@ import {
   memoryStorage,
 } from "@/test-utils/fake-api";
 import type { Call } from "@/test-utils/fake-api";
+import { billingSwitch, expectNoPaymentText } from "@/test-utils/billing";
 
 jest.mock("expo-splash-screen", () => ({
   preventAutoHideAsync: jest.fn(() => Promise.resolve(true)),
@@ -439,5 +440,33 @@ describe("Wrapped: reducir movimiento", () => {
 
     await screen.findByLabelText(/^Tu semana: registraste/);
     expect(visible(timing).length).toBeGreaterThan(0);
+  });
+});
+
+describe("Wrapped: 402 PREMIUM_REQUIRED según el interruptor de pagos", () => {
+  describe.each([["true"], [undefined]])("prendido (%p)", (value) => {
+    billingSwitch(value);
+
+    it("ofrece Ver planes", async () => {
+      await start("/wrapped/2026-W43", [() => apiError(402, "PREMIUM_REQUIRED")]);
+
+      expect(await screen.findByText("El resumen semanal es parte de premium")).toBeOnTheScreen();
+      expect(screen.getByRole("button", { name: "Ver planes" })).toBeOnTheScreen();
+    });
+  });
+
+  describe("apagado (build de Google Play)", () => {
+    billingSwitch("false");
+
+    it("dice que no está incluido, sin nombrar premium ni Ver planes", async () => {
+      await start("/wrapped/2026-W43", [() => apiError(402, "PREMIUM_REQUIRED")]);
+
+      expect(
+        await screen.findByText("El resumen semanal no está incluido en tu plan"),
+      ).toBeOnTheScreen();
+      expect(screen.getByText("Tus registros de la semana siguen guardados.")).toBeOnTheScreen();
+      expect(screen.queryByRole("button", { name: "Ver planes" })).toBeNull();
+      expectNoPaymentText();
+    });
   });
 });

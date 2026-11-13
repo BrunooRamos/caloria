@@ -1,3 +1,4 @@
+import { isBillingEnabled } from "@/features/billing/billingEnabled";
 import { ApiError } from "./api-error";
 import type { ApiErrorCode } from "./api-error";
 
@@ -26,11 +27,14 @@ const MESSAGES: Record<ApiErrorCode, ErrorMessage> = {
   UNAUTHORIZED: "Tu sesión terminó. Ingresá de nuevo.",
   TOKEN_EXPIRED: "Tu sesión terminó. Ingresá de nuevo.",
   MEAL_QUOTA_EXCEEDED:
-    "Llegaste al límite de análisis de este mes. Se renueva el 1.° del mes que viene.",
-  PREMIUM_REQUIRED: "Esto es parte del plan premium.",
+    "Llegaste al límite de análisis de este mes. Se renueva el 1.º del mes que viene.",
+  // Sin pagos (build de Google Play) no se nombra premium.
+  PREMIUM_REQUIRED: () =>
+    isBillingEnabled() ? "Esto es parte del plan premium." : "Esto no está incluido en tu plan.",
   NOT_FOUND: "No encontramos lo que buscabas.",
   EMAIL_TAKEN: "Ya hay una cuenta con este email.",
   MEAL_NOT_READY: "Esta comida todavía no se puede corregir: falta que termine el análisis.",
+  // Solo lo devuelve el alta de la suscripción, que sin pagos no se llama.
   SUBSCRIPTION_ACTIVE: "Ya tenés una suscripción premium activa.",
   PAYLOAD_TOO_LARGE: "El archivo es demasiado pesado.",
   RATE_LIMITED: ({ retryAfterSeconds }) =>

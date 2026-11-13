@@ -1,3 +1,4 @@
+import { billingSwitch } from "@/test-utils/billing";
 import { ApiError } from "../api-error";
 import type { ApiErrorCode } from "../api-error";
 import { GENERIC_ERROR_MESSAGE, errorMessage } from "../error-messages";
@@ -19,7 +20,7 @@ describe("errorMessage", () => {
     ["TOKEN_EXPIRED", "Tu sesión terminó. Ingresá de nuevo."],
     [
       "MEAL_QUOTA_EXCEEDED",
-      "Llegaste al límite de análisis de este mes. Se renueva el 1.° del mes que viene.",
+      "Llegaste al límite de análisis de este mes. Se renueva el 1.º del mes que viene.",
     ],
     ["PREMIUM_REQUIRED", "Esto es parte del plan premium."],
     ["NOT_FOUND", "No encontramos lo que buscabas."],
@@ -105,5 +106,14 @@ describe("errorMessage", () => {
     });
 
     expect(errorMessage(unknown)).toBe(GENERIC_ERROR_MESSAGE);
+  });
+});
+
+describe("PREMIUM_REQUIRED sin pagos (build de Google Play)", () => {
+  billingSwitch("false");
+  it("no nombra premium", () => {
+    expect(errorMessage(apiError("PREMIUM_REQUIRED", { status: 402 }))).toBe(
+      "Esto no está incluido en tu plan.",
+    );
   });
 });

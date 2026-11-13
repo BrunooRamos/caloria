@@ -13,6 +13,7 @@ import {
   memoryStorage,
 } from "@/test-utils/fake-api";
 import type { Call, Handler } from "@/test-utils/fake-api";
+import { billingSwitch, expectNoPaymentText } from "@/test-utils/billing";
 
 jest.mock("expo-splash-screen", () => ({
   preventAutoHideAsync: jest.fn(() => Promise.resolve(true)),
@@ -224,5 +225,16 @@ describe("Eliminar cuenta", () => {
     await fireEvent.changeText(screen.getByLabelText("Contraseña"), "secreto123");
     await fireEvent.press(screen.getByRole("button", { name: "Ingresar" }));
     await waitFor(() => expect(screen.queryByText("Eliminamos tu cuenta")).toBeNull());
+  });
+});
+
+describe("Eliminar cuenta sin pagos (build de Google Play)", () => {
+  billingSwitch("false");
+
+  it("con premium no habla de la suscripción", async () => {
+    await start(backend([], me({ tier: "premium", since: "2026-10-14T19:00:00.000Z" })));
+
+    expect(await screen.findByText("Qué se borra")).toBeOnTheScreen();
+    expectNoPaymentText();
   });
 });

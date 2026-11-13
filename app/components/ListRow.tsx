@@ -10,21 +10,18 @@ export interface ListRowProps {
   icon: LucideIcon;
   title: string;
   detail?: string;
-  onPress(): void;
+  /** Sin `onPress` la fila solo informa: no se puede tocar y no lleva la flecha. */
+  onPress?: () => void;
 }
 
 /**
  * Una fila de un menú estilo configuración: ícono, título, el resumen de lo que hay adentro y la
- * flecha. Tocarla abre la pantalla de esa sección.
+ * flecha. Tocarla abre la pantalla de esa sección; sin `onPress` solo muestra el resumen.
  */
 export function ListRow({ icon: Icon, title, detail, onPress }: ListRowProps) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={detail ? `${title}, ${detail}` : title}
-      onPress={onPress}
-      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
-    >
+  const label = detail ? `${title}, ${detail}` : title;
+  const content = (
+    <>
       <View style={styles.icon}>
         <Icon color={colors.primary} size={sizes.iconDense} strokeWidth={sizes.iconStroke} />
       </View>
@@ -36,7 +33,30 @@ export function ListRow({ icon: Icon, title, detail, onPress }: ListRowProps) {
           </Text>
         ) : null}
       </View>
-      <ChevronRight color={colors.inkMuted} size={sizes.iconDense} strokeWidth={sizes.iconStroke} />
+      {onPress && (
+        <ChevronRight
+          color={colors.inkMuted}
+          size={sizes.iconDense}
+          strokeWidth={sizes.iconStroke}
+        />
+      )}
+    </>
+  );
+  if (!onPress) {
+    return (
+      <View accessible accessibilityLabel={label} style={styles.row}>
+        {content}
+      </View>
+    );
+  }
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+    >
+      {content}
     </Pressable>
   );
 }

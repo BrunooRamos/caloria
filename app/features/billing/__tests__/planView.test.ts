@@ -1,5 +1,5 @@
 import type { BillingPlan, PlanCatalog } from "@/services/billing";
-import { planSummary, planView } from "../planView";
+import { planSummary, planView, quotaRenewal, usageSummary } from "../planView";
 import type { CheckoutStatus, PlanView } from "../planView";
 
 const TZ = "America/Montevideo";
@@ -286,5 +286,24 @@ describe("planSummary (la fila del perfil)", () => {
     ["premium sin fecha", premium({ periodEnd: null, renews: false }), "Premium"],
   ])("%s → %s", (_, plan, expected) => {
     expect(planSummary(plan, TZ, NOW)).toBe(expected);
+  });
+});
+
+describe("sin pagos (build de Google Play)", () => {
+  it("usageSummary: solo el uso del mes, sin nombrar el plan", () => {
+    expect(usageSummary(free(28))).toBe("12 de 40 análisis");
+    expect(usageSummary(free(0))).toBe("40 de 40 análisis");
+    expect(usageSummary(premium())).toBe("Análisis ilimitados");
+  });
+
+  it("quotaRenewal: cuántos usó y que se renuevan el 1.º del mes que viene", () => {
+    expect(quotaRenewal(free(0), TZ, NOW)).toBe(
+      "Usaste tus 40 análisis del mes. Se renuevan el 1.º de diciembre.",
+    );
+    // Sin la fecha del Backend, el 1.º del mes siguiente en la zona del usuario.
+    const plan = free(0);
+    expect(quotaRenewal({ ...plan, analyses: { ...plan.analyses, resetsOn: null } }, TZ, NOW)).toBe(
+      "Usaste tus 40 análisis del mes. Se renuevan el 1.º de diciembre.",
+    );
   });
 });

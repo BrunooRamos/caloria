@@ -1,6 +1,7 @@
 import { StyleSheet, View } from "react-native";
 import { Button, ProgressBar, Sheet, Text } from "@/components";
 import { spacing } from "@/theme";
+import { isBillingEnabled } from "./billingEnabled";
 import type { QuotaView } from "./planView";
 
 export interface QuotaSheetProps {
@@ -14,8 +15,24 @@ export interface QuotaSheetProps {
 /**
  * Sin análisis en el mes, en vez de la cámara: igual que la tarjeta de Tu plan, en los colores de
  * siempre. "Ver planes" y "Cerrar" quedan a la vista, del mismo tamaño.
+ *
+ * Sin pagos (build de Google Play) solo dice cuándo se renuevan y deja "Cerrar".
  */
 export function QuotaSheet({ view, visible, onClose, onSeePlans }: QuotaSheetProps) {
+  if (!isBillingEnabled()) {
+    return (
+      <Sheet visible={visible} onClose={onClose}>
+        {view && (
+          <>
+            <Text>{view.renewal}</Text>
+            <View style={styles.actions}>
+              <Button variant="secondary" title="Cerrar" onPress={onClose} />
+            </View>
+          </>
+        )}
+      </Sheet>
+    );
+  }
   return (
     <Sheet visible={visible} onClose={onClose}>
       {view && (

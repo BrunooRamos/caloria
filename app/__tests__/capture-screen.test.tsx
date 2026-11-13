@@ -23,6 +23,7 @@ import {
 import { spyAlerts } from "@/test-utils/alert";
 import { mockHardwareBack } from "@/test-utils/hardware-back";
 import type { Call, Handler } from "@/test-utils/fake-api";
+import { billingSwitch, expectNoPaymentText } from "@/test-utils/billing";
 
 jest.mock("expo-splash-screen", () => ({
   preventAutoHideAsync: jest.fn(() => Promise.resolve(true)),
@@ -195,13 +196,18 @@ const analyzing = {
 let calls: Call[];
 const mealPosts = () => calls.filter((call) => call.path === "/meals" && call.method === "POST");
 
-function start(meals: Handler = accepted) {
+/**
+ * `GET /billing/plan`. Por defecto 404: la barra abre la cámara sin preguntar y, sin cupo, la vista
+ * previa cae en el 1.º del mes que viene.
+ */
+function start(meals: Handler = accepted, plan: Handler = () => apiError(404, "NOT_FOUND")) {
   mockTokenStorage = memoryStorage(OLD_TOKENS);
   const fake = fakeFetch((call) => {
     if (call.path === "/auth/refresh") return json(200, { ...NEW_TOKENS });
     if (call.path === "/meals" && call.method === "POST") return meals(call);
     // El resultado consulta el análisis: sigue en processing.
     if (call.path === `/meals/${MEAL_ID}`) return json(200, analyzing);
+    if (call.path === "/billing/plan") return plan(call);
     return apiError(404, "NOT_FOUND");
   });
   calls = fake.calls;
@@ -342,7 +348,7 @@ describe("registrar una comida", () => {
     expect(await screen.findByText("Usaste los análisis de este mes")).toBeOnTheScreen();
     expect(
       screen.getByText(
-        "Se renuevan el 1.° del mes que viene. En Tu plan ves cuántos tenés y qué incluye cada plan.",
+        /^Se renuevan el 1\.º de \S+( de \d{4})?\. En Tu plan ves cuántos tenés y qué incluye cada plan\.$/,
       ),
     ).toBeOnTheScreen();
     // No es un error: sin el recuadro rojo de alerta ni "Reintentar".
@@ -355,6 +361,28 @@ describe("registrar una comida", () => {
     // Volver deja la foto donde estaba, por si después quiere mandarla.
     await press("Volver");
     expect(await screen.findByText("¿Analizamos esta foto?")).toBeOnTheScreen();
+  });
+
+  it("sin cupo, la fecha de renovación es la del plan, la misma que en la hoja de Registrar", async () => {
+    // Le quedan análisis para la barra (abre la cámara); el POST igual se rechaza por cupo.
+    const plan = {
+      tier: "free",
+      periodEnd: null,
+      renews: false,
+      analyses: { limit: 40, remaining: 1, resetsOn: "2099-03-15" },
+    };
+    await start(
+      () => apiError(402, "MEAL_QUOTA_EXCEEDED"),
+      () => json(200, plan),
+    );
+    await takePhoto();
+
+    await press("Enviar");
+    expect(
+      await screen.findByText(
+        "Se renuevan el 15 de marzo de 2099. En Tu plan ves cuántos tenés y qué incluye cada plan.",
+      ),
+    ).toBeOnTheScreen();
   });
 
   it("con el tope diario alcanzado dice cuánto falta para volver a intentar", async () => {
@@ -799,5 +827,40 @@ describe("audio de la preparación", () => {
     expect(openSettings).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("button", { name: "Enviar" })).toBeEnabled();
     openSettings.mockRestore();
+  });
+});
+
+describe("sin cupo según el interruptor de pagos", () => {
+  describe.each([["true"], [undefined]])("prendido (%p)", (value) => {
+    billingSwitch(value);
+
+    it("la vista previa ofrece Ver planes", async () => {
+      await start(() => apiError(402, "MEAL_QUOTA_EXCEEDED"));
+      await takePhoto();
+
+      await press("Enviar");
+      expect(await screen.findByText("Usaste los análisis de este mes")).toBeOnTheScreen();
+      expect(screen.getByRole("button", { name: "Ver planes" })).toBeOnTheScreen();
+    });
+  });
+
+  describe("apagado (build de Google Play)", () => {
+    billingSwitch("false");
+
+    it("la vista previa dice cuándo se renuevan, sin Ver planes", async () => {
+      const router = await start(() => apiError(402, "MEAL_QUOTA_EXCEEDED"));
+      await takePhoto();
+
+      await press("Enviar");
+      expect(await screen.findByText("Usaste los análisis de este mes")).toBeOnTheScreen();
+      expect(
+        screen.getByText(
+          /^Se renuevan el 1\.º de \S+( de \d{4})?\. Tu historial y tus metas siguen disponibles\.$/,
+        ),
+      ).toBeOnTheScreen();
+      expect(screen.queryByRole("button", { name: "Ver planes" })).toBeNull();
+      expectNoPaymentText();
+      expect(router.getPathname()).toBe("/capture");
+    });
   });
 });
