@@ -7,6 +7,9 @@ import { ApiError } from "@/services/api-error";
 import { errorMessage } from "@/services/error-messages";
 import type { ErrorMessageOverrides } from "@/services/error-messages";
 import { isBillingEnabled } from "@/features/billing/billingEnabled";
+import { renewalDay } from "@/features/billing/planView";
+import { deviceTimeZone } from "@/features/profile/timezone";
+import { getBillingPlan } from "@/services/billing";
 import { createMeal } from "@/services/meals";
 import { colors, radius, spacing } from "@/theme";
 import { AudioNoteRecorder } from "./AudioNoteRecorder";
@@ -51,7 +54,8 @@ export function PreviewStep({
 }: PreviewStepProps) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [quotaExceeded, setQuotaExceeded] = useState(false);
+  // Sin cupo: cuándo se renuevan según el plan (null mientras llega o si no se puede saber).
+  const [quotaExceeded, setQuotaExceeded] = useState<{ resetsOn: string | null } | null>(null);
   // El estado tarda un render en deshabilitar el botón: el ref frena un segundo toque inmediato.
   const inFlight = useRef(false);
   const tooLarge = exceedsMaxBytes(photo);
@@ -65,7 +69,7 @@ export function PreviewStep({
     setSending(true);
     onSendingChange(true);
     setError(null);
-    setQuotaExceeded(false);
+    setQuotaExceeded(null);
     try {
       const { mealId } = await createMeal(
         buildMealForm({ photo, ...(audio.note && { audio: audio.note }) }),
@@ -76,8 +80,14 @@ export function PreviewStep({
       inFlight.current = false;
       setSending(false);
       onSendingChange(false);
-      if (err instanceof ApiError && err.code === "MEAL_QUOTA_EXCEEDED") setQuotaExceeded(true);
-      else setError(errorMessage(err, withAudio ? UPLOAD_ERRORS_WITH_AUDIO : UPLOAD_ERRORS));
+      if (err instanceof ApiError && err.code === "MEAL_QUOTA_EXCEEDED") {
+        setQuotaExceeded({ resetsOn: null });
+        // La misma fecha que la hoja de Registrar y Tu plan; si no llega, queda el 1.º que viene.
+        getBillingPlan().then(
+          (plan) => setQuotaExceeded((prev) => prev && { resetsOn: plan.analyses.resetsOn }),
+          () => undefined,
+        );
+      } else setError(errorMessage(err, withAudio ? UPLOAD_ERRORS_WITH_AUDIO : UPLOAD_ERRORS));
     }
   }
 
@@ -98,7 +108,7 @@ export function PreviewStep({
         />
         <AudioNoteRecorder audio={audio} disabled={sending} />
         {quotaExceeded ? (
-          <QuotaExceeded />
+          <QuotaExceeded resetsOn={quotaExceeded.resetsOn} />
         ) : (
           <FormError message={tooLarge ? TOO_LARGE_MESSAGE : error} />
         )}
@@ -132,13 +142,14 @@ export function PreviewStep({
 }
 
 /** Sin análisis en el mes: se dice con calma, sin rojo, y se puede ver qué incluye cada plan. */
-function QuotaExceeded() {
+function QuotaExceeded({ resetsOn }: { resetsOn: string | null }) {
+  const renews = `Se renuevan el ${renewalDay(resetsOn, deviceTimeZone(), new Date())}.`;
   if (!isBillingEnabled()) {
     return (
       <Notice
         icon={CalendarClock}
         title="Usaste los análisis de este mes"
-        detail="Se renuevan el 1.° del mes que viene. Tu historial y tus metas siguen disponibles."
+        detail={`${renews} Tu historial y tus metas siguen disponibles.`}
       />
     );
   }
@@ -146,7 +157,7 @@ function QuotaExceeded() {
     <Notice
       icon={CalendarClock}
       title="Usaste los análisis de este mes"
-      detail="Se renuevan el 1.° del mes que viene. En Tu plan ves cuántos tenés y qué incluye cada plan."
+      detail={`${renews} En Tu plan ves cuántos tenés y qué incluye cada plan.`}
     >
       <Button variant="secondary" title="Ver planes" onPress={() => router.push("/plan")} />
     </Notice>

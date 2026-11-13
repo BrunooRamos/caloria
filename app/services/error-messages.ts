@@ -27,7 +27,7 @@ const MESSAGES: Record<ApiErrorCode, ErrorMessage> = {
   UNAUTHORIZED: "Tu sesión terminó. Ingresá de nuevo.",
   TOKEN_EXPIRED: "Tu sesión terminó. Ingresá de nuevo.",
   MEAL_QUOTA_EXCEEDED:
-    "Llegaste al límite de análisis de este mes. Se renueva el 1.° del mes que viene.",
+    "Llegaste al límite de análisis de este mes. Se renueva el 1.º del mes que viene.",
   // Sin pagos (build de Google Play) no se nombra premium.
   PREMIUM_REQUIRED: () =>
     isBillingEnabled() ? "Esto es parte del plan premium." : "Esto no está incluido en tu plan.",

@@ -302,8 +302,11 @@ export function quotaView(plan: BillingPlan, timeZone: string, now: Date): Quota
   };
 }
 
-/** "1.º de diciembre": el día en que se renuevan los análisis (el 1.º del mes que viene). */
-function renewalDay(resetsOn: string | null, timeZone: string, now: Date): string {
+/**
+ * "1.º de diciembre": el día en que se renuevan los análisis, el `resetsOn` del Backend. Sin él,
+ * el 1.º del mes que viene en la zona del usuario.
+ */
+export function renewalDay(resetsOn: string | null, timeZone: string, now: Date): string {
   const today = todayIn(timeZone, now);
   const day = resetsOn ?? `${shiftMonths(today, 1).slice(0, 7)}-01`;
   return formatDay(day, timeZone, now).replace(/^1 de /, "1.º de ");

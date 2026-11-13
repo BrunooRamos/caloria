@@ -20,7 +20,7 @@ describe("errorMessage", () => {
     ["TOKEN_EXPIRED", "Tu sesión terminó. Ingresá de nuevo."],
     [
       "MEAL_QUOTA_EXCEEDED",
-      "Llegaste al límite de análisis de este mes. Se renueva el 1.° del mes que viene.",
+      "Llegaste al límite de análisis de este mes. Se renueva el 1.º del mes que viene.",
     ],
     ["PREMIUM_REQUIRED", "Esto es parte del plan premium."],
     ["NOT_FOUND", "No encontramos lo que buscabas."],
