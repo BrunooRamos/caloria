@@ -206,9 +206,9 @@ note:  "milanesa con puré"
 - **Cache del análisis (RNF-07):** la comida guarda `inputHash`, el sha256 de la foto, el audio y la nota. Si el mismo usuario ya tiene una comida `ready` (o `failed` por `NOT_FOOD`) con el mismo hash, el Worker copia ese análisis (y la transcripción) sin llamar a la IA, y deja `cachedFrom` con el id de origen. El comentario se reusa si el tono no cambió; si cambió, se genera uno nuevo. Para la app no cambia nada: la comida pasa a `ready` como siempre.
 - Orden en el Backend: reserva el tope diario y el cupo, genera el `mealId`, sube la media a `users/{userId}/meals/{mealId}/photo.{jpg|png|heic}` (y `audio.m4a`), crea la comida con `status: "processing"` y `localDate` (el día en la zona del perfil al llegar el pedido) y encola el job `{ mealId, requestId }` con `jobId = mealId`. Responde 202 sin esperar al Worker: con el Worker apagado el job queda en espera.
 - Si falla la subida → 503 `SERVICE_UNAVAILABLE` y no queda nada. Si falla crear la comida → 500 `INTERNAL_ERROR` y se borra la media subida. Si falla encolar (Redis caído) → 503 `SERVICE_UNAVAILABLE`; la comida y la media quedan, con `status: "failed"` y `error.code: "ENQUEUE_FAILED"` para reprocesarla. En los tres casos se devuelve el cupo reservado (ver [modelo-datos.md](modelo-datos.md#meals)).
-- **Racha (RF-10):** con la comida ya creada, y en paralelo con el encolado, se cuenta el `localDate` en `gamification` (se crea con un upsert la primera vez). Cuenta el registro, no el análisis: vale aunque después el análisis falle. Contra `streak.lastLogDate`: el mismo día no cambia nada; el día anterior (calculado con el calendario sobre `YYYY-MM-DD`, no restando 24 h) suma 1; sin registro previo o con algún día salteado vuelve a 1; un día anterior a `lastLogDate` (cambio de zona) no toca nada. Después se actualiza `best` y `lastLogDate`.
+- **Racha (RF-10):** no la cuenta el registro sino el análisis. Cuando el Worker deja la comida en `ready` (con la IA o copiando la caché), cuenta su `localDate` en `gamification` (se crea con un upsert la primera vez). Una comida que termina `failed` (`NOT_FOOD`, `ANALYSIS_FAILED`, `ENQUEUE_FAILED`) no suma: no es una comida registrada, igual que no aparece en el historial. Se usa el `localDate` de la comida, no la hora en que termina el análisis: una foto de las 23:58 cuenta para ese día. Contra `streak.lastLogDate`: el mismo día no cambia nada; el día anterior (calculado con el calendario sobre `YYYY-MM-DD`, no restando 24 h) suma 1; sin registro previo o con algún día salteado vuelve a 1; un día anterior a `lastLogDate` (cambio de zona, o un análisis que termina después de otro de un día posterior) no toca nada. Después se actualiza `best` y `lastLogDate`.
   - Es una sola escritura atómica, condicionada a que `localDate` sea posterior a `lastLogDate`: dos comidas a la vez el mismo día suman una vez. Si el upsert choca con el índice único (dos primeras comidas a la vez), se reintenta una vez.
-  - La racha nunca rompe el registro: si falla se loguea con el `requestId` y se responde 202 igual. Se espera como mucho 300 ms; si tarda más, se responde sin esperarla (la escritura sigue).
+  - Solo la cuenta el job que pasó la comida de `processing` a `ready`: un job repetido no la vuelve a contar. La racha nunca hace fallar el job: si la escritura falla, se loguea y la comida queda `ready` igual.
   - Borrar comidas no recalcula la racha: un día que queda sin comidas ya está contado.
 
 ### Consultar el análisis
@@ -275,9 +275,10 @@ Authorization: Bearer <accessToken>
 - Orden por `capturedAt` ascendente (desempata el id), de a 20 por página (`MEALS_PAGE_SIZE`). `nextCursor` es `null` en la última página; si no, se manda tal cual como `cursor` para pedir la siguiente.
 - El cursor es opaco para la app (base64url de la posición de la última comida de la página). Es estable: una comida nueva o borrada entre páginas no hace repetir ni saltear las demás.
 - Cada item tiene **la misma forma que `GET /meals/:id`**, según su `status` y con las correcciones aplicadas (`toMealResponse` + `applyCorrections`). Cada `photoUrl` se firma en la request (15 min).
+- **No incluye las comidas `failed`.** Quedan guardadas (para la caché de `NOT_FOOD` y la devolución del cupo) pero no son comidas registradas: no se listan en el inicio ni en el historial. Las `processing` sí, para poder volver a su análisis. Una `failed` se sigue pudiendo pedir con `GET /meals/:id` (la pantalla que esperaba el análisis muestra el error) y borrar.
 - Un día sin comidas no es un error: 200 con `{ "items": [], "nextCursor": null }`.
 - Solo las comidas del usuario del token. Sin `date`, un `date` inválido o repetido, un `cursor` vacío o que no salió de la API, o cualquier otro campo en la query → 400 `VALIDATION_ERROR`. El Front valida la forma (`listMealsQuerySchema`, en `shared`); el Backend además decodifica el cursor.
-- Una sola consulta sobre el índice `{ userId, localDate, capturedAt, _id }`, sin ordenar en memoria. La respuesta lleva `Cache-Control: no-store`.
+- Una sola consulta sobre el índice `{ userId, localDate, capturedAt, _id }`, sin ordenar en memoria; el filtro de `status` se aplica en la misma consulta, así que las páginas vienen llenas. La respuesta lleva `Cache-Control: no-store`.
 - Tipo de la respuesta: `MealListResponse` (`shared`).
 
 ### Corregir una comida
@@ -342,14 +343,14 @@ Authorization: Bearer <accessToken>
 - `date` es opcional, `YYYY-MM-DD` y un día real del calendario. Sin `date` se usa el día de hoy en la zona del perfil (`profile.timezone`), y la respuesta dice cuál fue. Otro formato, un día que no existe (`2026-02-30`), `date` vacía o repetida, o cualquier otro campo en la query → 400 `VALIDATION_ERROR`, en el Front y en el Backend.
 - El usuario sale siempre del token. Las comidas se filtran por `localDate` (el día del usuario), no por `capturedAt`.
 - `consumed` suma solo las comidas `ready` del día, con las correcciones aplicadas (los mismos valores que `GET /meals/:id`). `min` es la suma de los mínimos, `max` la de los máximos y `mid` su punto medio. Se redondea a enteros recién en la respuesta: `mid` sale de las sumas sin redondear.
-- `meals` cuenta las comidas del día por status. Las `processing` y `failed` no suman en `consumed`; con `failed` > 0 la app puede avisar que hay alguna para reintentar.
+- `meals` cuenta las comidas del día por status. Las `processing` y `failed` no suman en `consumed`. `failed` se sigue contando aunque `GET /meals` ya no las liste: la app lo usa para notar que una comida terminó de analizarse y recargar la lista.
 - `targets` es `users.targets` tal cual está guardada (con las mismas claves que `GET /users/me`); no se recalcula acá.
 - Un día sin comidas no es un error: 200 con `consumed` en cero y `meals` en cero.
 - Solo números: la respuesta no dice si lo consumido está por encima o por debajo de la meta (RNF-10). Cómo se muestra lo decide la app.
 - Una sola agregación sobre el índice `{ userId, localDate, capturedAt, _id }` (usa el prefijo `{ userId, localDate }`); con `date`, la meta se busca en paralelo (RNF-01, < 1 s).
 - La respuesta lleva `Cache-Control: no-store`: la app lo vuelve a pedir al volver a la pantalla.
-- `streak` es la racha de días con al menos un registro (RF-10), leída de `gamification`. Siempre es respecto de **hoy** en la zona del perfil, aunque se pida otra `date`.
-  - `current` es la racha guardada solo si el último registro fue hoy o ayer; si es más viejo, 0 (la racha guardada solo se actualiza al registrar, así que en la base puede seguir la vieja).
+- `streak` es la racha de días con al menos una comida analizada (`ready`, RF-10), leída de `gamification`. Siempre es respecto de **hoy** en la zona del perfil, aunque se pida otra `date`.
+  - `current` es la racha guardada solo si el último registro fue hoy o ayer; si es más viejo, 0 (la racha guardada solo se actualiza cuando un análisis queda listo, así que en la base puede seguir la vieja).
   - `best` es la máxima histórica, tal cual está guardada.
   - Un usuario que todavía no registró ninguna comida no tiene documento: las dos en 0.
 

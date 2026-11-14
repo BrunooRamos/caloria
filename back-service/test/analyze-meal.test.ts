@@ -135,6 +135,20 @@ function fakeIdentifier(
   return { identifier, calls };
 }
 
+/** Racha que guarda cada día contado; `fail` hace que record rechace. */
+function fakeStreak({ fail = false } = {}) {
+  const records: { userId: string; localDate: string }[] = [];
+  return {
+    records,
+    streak: {
+      async record(userId: string, localDate: string) {
+        if (fail) throw new Error("mongo caído");
+        records.push({ userId, localDate });
+      },
+    },
+  };
+}
+
 function fakeMedia(photo: Uint8Array): MediaService {
   const fail = () => Promise.reject(new Error("no se usa"));
   return {
@@ -196,10 +210,12 @@ function setup(
     id = fakeIdentifier(),
     finder = createMongoSimilarMealsFinder(),
     writer = fakeCommenter(),
+    streak = fakeStreak(),
   }: {
     id?: ReturnType<typeof fakeIdentifier>;
     finder?: SimilarMealsFinder;
     writer?: ReturnType<typeof fakeCommenter>;
+    streak?: ReturnType<typeof fakeStreak>;
   } = {},
 ) {
   const ai = fakeVision(respond);
@@ -213,9 +229,10 @@ function setup(
       // Los avisos se prueban en notifications.test.ts.
       notifications: { notify: async () => "noDevices" },
       similarMeals: finder,
+      streak: streak.streak,
     }),
   });
-  return { ai, stt, id, writer, processor, ...captureLogger("worker") };
+  return { ai, stt, id, writer, streak, processor, ...captureLogger("worker") };
 }
 
 /** Una comida ya corregida, como la deja el PATCH: con `corrections` y `search`. */
@@ -364,6 +381,7 @@ describe("back-service: análisis con IA", () => {
         identifier: fakeIdentifier().identifier,
         notifications: { notify: async () => "noDevices" },
         similarMeals: createMongoSimilarMealsFinder(),
+        streak: fakeStreak().streak,
       }),
     });
     const { logger, lines } = captureLogger("worker");
@@ -404,6 +422,75 @@ describe("back-service: análisis con IA", () => {
     const log = lines.find((line) => line.msg === "análisis de la IA");
     assert.equal(log?.result, NOT_FOOD);
     assert.equal(log?.saved, true);
+  });
+
+  describe("racha (RF-10)", () => {
+    const HASH = "a".repeat(64);
+
+    it("si queda ready, cuenta el día de la comida una sola vez, aunque el job se repita", async () => {
+      const meal = await createMeal();
+      const { processor, streak, logger } = setup(() => foodResponse());
+
+      assert.equal(await processor({ mealId: meal.id, requestId: REQUEST_ID }, logger), "analyzed");
+      assert.equal(await processor({ mealId: meal.id, requestId: REQUEST_ID }, logger), "skipped");
+      assert.deepEqual(streak.records, [
+        { userId: meal.userId.toString(), localDate: meal.localDate },
+      ]);
+    });
+
+    it("si no es comida, no cuenta", async () => {
+      const meal = await createMeal();
+      const { processor, streak, logger } = setup(() => ({ isFood: false, analysis: null }));
+
+      assert.equal(await processor({ mealId: meal.id, requestId: REQUEST_ID }, logger), "analyzed");
+      assert.deepEqual(streak.records, []);
+    });
+
+    it("con un análisis copiado de la cache también cuenta, y con un NOT_FOOD copiado no", async () => {
+      const userId = await createUser("off");
+      await MealModel.create({
+        userId,
+        capturedAt: new Date("2026-10-20T13:00:00Z"),
+        localDate: "2026-10-20",
+        status: "ready",
+        inputHash: HASH,
+        media: { photoKey: `users/${userId}/meals/x/photo.jpg` },
+        analysis: { ...foodResponse().analysis, promptVersion: "1.1.0", model: "m" },
+      });
+      const meal = await createMeal({ userId });
+      await MealModel.updateOne({ _id: meal._id }, { $set: { inputHash: HASH } });
+      const { processor, ai, streak, logger } = setup(() => foodResponse());
+
+      assert.equal(await processor({ mealId: meal.id, requestId: REQUEST_ID }, logger), "analyzed");
+      assert.equal(ai.calls.length, 0);
+      assert.deepEqual(streak.records, [{ userId: userId.toString(), localDate: meal.localDate }]);
+
+      // La misma entrada, pero la anterior no era comida.
+      await MealModel.updateMany(
+        { inputHash: HASH },
+        { $set: { status: "failed", error: { code: NOT_FOOD } }, $unset: { analysis: 1 } },
+      );
+      const again = await createMeal({ userId });
+      await MealModel.updateOne({ _id: again._id }, { $set: { inputHash: HASH } });
+      assert.equal(
+        await processor({ mealId: again.id, requestId: REQUEST_ID }, logger),
+        "analyzed",
+      );
+      assert.equal((await MealModel.findById(again.id).lean())?.status, "failed");
+      assert.equal(streak.records.length, 1);
+    });
+
+    it("si la racha falla, la comida queda ready, el job termina bien y se loguea", async () => {
+      const meal = await createMeal();
+      const { processor, logger, lines } = setup(() => foodResponse(), PHOTO, fakeTranscriber(), {
+        streak: fakeStreak({ fail: true }),
+      });
+
+      assert.equal(await processor({ mealId: meal.id, requestId: REQUEST_ID }, logger), "analyzed");
+      assert.equal((await MealModel.findById(meal.id).lean())?.status, "ready");
+      const line = lines.find((l) => l.msg === "no se pudo actualizar la racha");
+      assert.equal(line?.level, "error");
+    });
   });
 
   it("NOT_FOOD devuelve el cupo una sola vez, aunque el job se procese de nuevo", async () => {

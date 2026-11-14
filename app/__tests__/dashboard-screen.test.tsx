@@ -360,6 +360,43 @@ describe("pantalla principal: progreso del día", () => {
     expect(screen.queryByText("Todavía no hay comidas hoy")).toBeNull();
   });
 
+  it("alguien nuevo cuya primera comida no se pudo analizar sigue viendo la invitación", async () => {
+    // GET /meals ya no trae las failed: la lista llega vacía aunque el dashboard las cuente.
+    await start(
+      [
+        () =>
+          json(200, {
+            ...emptyDay,
+            meals: { ready: 0, processing: 0, failed: 1 },
+            streak: { current: 0, best: 0 },
+          }),
+      ],
+      [() => mealList([])],
+    );
+
+    expect(await screen.findByText("Registrá tu primera comida")).toBeOnTheScreen();
+    expect(screen.queryByLabelText(/^Proteínas/)).toBeNull();
+    expect(screen.queryByText("Racha")).toBeNull();
+  });
+
+  it("alguien nuevo con su primera comida analizándose la ve, sin macros ni racha en cero", async () => {
+    await start(
+      [
+        () =>
+          json(200, {
+            ...emptyDay,
+            meals: { ready: 0, processing: 1, failed: 0 },
+            streak: { current: 0, best: 0 },
+          }),
+      ],
+      [() => mealList([ANALYZING])],
+    );
+
+    expect(await screen.findByText("Analizando…")).toBeOnTheScreen();
+    expect(screen.queryByLabelText(/^Proteínas/)).toBeNull();
+    expect(screen.queryByText("Racha")).toBeNull();
+  });
+
   it("si falla, muestra el error y deja reintentar; el botón de registrar sigue", async () => {
     await start([() => apiError(503, "SERVICE_UNAVAILABLE"), () => json(200, day)]);
 

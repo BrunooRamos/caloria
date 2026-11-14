@@ -15,6 +15,8 @@ import type { NotificationService } from "../services/notifications";
 import type { SimilarMealsFinder } from "../services/similar-meals";
 import type { TranscriptionService } from "../services/transcription";
 import { refundMealQuota } from "../services/quota";
+import { createStreakService } from "../services/streak";
+import type { StreakService } from "../services/streak";
 import { toVisionImage } from "../services/vision-image";
 import { InvalidVisionResponseError } from "../services/vision";
 import type { FoodAnalysis, VisionService } from "../services/vision";
@@ -34,6 +36,8 @@ export interface AnalyzeMealDeps {
   notifications: Pick<NotificationService, "notify">;
   /** Registra el costo de cada llamada a la IA (RNF-07). */
   aiUsage?: AiUsageRecorder;
+  /** Racha (RF-10): cuenta el día de cada comida que queda ready. */
+  streak?: Pick<StreakService, "record">;
 }
 
 /** Qué pasó con el comentario, para el log. */
@@ -207,8 +211,24 @@ export function createAnalyzeMeal({
   similarMeals,
   notifications,
   aiUsage = createAiUsageRecorder(),
+  streak = createStreakService(),
 }: AnalyzeMealDeps): AnalyzeMeal {
-  /** Guarda el resultado si la meal sigue en processing, devuelve el cupo si es NOT_FOOD y avisa si quedó ready. */
+  /**
+   * Cuenta el día de la comida en la racha. Nunca lanza: la meal ya está ready y un reintento de
+   * BullMQ no la volvería a contar (el job ve que ya no está en processing).
+   */
+  async function recordStreak(meal: Meal, log: Logger): Promise<void> {
+    try {
+      await streak.record(meal.userId.toString(), meal.localDate);
+    } catch (err) {
+      log.error("no se pudo actualizar la racha", { err: serializeError(err, { stack: true }) });
+    }
+  }
+
+  /**
+   * Guarda el resultado si la meal sigue en processing, devuelve el cupo si es NOT_FOOD y, si quedó
+   * ready, suma la racha y avisa.
+   */
   async function finish(meal: Meal, update: MealUpdate, log: Logger): Promise<boolean> {
     // Solo si sigue en processing: un job repetido no pisa una meal que ya cambió.
     const { matchedCount } = await MealModel.updateOne(
@@ -227,8 +247,10 @@ export function createAnalyzeMeal({
       log.info("cupo de la comida failed", { refunded });
       return true;
     }
-    // Solo si este job la dejó en ready: un job repetido no avisa dos veces. NOT_FOOD no avisa
-    // acá. notify no lanza: si el push falla, la meal ya está ready y el job termina bien.
+    // Solo si este job la dejó en ready: un job repetido no cuenta ni avisa dos veces. Con el
+    // localDate de la comida, no el de ahora: una foto de las 23:58 cuenta para ese día aunque
+    // el análisis termine después de medianoche. Ninguna de las dos lanza.
+    await recordStreak(meal, log);
     await notifications.notify(
       meal.userId.toString(),
       { type: "analysisReady", mealId: meal._id.toString() },

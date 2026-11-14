@@ -13,10 +13,9 @@ import { UserModel } from "../src/models/User";
 import { apiRouter } from "../src/routes";
 import { createAuthService } from "../src/services/auth";
 import { createDashboardService } from "../src/services/dashboard";
-import { createMealService, STREAK_TIMEOUT_MS } from "../src/services/meals";
+import { createMealService } from "../src/services/meals";
 import { createMediaService } from "../src/services/media";
 import { createStreakService, previousDay, streakAsOf } from "../src/services/streak";
-import type { StreakService } from "../src/services/streak";
 import { computeTargets } from "../src/services/targets";
 import { signAccessToken } from "../src/services/tokens";
 import { createUserService } from "../src/services/users";
@@ -78,7 +77,7 @@ describe("back-service: racha (RF-10)", () => {
   let token: string;
   let clock: Date;
 
-  async function startApp(streak?: StreakService) {
+  async function startApp() {
     const { logger, lines } = captureLogger("back");
     const now = () => clock;
     const meals = createMealService({
@@ -86,7 +85,6 @@ describe("back-service: racha (RF-10)", () => {
       queue: noopQueue,
       quota: unlimitedQuota,
       now,
-      ...(streak && { streak }),
     });
     const api = apiRouter({
       auth: createAuthService({ privateKey }),
@@ -117,9 +115,19 @@ describe("back-service: racha (RF-10)", () => {
     return body.mealId;
   }
 
+  /** Lo que hace el Worker cuando el análisis queda ready: cuenta el localDate de la comida. */
+  async function analyzed(mealId: string) {
+    const meal = await MealModel.findById(mealId, { localDate: 1 }).lean();
+    assert.ok(meal);
+    await createStreakService().record(userId, meal.localDate);
+  }
+
+  /** Registra una comida en `at` y su análisis sale bien. */
   async function logAt(at: Date) {
     clock = at;
-    return postMeal();
+    const mealId = await postMeal();
+    await analyzed(mealId);
+    return mealId;
   }
 
   async function storedStreak() {
@@ -171,6 +179,12 @@ describe("back-service: racha (RF-10)", () => {
     const indexes = await GamificationModel.collection.indexes();
     const index = indexes.find((i) => JSON.stringify(i.key) === '{"userId":1}');
     assert.equal(index?.unique, true);
+  });
+
+  it("registrar una comida no toca la racha: la cuenta el análisis cuando queda ready", async () => {
+    clock = noonMvd("2026-10-20");
+    await postMeal();
+    assert.equal(await GamificationModel.countDocuments({ userId }), 0);
   });
 
   it("la primera comida crea el documento con racha 1", async () => {
@@ -227,16 +241,17 @@ describe("back-service: racha (RF-10)", () => {
   it("dos registros simultáneos el mismo día suman una sola vez", async () => {
     await logAt(noonMvd("2026-10-20"));
     clock = noonMvd("2026-10-21");
-    await Promise.all(Array.from({ length: 5 }, () => postMeal()));
+    const ids = await Promise.all(Array.from({ length: 5 }, () => postMeal()));
+    await Promise.all(ids.map(analyzed));
     assert.deepEqual(await storedStreak(), { current: 2, best: 2, lastLogDate: "2026-10-21" });
   });
 
   it("las primeras comidas a la vez crean un solo documento", async () => {
     clock = noonMvd("2026-10-20");
-    await Promise.all(Array.from({ length: 5 }, () => postMeal()));
+    const ids = await Promise.all(Array.from({ length: 5 }, () => postMeal()));
+    await Promise.all(ids.map(analyzed));
     assert.equal(await GamificationModel.countDocuments({ userId }), 1);
     assert.deepEqual(await storedStreak(), { current: 1, best: 1, lastLogDate: "2026-10-20" });
-    assert.ok(!app.lines.some((l) => l.msg === "no se pudo actualizar la racha"));
   });
 
   it("un choque por la clave única se reintenta una vez", async () => {
@@ -282,44 +297,6 @@ describe("back-service: racha (RF-10)", () => {
     // El día siguiente sigue sumando sobre la racha que ya estaba contada.
     await logAt(noonMvd("2026-10-22"));
     assert.deepEqual(await storedStreak(), { current: 3, best: 3, lastLogDate: "2026-10-22" });
-  });
-
-  describe("si la racha falla, la comida se registra igual", () => {
-    it("si la actualización falla → 202 y se loguea el error con el requestId", async () => {
-      const failing = await startApp({
-        record: () => Promise.reject(new Error("mongo caído")),
-        summary: () => Promise.reject(new Error("no se usa")),
-      });
-      try {
-        clock = noonMvd("2026-10-20");
-        const mealId = await postMeal(failing.url);
-        assert.ok(await MealModel.exists({ _id: mealId }));
-        const line = failing.lines.find((l) => l.msg === "no se pudo actualizar la racha");
-        assert.ok(line);
-        assert.equal(line.requestId, REQUEST_ID);
-        assert.equal(line.mealId, mealId);
-        assert.equal(line.level, "error");
-      } finally {
-        await failing.close();
-      }
-    });
-
-    it("si la actualización tarda → 202 sin esperarla, con un warn", async () => {
-      const slow = await startApp({
-        record: () => new Promise<void>(() => {}),
-        summary: () => Promise.reject(new Error("no se usa")),
-      });
-      try {
-        clock = noonMvd("2026-10-20");
-        const start = performance.now();
-        await postMeal(slow.url);
-        assert.ok(performance.now() - start < STREAK_TIMEOUT_MS + 500);
-        const line = slow.lines.find((l) => l.msg === "la racha tarda; se responde sin esperarla");
-        assert.equal(line?.requestId, REQUEST_ID);
-      } finally {
-        await slow.close();
-      }
-    });
   });
 
   describe("GET /dashboard/daily", () => {
