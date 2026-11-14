@@ -143,8 +143,9 @@ function DayContent({
 }) {
   const { consumed, targets, streak } = dashboard;
   const { processing } = dashboard.meals;
-  // Nunca registró nada: macros y racha estarían en cero. La lista invita a la primera comida.
-  const newcomer = streak.best === 0 && isEmptyDay(dashboard);
+  // Todavía no tiene ningún análisis listo: macros y racha estarían en cero. La lista invita a la
+  // primera comida (o muestra la que se está analizando). La racha solo cuenta análisis ready.
+  const newcomer = streak.best === 0 && dashboard.meals.ready === 0;
   return (
     <>
       {stale && (
@@ -187,10 +188,6 @@ function DayContent({
       )}
     </>
   );
-}
-
-function isEmptyDay({ meals }: DailyDashboard) {
-  return meals.ready + meals.processing + meals.failed === 0;
 }
 
 function TodayMeals({

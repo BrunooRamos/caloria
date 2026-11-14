@@ -234,6 +234,40 @@ describe("back-service: GET /meals y DELETE /meals/:id", () => {
       assert.equal(nextCursor, null);
     });
 
+    it("no devuelve las failed: se guardan (cupo, caché de NOT_FOOD) pero no son comidas", async () => {
+      const processing = await createMeal({ minute: 0 });
+      await createMeal({ minute: 1, status: "failed", error: { code: "NOT_FOOD" } });
+      const ready = await createMeal({ minute: 2, status: "ready", analysis });
+      await createMeal({ minute: 3, status: "failed", error: { code: "ANALYSIS_FAILED" } });
+
+      const { items, nextCursor } = await listDay();
+      assert.deepEqual(
+        items.map((m) => m.id),
+        [processing, ready],
+      );
+      assert.equal(nextCursor, null);
+    });
+
+    it("con failed intercaladas, las páginas vienen llenas y sin cortes", async () => {
+      const visible: string[] = [];
+      for (let minute = 0; minute < MEALS_PAGE_SIZE + 15; minute++) {
+        if (minute % 3 === 0) {
+          await createMeal({ minute, status: "failed", error: { code: "NOT_FOOD" } });
+        } else {
+          visible.push(await createMeal({ minute }));
+        }
+      }
+      const first = await listDay();
+      assert.equal(first.items.length, MEALS_PAGE_SIZE);
+      assert.ok(first.nextCursor);
+      const second = await listDay(DAY, first.nextCursor);
+      assert.equal(second.nextCursor, null);
+      assert.deepEqual(
+        [...first.items, ...second.items].map((m) => m.id),
+        visible,
+      );
+    });
+
     it("un día sin comidas → 200 con items vacío, sin caché", async () => {
       const res = await list(`?date=${DAY}`);
       assert.equal(res.status, 200);
@@ -256,7 +290,6 @@ describe("back-service: GET /meals y DELETE /meals/:id", () => {
             { field: "kcal", from: analysis.kcal, to: r(800, 900), at },
           ],
         }),
-        await createMeal({ minute: 2, status: "failed", error: { code: "NOT_FOOD" } }),
       ];
       const { items } = await listDay();
       assert.deepEqual(
@@ -320,7 +353,7 @@ describe("back-service: GET /meals y DELETE /meals/:id", () => {
 
     it("la consulta usa el índice { userId, localDate, capturedAt, _id } sin ordenar en memoria", async () => {
       for (let minute = 0; minute < 3; minute++) await createMeal({ minute });
-      const explain = (await MealModel.find({ userId, localDate: DAY })
+      const explain = (await MealModel.find({ userId, localDate: DAY, status: { $ne: "failed" } })
         .sort({ capturedAt: 1, _id: 1 })
         .limit(MEALS_PAGE_SIZE + 1)
         .explain()) as unknown as { queryPlanner: { winningPlan: unknown } };

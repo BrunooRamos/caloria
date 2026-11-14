@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { StyleSheet, View } from "react-native";
-import { Button, Card, ConfidenceBadge, Text } from "@/components";
+import { Button, Card, ConfidenceBadge, Text, goBack } from "@/components";
 import type { ReadyMeal } from "@/services/meals";
 import { colors, radius, spacing } from "@/theme";
 import { confidenceLevel } from "../confidence";
@@ -64,18 +64,27 @@ export function ReadyState({ meal }: { meal: ReadyMeal }) {
         </View>
       )}
 
-      <Button
-        variant="secondary"
-        title="Corregir"
-        accessibilityHint="Cambiá el plato, los ingredientes, las kcal o los macros."
-        onPress={() => router.push({ pathname: "/meals/[id]/edit", params: { id: meal.id } })}
-      />
+      {/* La comida ya quedó guardada al capturarla: "Listo" es el camino esperado y solo sale. */}
+      <View style={styles.actions}>
+        <Text variant="small" color="inkMuted" style={styles.saved}>
+          Esta comida ya quedó registrada.
+        </Text>
+        <Button title="Listo" onPress={goBack} />
+        <Button
+          variant="secondary"
+          title="Corregir"
+          accessibilityHint="Cambiá el plato, los ingredientes, las kcal o los macros."
+          onPress={() => router.push({ pathname: "/meals/[id]/edit", params: { id: meal.id } })}
+        />
+      </View>
     </>
   );
 }
 
 const styles = StyleSheet.create({
   summary: { gap: spacing.xs },
+  actions: { gap: spacing.sm },
+  saved: { textAlign: "center" },
   macros: { flexDirection: "row", gap: spacing.sm },
   macro: { flex: 1, gap: spacing.xxs },
   item: { gap: spacing.xxs },

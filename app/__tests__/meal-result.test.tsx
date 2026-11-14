@@ -106,6 +106,20 @@ describe("resultado de una comida", () => {
     expect(mealGets()).toHaveLength(done);
   });
 
+  it("listo: dice que ya quedó registrada y 'Listo' sale sin tocar nada más", async () => {
+    const router = await start([() => json(200, ready)]);
+
+    expect(await screen.findByText("Esta comida ya quedó registrada.")).toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "Corregir" })).toBeOnTheScreen();
+    const requests = calls.length;
+
+    // Se abrió sola, como desde la captura con replace: "Listo" lleva al inicio.
+    await fireEvent.press(screen.getByRole("button", { name: "Listo" }));
+    expect(router.getPathname()).toBe("/");
+    // No hay nada que guardar: la comida ya estaba en el servidor.
+    expect(calls.slice(requests).filter((call) => call.method !== "GET")).toHaveLength(0);
+  });
+
   it("listo, sin comentario y con confianza baja", async () => {
     const { comment: _, ...withoutComment } = ready;
     await start([() => json(200, { ...withoutComment, confidence: 0.3 })]);
