@@ -36,11 +36,16 @@ with_certbot() {
     -v "$ID-webroot:/var/www/certbot" --entrypoint sh "$CERTBOT_IMAGE" -c "$1"
 }
 
-# Un certificado autofirmado en live/$DOMAIN, como el que deja certbot.
+# Un certificado autofirmado en live/$DOMAIN, como el que deja certbot: archivos nuevos que reemplazan
+# a los anteriores (otro inode), nunca los mismos reescritos. En el reload nginx reusa el certificado
+# ya cargado si el archivo tiene el mismo inode y mtime (en segundos; ssl_object_cache_inheritable),
+# así que reescribirlo dos veces en el mismo segundo dejaba el viejo.
 fake_letsencrypt() {
   with_certbot "mkdir -p /etc/letsencrypt/live/$DOMAIN && cd /etc/letsencrypt/live/$DOMAIN &&
     openssl req -x509 -nodes -days 1 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
-      -subj /CN=$1 -addext subjectAltName=DNS:$DOMAIN -keyout privkey.pem -out fullchain.pem 2>/dev/null"
+      -subj /CN=$1 -addext subjectAltName=DNS:$DOMAIN -keyout privkey.pem.new \
+      -out fullchain.pem.new 2>/dev/null &&
+    mv -f privkey.pem.new privkey.pem && mv -f fullchain.pem.new fullchain.pem"
 }
 
 # El certificado que sirve el 443, en PEM.
@@ -171,7 +176,7 @@ post_meal 1024
 echo "→ POST de 12 MB → pasa al Front sin escribir el body a disco"
 post_meal $((12 * 1024 * 1024))
 [ "$STATUS" = 202 ] || fail "esperaba 202 y vino $STATUS: $(cat "$TMP/body")"
-if docker logs "$ID-nginx" 2>&1 | grep -q "buffered to a temporary file"; then
+if docker logs "$ID-nginx" 2>&1 | grep "buffered to a temporary file" >/dev/null; then
   fail "nginx escribió el body a un archivo temporal"
 fi
 
@@ -227,7 +232,7 @@ echo "→ certbot lo renueva: nginx toma el nuevo"
 fake_letsencrypt renovado
 wait_for_cert renovado
 [ "$(master_pid)" = "$pid" ] || fail "nginx se reinició (el PID cambió)"
-docker logs "$ID-nginx" 2>&1 | grep -q "nginx recargó" || fail "no está el log de la recarga"
+docker logs "$ID-nginx" 2>&1 | grep "nginx recargó" >/dev/null || fail "no está el log de la recarga"
 
 # Al final: estas ráfagas agotan los límites de la IP del host para el resto del script.
 # $1: método. $2: ruta. Deja el status en $STATUS, headers y body en $TMP.
