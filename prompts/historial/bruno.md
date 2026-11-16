@@ -317,3 +317,242 @@ Podes revisar porque tenemos conflictos
 ```text
 Podes revisar porque tenemos conflictos
 ```
+
+## Sesión `16ebd147-3568-469c-9e09-9e37d4ab633a` · 2026-11-16
+
+### 2026-11-16 09:34
+
+````text
+
+
+<pasted_content id="6bdb">
+# Notificaciones push en Android: configurar FCM
+
+## Problema
+
+En Android las notificaciones push no llegan, incluida la de "Tu comida está lista" cuando termina el análisis.
+
+El backend está bien: al terminar el análisis llama a `notify(... "analysisReady")` y lo manda por Expo Push. El problema está en la app:
+
+- La app pide su token con `getExpoPushTokenAsync` (`app/features/notifications/push.ts`). En Android, Expo saca ese token de **Firebase Cloud Messaging (FCM)**.
+- `app/app.json` no tiene `android.googleServicesFile` y en el repo no hay ningún `google-services.json`. Por eso la llamada falla siempre ("Default FirebaseApp is not initialized").
+- El usuario queda sin `pushTokens` y el worker loguea `aviso salteado { reason: "noDevices" }`.
+
+Para arreglarlo hacen falta tres cosas:
+
+1. Un proyecto de Firebase con la app Android `app.caloria` registrada, y su `google-services.json` en el build.
+2. Una clave de cuenta de servicio (FCM V1) cargada en las credenciales de EAS, para que el servidor de Expo pueda enviar por FCM.
+3. Un build nativo nuevo. Un EAS Update no alcanza.
+
+> La cuenta de Google de Firebase **no tiene que ser** la de Play Console. Lo que tiene que coincidir es el nombre del paquete (`app.caloria`) y que la clave se suba al proyecto EAS correcto (owner `bramos5`, projectId `7f7bdce3-ac05-4139-a945-101a9eb2a0c9`). Conviene crear Firebase con una cuenta del equipo, o sumar a otra persona como owner.
+
+---
+
+## 1. CLIs
+
+```bash
+npm install -g eas-cli firebase-tools
+brew install --cask google-cloud-sdk   # gcloud: solo para generar la clave FCM (opcional, ver paso 3)
+```
+
+| CLI | Para qué |
+|---|---|
+| `eas-cli` | Subir la clave FCM V1, buildear y mandar a Play |
+| `firebase-tools` | Crear el proyecto, registrar la app Android y bajar `google-services.json` |
+| `gcloud` | Generar la clave de la cuenta de servicio. Opcional: también se hace desde la consola |
+
+Logins (cada uno abre el navegador):
+
+```bash
+eas login          # cuenta con acceso al proyecto de bramos5
+firebase login     # cuenta del equipo elegida para Firebase
+gcloud auth login  # la misma cuenta que Firebase
+
+eas whoami         # verificar
+```
+
+---
+
+## 2. Firebase: proyecto + app Android
+
+Si ya existe un proyecto de Firebase para CalorIA, usar ese y saltear `projects:create`. El proyecto creado es `caloria-app-uy` (`caloria-app` ya estaba tomado; el ID es global).
+
+```bash
+# Proyecto nuevo
+firebase projects:create caloria-app-uy --display-name "CalorIA"
+
+# Registrar la app Android (el paquete TIENE que ser app.caloria)
+firebase apps:create ANDROID "CalorIA Android" --package-name app.caloria --project caloria-app-uy
+
+# Obtener el appId (formato 1:123456789:android:abc...)
+firebase apps:list ANDROID --project caloria-app-uy
+
+# Bajar la config al repo
+firebase apps:sdkconfig ANDROID <APP_ID> --project caloria-app-uy -o app/google-services.json
+```
+
+El `google-services.json` **se puede commitear**: identifica el proyecto pero no da permisos de envío.
+
+Para FCM no hace falta cargar el SHA-1 de la firma (eso es para Google Sign-In y similares).
+
+---
+
+## 3. Clave de cuenta de servicio (FCM V1)
+
+Es lo que usa el servidor de Expo para enviar por FCM. **Es secreta: no va al repo** y se borra después de subirla a EAS.
+
+### Opción A: con gcloud
+
+```bash
+# Asegurar que la API de FCM esté habilitada (en proyectos nuevos suele estarlo)
+gcloud services enable fcm.googleapis.com --project caloria-app-uy
+
+# Buscar la cuenta firebase-adminsdk-xxxxx@caloria-app-uy.iam.gserviceaccount.com
+gcloud iam service-accounts list --project caloria-app-uy
+
+# Generar la clave (FUERA del repo)
+gcloud iam service-accounts keys create ~/caloria-fcm-v1.json \
+  --iam-account=firebase-adminsdk-xxxxx@caloria-app-uy.iam.gserviceaccount.com
+```
+
+Si la cuenta es de Google Workspace y falla por la política `iam.disableServiceAccountKeyCreation`, la organización bloquea crear claves. Hay que levantar esa política para el proyecto o crear Firebase con otra cuenta.
+
+### Opción B: desde la consola
+
+Firebase Console → ⚙️ Configuración del proyecto → **Cuentas de servicio** → *Generar nueva clave privada*. Guardar el JSON como `~/caloria-fcm-v1.json`.
+
+---
+
+## 4. Subir la clave a EAS
+
+Este comando es interactivo:
+
+```bash
+cd app
+eas credentials -p android
+```
+
+En los menús:
+
+1. Build profile: `production`. Las credenciales de push van por paquete (`app.caloria`), así que sirven también para `preview`.
+2. **Google Service Account**
+3. **Manage your Google Service Account Key for Push Notifications (FCM V1)**
+4. **Set up a Google Service Account Key for Push Notifications (FCM V1)** → *Upload a new service account key*
+5. Ruta: `~/caloria-fcm-v1.json`
+
+Verificar que aparezca como configurada en <https://expo.dev> → proyecto `caloria` → Credentials → Android → `app.caloria` → FCM V1 service account key.
+
+Después:
+
+```bash
+rm ~/caloria-fcm-v1.json
+```
+
+---
+
+## 5. Cambios de código (rama `fix/fcm-config`)
+
+- `app/app.json`, dentro de `expo.android`:
+  ```json
+  "googleServicesFile": "./google-services.json"
+  ```
+- Commitear `app/google-services.json`.
+- Mejora aparte: `useNotifications.ts` descarta el error de `syncPushToken` sin avisar. Hay que loguearlo para que una falla así no vuelva a pasar desapercibida.
+- `cd app && npm test` antes del PR.
+
+---
+
+## 6. Build de prueba (APK)
+
+```bash
+cd app
+eas build -p android --profile preview
+```
+
+Instalar el APK desde el link que da EAS. **No probar con Expo Go**: en Android no soporta push remoto desde el SDK 53.
+
+### Prueba
+
+1. Iniciar sesión → Perfil → Notificaciones → activar y aceptar el permiso. No tiene que aparecer "No pudimos activar los avisos en este teléfono".
+2. Revisar en Mongo que el usuario tenga un `pushTokens` con un `ExponentPushToken[...]`.
+3. Prueba directa, sin pasar por el backend:
+   ```bash
+   curl -X POST https://exp.host/--/api/v2/push/send \
+     -H "content-type: application/json" \
+     -d '{"to":"ExponentPushToken[...]","title":"Prueba","body":"Hola"}'
+   ```
+   - Si vuelve `InvalidCredentials` o similar, la clave FCM V1 no quedó bien cargada en EAS (paso 4).
+4. Prueba real: analizar una comida y cerrar la app deslizándola, **no** con "Forzar detención", que bloquea los avisos. Tiene que llegar "Tu comida está lista".
+5. En los logs del worker: `aviso enviado` con `ok: 1`.
+
+---
+
+## 7. Producción
+
+Cuando la prueba ande:
+
+```bash
+cd app
+eas build -p android --profile production
+eas submit -p android --profile production   # track interno, como draft
+```
+
+---
+
+## Checklist
+
+- [ ] CLIs instaladas y logueadas (`eas`, `firebase`, `gcloud` opcional)
+- [ ] Proyecto de Firebase con la app Android `app.caloria`
+- [ ] `app/google-services.json` en el repo
+- [ ] Clave FCM V1 subida a EAS y borrada del disco
+- [ ] `googleServicesFile` en `app.json` + PR mergeado
+- [ ] APK preview probado: token registrado, curl OK, aviso al terminar el análisis
+- [ ] Build de producción subido a Play (track interno)
+</pasted_content id="6bdb">
+
+````
+
+## Sesión `60ab9599-fa4f-42a5-8987-643377106dfa` · 2026-11-16
+
+### 2026-11-16 09:36
+
+```text
+Estamos usando firebase en algun lugar de la app?
+```
+
+### 2026-11-16 09:38
+
+```text
+1. Si.
+2. Si estoy ok con los id.
+```
+
+### 2026-11-16 18:03
+
+```text
+/Users/brunoramos/Downloads/caloria-app-uy-firebase-adminsdk-fbsvc-710f58fbd7.json
+```
+
+### 2026-11-16 18:06
+
+```text
+[Image #1]
+```
+
+### 2026-11-16 18:07
+
+```text
+[Image #2]
+```
+
+### 2026-11-16 18:08
+
+```text
+[Image #4]
+```
+
+### 2026-11-16 18:10
+
+```text
+Si hagamos el commit, pero luego voy a hacer otros cambios.
+```

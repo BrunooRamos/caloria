@@ -19,8 +19,12 @@ function open(response: Notifications.NotificationResponse) {
  */
 export function useNotifications(): void {
   useEffect(() => {
-    // Sin permiso o sin red, se reintenta en la próxima sesión; nada que mostrar acá.
-    syncPushToken().catch(() => undefined);
+    // Sin permiso o sin red, se reintenta en la próxima sesión; nada que mostrar al usuario.
+    // Se loguea igual: una config nativa rota (p. ej. FCM sin google-services.json) falla
+    // siempre acá y sin log pasa desapercibida.
+    syncPushToken().catch((error: unknown) => {
+      console.warn("[notifications] no se pudo registrar el token de push", error);
+    });
   }, []);
 
   useEffect(() => {
