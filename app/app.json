@@ -14,6 +14,7 @@
     },
     "android": {
       "package": "app.caloria",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#F7F4EC",
         "foregroundImage": "./assets/android-icon-foreground.png",
