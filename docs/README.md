@@ -7,5 +7,6 @@
 | [Arquitectura](arquitectura.md) | Capas, componentes, puertos, protocolos, flujo central y despliegue |
 | [API](api.md) | Endpoints, ejemplos de request/response, códigos HTTP y errores |
 | [Modelo de datos](modelo-datos.md) | Collections de Mongo, índices y cálculo de metas |
+| [Despliegue](despliegue.md) | Workflow de deploy y cómo preparar el servidor con el runner self-hosted |
 | [Seguridad](seguridad.md) | Autenticación, autorización, validación, secretos y privacidad |
 | [Plan](PLAN.md) | Metodología, avance por clase, hitos y riesgos |

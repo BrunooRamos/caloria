@@ -84,7 +84,7 @@ Firewall **default deny**: todo cerrado salvo estas reglas.
 | Componente | Dónde corre | Cómo se despliega |
 |---|---|---|
 | App móvil | iOS y Android | EAS Build → TestFlight / APK interno |
-| nginx, Front, Backend, Worker, Redis | A definir (DigitalOcean previsto) | GitHub Actions: build de imágenes → `docker compose` en cada merge a `main` |
+| nginx, Front, Backend, Worker, Redis | A definir (DigitalOcean previsto) | GitHub Actions en un runner self-hosted del servidor: `docker compose build` + `up` en cada push a `main` con CI verde ([despliegue](despliegue.md)) |
 | MongoDB | A definir | Backups programados |
 | Storage | MinIO en `docker compose` (local); bucket gestionado compatible con S3 en prod (DO Spaces previsto) | Acceso solo con credenciales de Backend y Worker. Las URLs se firman con `S3_PUBLIC_ENDPOINT`, el host que alcanza la app |
 

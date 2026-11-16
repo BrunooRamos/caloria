@@ -1,0 +1,70 @@
+name: Deploy
+
+# Corre en el runner self-hosted del servidor: la conexión sale del servidor hacia GitHub,
+# así que no hace falta abrir el puerto 22 a las IPs de GitHub. Guía en docs/despliegue.md.
+# El repo es público: este workflow nunca se dispara desde pull_request, para que un PR de
+# un fork no pueda ejecutar código en el servidor.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: deploy (producción)
+    # Solo despliega un CI verde de un push a main de este repo (no de PRs ni forks).
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: [self-hosted, caloria-prod]
+    environment:
+      name: production
+    timeout-minutes: 20
+    env:
+      # Fuera del workspace: checkout limpia los archivos no versionados y borraría el .env.
+      ENV_FILE: /etc/caloria/caloria.env
+      COMPOSE: docker compose -p caloria -f infra/docker-compose.yml --env-file /etc/caloria/caloria.env
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # El commit exacto que pasó el CI (con workflow_dispatch, el HEAD de la rama elegida).
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Verificar .env
+        run: test -r "$ENV_FILE" || { echo "::error::Falta $ENV_FILE en el servidor"; exit 1; }
+
+      - name: Build
+        run: $COMPOSE build --pull front back worker
+
+      - name: Levantar servicios
+        # nginx se recrea siempre: monta nginx.conf como archivo y, si checkout lo reemplaza,
+        # el contenedor viejo sigue viendo la versión anterior.
+        run: |
+          $COMPOSE up -d --remove-orphans
+          $COMPOSE up -d --no-deps --force-recreate nginx
+
+      - name: Health check
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8080/health; then echo; exit 0; fi
+            sleep 2
+          done
+          echo "::error::/health no respondió en 60 s"
+          $COMPOSE ps
+          $COMPOSE logs --tail 100 front back worker
+          exit 1
+
+      - name: Limpiar imágenes viejas
+        if: always()
+        run: docker image prune -f
